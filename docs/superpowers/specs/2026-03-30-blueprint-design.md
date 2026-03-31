@@ -76,7 +76,7 @@ blueprint/
 │   │   ├── matcher.js        # Euclidean distance + scoring
 │   │   └── universe.js       # stock universe cache + 24h refresh
 │   └── middleware/
-│       └── cache.js          # simple in-memory request cache
+│       └── cache.js          # in-memory cache for FMP HTTP responses (TTL: 5min); prevents duplicate FMP calls within a single comparison request (e.g. historical prices fetched once, reused for both RSI and 52-week high)
 ```
 
 ---
@@ -93,9 +93,10 @@ Proxies FMP `/search?query={q}&limit=10` for ticker typeahead. Returns array of 
 Returns the historical fundamental + technical snapshot for a stock at a given date.
 
 **FMP calls:**
-- `/income-statement/{ticker}?period=annual` — find the annual period closest to the date
-- `/key-metrics/{ticker}?period=annual` — same period selection
+- `/income-statement/{ticker}?period=annual` — use the most recent annual period whose `date` field falls on or before the snapshot date
+- `/key-metrics/{ticker}?period=annual` — same period selection logic
 - `/historical-price-full/{ticker}` — 30-day window around date for RSI; 1 year back for 52-week high
+- `/stock-short-interest/{ticker}` — for `shortInterestPct`; returns `null` if endpoint returns empty or errors
 
 **Returns:**
 ```json
