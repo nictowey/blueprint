@@ -1,7 +1,6 @@
 const fmp = require('./fmp');
 const { computeRSI } = require('./rsi');
 
-const EXCLUDED_SECTORS = new Set(['Financial Services', 'Utilities']);
 const BATCH_SIZE = 1;
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const RETRY_ON_FAIL_MS = 60 * 60 * 1000;          // 1 hour
@@ -77,17 +76,16 @@ async function buildCache() {
   console.log('[universe] Starting cache build...');
   try {
     const screenerResults = await fmp.getScreener({
-      marketCapMoreThan: 1_000_000_000,
-      marketCapLessThan: 100_000_000_000,
+      marketCapMoreThan: 500_000_000,
       country: 'US',
       exchange: 'NYSE,NASDAQ',
+      limit: 1000,
     });
 
-    const filtered = screenerResults.filter(
-      s => s.sector && !EXCLUDED_SECTORS.has(s.sector)
-    );
+    // Only skip stocks with no symbol — include all sectors and all market caps
+    const filtered = screenerResults.filter(s => s.symbol);
 
-    console.log(`[universe] ${filtered.length} stocks after filtering. Fetching metrics...`);
+    console.log(`[universe] ${filtered.length} stocks to process. Fetching metrics...`);
 
     const newCache = new Map();
 

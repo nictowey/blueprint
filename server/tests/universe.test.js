@@ -51,11 +51,12 @@ describe('universe cache field mapping', () => {
     expect(companyName).toBe('Apple Inc');
   });
 
-  test('filters out Financial Services sector', () => {
-    const EXCLUDED_SECTORS = new Set(['Financial Services', 'Utilities']);
-    const filtered = mockScreenerResult.filter(s => s.sector && !EXCLUDED_SECTORS.has(s.sector));
-    expect(filtered.length).toBe(2);
-    expect(filtered.find(s => s.symbol === 'GS')).toBeUndefined();
+  test('includes all sectors — no sector filtering applied', () => {
+    // Only stocks with no symbol at all are excluded
+    const filtered = mockScreenerResult.filter(s => s.symbol);
+    expect(filtered.length).toBe(3);
+    // Financial Services (GS) is included
+    expect(filtered.find(s => s.symbol === 'GS')).toBeDefined();
   });
 
   test('TTM field mapping extracts correct metric names', () => {
