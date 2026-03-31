@@ -12,6 +12,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/snapshot', require('./routes/snapshot'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/matches', require('./routes/matches'));
+app.use('/api/comparison', require('./routes/comparison'));
 
 const PORT = process.env.PORT || 3001;
 
