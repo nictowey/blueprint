@@ -23,6 +23,12 @@ router.get('/', async (req, res) => {
   if (!ticker || !date) {
     return res.status(400).json({ error: 'ticker and date are required' });
   }
+  if (!/^[A-Z0-9.]{1,10}$/i.test(ticker)) {
+    return res.status(400).json({ error: 'invalid ticker format' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime())) {
+    return res.status(400).json({ error: 'invalid date format, expected YYYY-MM-DD' });
+  }
 
   const sym = ticker.toUpperCase();
 
@@ -97,7 +103,8 @@ router.get('/', async (req, res) => {
       shortInterestPct: shortRaw?.shortInterestPercent ?? null,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[snapshot] Error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch snapshot data' });
   }
 });
 
