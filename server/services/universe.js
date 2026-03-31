@@ -2,8 +2,7 @@ const fmp = require('./fmp');
 const { computeRSI } = require('./rsi');
 
 const EXCLUDED_SECTORS = new Set(['Financial Services', 'Utilities']);
-const BATCH_SIZE = 10;
-const BATCH_DELAY_MS = 150;
+const BATCH_SIZE = 1;
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const RETRY_ON_FAIL_MS = 60 * 60 * 1000;          // 1 hour
 
@@ -32,12 +31,9 @@ async function fetchStockData(symbol) {
   const today = dateStr(new Date());
   const oneYearAgo = dateStr(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
 
-  // Three parallel FMP calls per stock
-  const [ttmData, incomeData, histData] = await Promise.all([
-    fmp.getKeyMetricsTTM(symbol),
-    fmp.getIncomeStatements(symbol, 2),
-    fmp.getHistoricalPrices(symbol, oneYearAgo, today),
-  ]);
+  const ttmData = await fmp.getKeyMetricsTTM(symbol);
+  const incomeData = await fmp.getIncomeStatements(symbol, 2);
+  const histData = await fmp.getHistoricalPrices(symbol, oneYearAgo, today);
 
   // Income statement: newest first from FMP
   const income0 = incomeData[0] || {};
@@ -95,40 +91,36 @@ async function buildCache() {
 
     const newCache = new Map();
 
-    for (let i = 0; i < filtered.length; i += BATCH_SIZE) {
-      const batch = filtered.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async stock => {
-          try {
-            const metrics = await fetchStockData(stock.symbol);
-            // Skip stocks with no usable metrics
-            const hasAnyMetric = metrics.peRatio != null || metrics.revenueGrowthYoY != null ||
-              metrics.grossMargin != null || metrics.rsi14 != null ||
-              metrics.pctBelowHigh != null || metrics.marketCap != null;
-            if (!hasAnyMetric) {
-              console.warn(`[universe] Skipped ${stock.symbol}: no usable metrics`);
-              return;
-            }
-            newCache.set(stock.symbol, {
-              ticker: stock.symbol,
-              companyName: stock.companyName,
-              sector: stock.sector,
-              price: metrics.price ?? stock.price,
-              peRatio: metrics.peRatio,
-              priceToSales: metrics.priceToSales,
-              revenueGrowthYoY: metrics.revenueGrowthYoY,
-              grossMargin: metrics.grossMargin,
-              marketCap: metrics.marketCap,
-              rsi14: metrics.rsi14,
-              pctBelowHigh: metrics.pctBelowHigh,
-            });
-          } catch (err) {
-            // Silent skip — one bad stock won't break the cache
-            console.warn(`[universe] Skipped ${stock.symbol}: ${err.message}`);
-          }
-        })
-      );
-      if (i + BATCH_SIZE < filtered.length) await sleep(BATCH_DELAY_MS);
+    for (const stock of filtered) {
+      try {
+        const metrics = await fetchStockData(stock.symbol);
+        // Skip stocks with no usable metrics
+        const hasAnyMetric = metrics.peRatio != null || metrics.revenueGrowthYoY != null ||
+          metrics.grossMargin != null || metrics.rsi14 != null ||
+          metrics.pctBelowHigh != null || metrics.marketCap != null;
+        if (!hasAnyMetric) {
+          console.warn(`[universe] Skipped ${stock.symbol}: no usable metrics`);
+          continue;
+        }
+        newCache.set(stock.symbol, {
+          ticker: stock.symbol,
+          companyName: stock.name || stock.companyName || stock.symbol,
+          sector: stock.sector,
+          price: metrics.price ?? stock.price,
+          peRatio: metrics.peRatio,
+          priceToSales: metrics.priceToSales,
+          revenueGrowthYoY: metrics.revenueGrowthYoY,
+          grossMargin: metrics.grossMargin,
+          marketCap: metrics.marketCap,
+          rsi14: metrics.rsi14,
+          pctBelowHigh: metrics.pctBelowHigh,
+        });
+        if (newCache.size % 10 === 0) {
+          console.log(`[universe] Progress: ${newCache.size} stocks loaded...`);
+        }
+      } catch (err) {
+        console.warn(`[universe] Skipped ${stock.symbol}: ${err.message}`);
+      }
     }
 
     state.cache = newCache;
