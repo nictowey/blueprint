@@ -9,6 +9,7 @@ app.use(express.json());
 // Routes registered in Task 11 after all routes exist
 // Placeholder health check
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.use('/api/snapshot', require('./routes/snapshot'));
 
 const PORT = process.env.PORT || 3001;
 
