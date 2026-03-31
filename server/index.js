@@ -6,18 +6,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Routes registered in Task 11 after all routes exist
-// Placeholder health check
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
-app.use('/api/snapshot', require('./routes/snapshot'));
-app.use('/api/search', require('./routes/search'));
-app.use('/api/matches', require('./routes/matches'));
+app.use('/api/search',     require('./routes/search'));
+app.use('/api/snapshot',   require('./routes/snapshot'));
+app.use('/api/matches',    require('./routes/matches'));
 app.use('/api/comparison', require('./routes/comparison'));
+app.use('/api/status',     require('./routes/status'));
 
 const PORT = process.env.PORT || 3001;
 
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`[server] Running on port ${PORT}`));
+  const { startCache } = require('./services/universe');
+  app.listen(PORT, () => {
+    console.log(`[server] Running on port ${PORT}`);
+    startCache();
+  });
 }
 
 module.exports = app;
