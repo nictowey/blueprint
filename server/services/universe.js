@@ -59,7 +59,7 @@ async function fetchStockData(symbol) {
   // Current price (newest entry)
   const currentPrice = histData[0]?.close ?? null;
 
-  const high52w = histData.length > 0 ? Math.max(...histData.map(h => h.close)) : null;
+  const high52w = histData.length > 0 ? histData.reduce((m, h) => Math.max(m, h.close), -Infinity) : null;
   const pctBelowHigh =
     currentPrice != null && high52w != null && high52w > 0
       ? ((high52w - currentPrice) / high52w) * 100
@@ -101,6 +101,14 @@ async function buildCache() {
         batch.map(async stock => {
           try {
             const metrics = await fetchStockData(stock.symbol);
+            // Skip stocks with no usable metrics
+            const hasAnyMetric = metrics.peRatio != null || metrics.revenueGrowthYoY != null ||
+              metrics.grossMargin != null || metrics.rsi14 != null ||
+              metrics.pctBelowHigh != null || metrics.marketCap != null;
+            if (!hasAnyMetric) {
+              console.warn(`[universe] Skipped ${stock.symbol}: no usable metrics`);
+              return;
+            }
             newCache.set(stock.symbol, {
               ticker: stock.symbol,
               companyName: stock.companyName,
@@ -129,6 +137,7 @@ async function buildCache() {
     console.log(`[universe] Cache ready: ${newCache.size} stocks`);
   } catch (err) {
     console.error('[universe] Cache build failed:', err.message);
+    state.ready = false;
     setTimeout(buildCache, RETRY_ON_FAIL_MS);
   }
 }
