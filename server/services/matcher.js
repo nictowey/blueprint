@@ -1,0 +1,96 @@
+const MATCH_METRICS = ['peRatio', 'revenueGrowthYoY', 'grossMargin', 'marketCap', 'rsi14', 'pctBelowHigh'];
+
+// Log-normalize market cap before distance calculation
+function prepareValue(metric, value) {
+  if (value == null) return null;
+  if (metric === 'marketCap') {
+    return value > 0 ? Math.log(value) : null;
+  }
+  return value;
+}
+
+// Compute min/max for a metric across all stocks (for normalization)
+function computeScale(stocks, metric) {
+  const values = stocks
+    .map(s => prepareValue(metric, s[metric]))
+    .filter(v => v != null && isFinite(v));
+  if (values.length === 0) return { min: 0, max: 1 };
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return { min, max: max === min ? min + 1 : max };
+}
+
+function normalizeValue(value, min, max) {
+  const clamped = Math.max(min, Math.min(max, value));
+  return (clamped - min) / (max - min);
+}
+
+/**
+ * Find the top 10 stocks from the universe that most closely match the snapshot.
+ * @param {object} snapshot — Snapshot data shape
+ * @param {Map<string, object>} universe — Map of ticker -> stock metrics
+ * @returns {Array} ranked array of match result objects
+ */
+function findMatches(snapshot, universe) {
+  const stocks = Array.from(universe.values());
+
+  // Pre-compute min/max scales across the full universe for each metric
+  const scales = {};
+  for (const metric of MATCH_METRICS) {
+    scales[metric] = computeScale(stocks, metric);
+  }
+
+  const results = stocks
+    .filter(stock => stock.ticker !== snapshot.ticker)
+    .map(stock => {
+      let sumSquared = 0;
+      let count = 0;
+      const diffs = [];
+
+      for (const metric of MATCH_METRICS) {
+        const snapRaw = prepareValue(metric, snapshot[metric]);
+        const stockRaw = prepareValue(metric, stock[metric]);
+        if (snapRaw == null || stockRaw == null || !isFinite(snapRaw) || !isFinite(stockRaw)) continue;
+
+        const { min, max } = scales[metric];
+        const normSnap = normalizeValue(snapRaw, min, max);
+        const normStock = normalizeValue(stockRaw, min, max);
+        const diff = Math.abs(normSnap - normStock);
+
+        sumSquared += diff * diff;
+        count++;
+        diffs.push({ metric, diff });
+      }
+
+      let matchScore = 0;
+      if (count > 0) {
+        const maxDist = Math.sqrt(count); // max possible distance when all metrics are 0 vs 1
+        const dist = Math.sqrt(sumSquared);
+        matchScore = Math.round((1 - dist / maxDist) * 100);
+        matchScore = Math.max(0, Math.min(100, matchScore));
+      }
+
+      // Sort by diff ascending: smallest diff = most similar
+      diffs.sort((a, b) => a.diff - b.diff);
+      const topMatches = diffs.slice(0, 3).map(d => d.metric);
+
+      // topDifferences: largest diffs, but only if normalized diff > 0.2
+      const bigDiffs = diffs.filter(d => d.diff > 0.2).slice(-2).map(d => d.metric);
+
+      return {
+        ticker: stock.ticker,
+        companyName: stock.companyName,
+        sector: stock.sector,
+        price: stock.price,
+        matchScore,
+        topMatches,
+        topDifferences: bigDiffs,
+      };
+    })
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 10);
+
+  return results;
+}
+
+module.exports = { findMatches, MATCH_METRICS };
