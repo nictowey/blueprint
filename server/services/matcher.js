@@ -1,4 +1,18 @@
-const MATCH_METRICS = ['peRatio', 'revenueGrowthYoY', 'grossMargin', 'marketCap', 'rsi14', 'pctBelowHigh'];
+const MATCH_METRICS = [
+  // Valuation
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  // Profitability
+  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
+  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+  // Growth
+  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+  // Financial Health
+  'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  // Technical
+  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+  // Size (log-normalized)
+  'marketCap',
+];
 
 // Log-normalize market cap before distance calculation
 function prepareValue(metric, value) {
