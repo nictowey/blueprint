@@ -23,6 +23,8 @@ beforeEach(() => {
   fmp.getKeyMetricsAnnual.mockResolvedValue(mockKeyMetrics);
   fmp.getHistoricalPrices.mockResolvedValue(mockHistorical);
   fmp.getShortInterest.mockResolvedValue(null);
+  fmp.getBalanceSheet.mockResolvedValue([]);
+  fmp.getCashFlowStatement.mockResolvedValue([]);
 });
 
 describe('GET /api/snapshot', () => {
