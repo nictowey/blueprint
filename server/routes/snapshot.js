@@ -38,19 +38,24 @@ router.get('/', async (req, res) => {
   const fromStr = fromDate.toISOString().slice(0, 10);
 
   try {
-    const [profileData, incomeData, metricsData, histData, shortData] = await Promise.allSettled([
-      fmp.getProfile(sym),
-      fmp.getIncomeStatements(sym),
-      fmp.getKeyMetricsAnnual(sym),
-      fmp.getHistoricalPrices(sym, fromStr, date),
-      fmp.getShortInterest(sym),
-    ]);
+    const [profileData, incomeData, metricsData, histData, shortData, balanceSheetData, cashFlowData] =
+      await Promise.allSettled([
+        fmp.getProfile(sym),
+        fmp.getIncomeStatements(sym, 4),
+        fmp.getKeyMetricsAnnual(sym),
+        fmp.getHistoricalPrices(sym, fromStr, date),
+        fmp.getShortInterest(sym),
+        fmp.getBalanceSheet(sym),
+        fmp.getCashFlowStatement(sym),
+      ]);
 
     const profile = profileData.status === 'fulfilled' ? profileData.value : {};
     const income = incomeData.status === 'fulfilled' ? incomeData.value : [];
     const metrics = metricsData.status === 'fulfilled' ? metricsData.value : [];
     const historical = histData.status === 'fulfilled' ? histData.value : [];
     const shortRaw = shortData.status === 'fulfilled' ? shortData.value : null;
+    const balanceSheet = balanceSheetData.status === 'fulfilled' ? balanceSheetData.value : [];
+    const cashFlowStmt = cashFlowData.status === 'fulfilled' ? cashFlowData.value : [];
 
     // Annual period on or before snapshot date
     const curIncome = findPeriodOnOrBefore(income, date);
@@ -67,8 +72,22 @@ router.get('/', async (req, res) => {
       revenueGrowthYoY = (curIncome.revenue - priorIncome.revenue) / Math.abs(priorIncome.revenue);
     }
 
-    // Gross margin
-    const grossMargin = curIncome?.grossProfitRatio ?? null;
+    // Revenue 3yr CAGR
+    const income3yrAgo = curIncome
+      ? income
+          .filter(p => new Date(p.date) < new Date(curIncome.date))
+          .sort((a, b) => new Date(b.date) - new Date(a.date))[2] || null
+      : null;
+    let revenueGrowth3yr = null;
+    if (curIncome?.revenue != null && income3yrAgo?.revenue && income3yrAgo.revenue !== 0) {
+      revenueGrowth3yr = Math.pow(curIncome.revenue / income3yrAgo.revenue, 1 / 3) - 1;
+    }
+
+    // EPS growth YoY
+    let epsGrowthYoY = null;
+    if (curIncome?.eps != null && priorIncome?.eps && priorIncome.eps !== 0) {
+      epsGrowthYoY = (curIncome.eps - priorIncome.eps) / Math.abs(priorIncome.eps);
+    }
 
     // Price on snapshot date (newest-first historical array)
     const price = findPrice(historical, date);
@@ -87,20 +106,70 @@ router.get('/', async (req, res) => {
         ? ((high52w - price) / high52w) * 100
         : null;
 
+    // Moving averages
+    let priceVsMa50 = null;
+    let priceVsMa200 = null;
+
+    if (pricesAsc.length >= 50) {
+      const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
+      if (price != null && ma50 > 0) priceVsMa50 = ((price - ma50) / ma50) * 100;
+    }
+    if (pricesAsc.length > 0) {
+      const ma200 = pricesAsc.reduce((s, v) => s + v, 0) / pricesAsc.length;
+      if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
+    }
+
+    const curBalance = findPeriodOnOrBefore(balanceSheet, date);
+    const curCashFlow = findPeriodOnOrBefore(cashFlowStmt, date);
+
     res.json({
       ticker: sym,
       companyName: profile.companyName || sym,
       sector: profile.sector || null,
       date,
       price,
-      peRatio: curMetrics?.peRatio ?? null,
-      priceToSales: curMetrics?.priceToSalesRatio ?? null,
+      // Valuation
+      peRatio:           curMetrics?.peRatio ?? null,
+      priceToBook:       curMetrics?.pbRatio ?? null,
+      priceToSales:      curMetrics?.priceToSalesRatio ?? null,
+      evToEBITDA:        curMetrics?.evToEbitda ?? null,
+      evToRevenue:       curMetrics?.evToRevenue ?? null,
+      pegRatio:          curMetrics?.pegRatio ?? null,
+      earningsYield:     curMetrics?.earningsYield ?? null,
+      // Profitability
+      grossMargin:       curIncome?.grossProfitRatio ?? null,
+      operatingMargin:   curIncome?.operatingIncomeRatio ?? null,
+      netMargin:         curIncome?.netIncomeRatio ?? null,
+      ebitdaMargin:      curIncome?.ebitdaratio ?? null,
+      returnOnEquity:    curMetrics?.returnOnEquity ?? null,
+      returnOnAssets:    curMetrics?.returnOnAssets ?? null,
+      returnOnCapital:   curMetrics?.roic ?? null,
+      // Growth
       revenueGrowthYoY,
-      grossMargin,
+      revenueGrowth3yr,
+      epsGrowthYoY,
+      eps:               curIncome?.eps ?? null,
+      // Financial Health
+      currentRatio:      curMetrics?.currentRatio ?? null,
+      debtToEquity:      curMetrics?.debtToEquity ?? null,
+      interestCoverage:  curMetrics?.interestCoverage ?? null,
+      netDebtToEBITDA:   curMetrics?.netDebtToEBITDA ?? null,
+      freeCashFlowYield: curMetrics?.freeCashFlowYield ?? null,
+      dividendYield:     curMetrics?.dividendYield ?? null,
+      totalCash:         curBalance?.cashAndCashEquivalents ?? null,
+      totalDebt:         curBalance?.totalDebt ?? null,
+      freeCashFlow:      curCashFlow?.freeCashFlow ?? null,
+      operatingCashFlow: curCashFlow?.operatingCashFlow ?? null,
+      // Technical
       rsi14,
       pctBelowHigh,
-      marketCap: curMetrics?.marketCap ?? null,
-      shortInterestPct: shortRaw?.shortInterestPercent ?? null,
+      priceVsMa50,
+      priceVsMa200,
+      beta:              profile?.beta ?? null,
+      avgVolume:         profile?.volAvg ?? null,
+      // Overview
+      marketCap:         curMetrics?.marketCap ?? null,
+      shortInterestPct:  shortRaw?.shortInterestPercent ?? null,
     });
   } catch (err) {
     console.error('[snapshot] Error:', err.message);
