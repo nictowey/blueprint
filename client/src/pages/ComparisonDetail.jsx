@@ -4,9 +4,13 @@ import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
 
-const DISPLAY_METRICS = [
-  'peRatio', 'priceToSales', 'revenueGrowthYoY',
-  'grossMargin', 'rsi14', 'pctBelowHigh',
+const METRIC_GROUPS = [
+  { label: 'Overview',         metrics: ['marketCap', 'eps', 'dividendYield'] },
+  { label: 'Valuation',        metrics: ['peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield'] },
+  { label: 'Profitability',    metrics: ['grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin', 'returnOnEquity', 'returnOnAssets', 'returnOnCapital'] },
+  { label: 'Growth',           metrics: ['revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY'] },
+  { label: 'Financial Health', metrics: ['currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield', 'totalCash', 'totalDebt', 'freeCashFlow', 'operatingCashFlow'] },
+  { label: 'Technical',        metrics: ['rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta', 'avgVolume'] },
 ];
 
 const WATCHLIST_KEY = 'blueprint_watchlist';
@@ -118,12 +122,19 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Metrics */}
-            {DISPLAY_METRICS.map(key => (
-              <div key={key} className="flex items-center justify-between py-3 border-b border-dark-border last:border-0">
-                <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>
-                <span className={`text-sm font-semibold ${data.template[key] == null ? 'text-slate-600' : 'text-slate-100'}`}>
-                  {formatMetric(key, data.template[key])}
-                </span>
+            {METRIC_GROUPS.map(group => (
+              <div key={group.label}>
+                <div className="text-xs text-slate-500 uppercase tracking-widest pt-4 pb-1 font-medium border-b border-dark-border/50">
+                  {group.label}
+                </div>
+                {group.metrics.map(key => (
+                  <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0">
+                    <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>
+                    <span className={`text-sm font-semibold ${data.template[key] == null ? 'text-slate-600' : 'text-slate-100'}`}>
+                      {formatMetric(key, data.template[key])}
+                    </span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -161,27 +172,34 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Metrics with color coding */}
-            {DISPLAY_METRICS.map(key => {
-              const leftVal = data.template[key];
-              const rightVal = data.match[key];
-              let colorClass = 'text-slate-100';
-              if (leftVal != null && rightVal != null && leftVal !== 0) {
-                const pct = Math.abs((rightVal - leftVal) / Math.abs(leftVal)) * 100;
-                if (pct <= 15) colorClass = 'text-green-400';
-                else if (pct <= 40) colorClass = 'text-yellow-400';
-                else colorClass = 'text-red-400';
-              } else if (rightVal == null) {
-                colorClass = 'text-slate-600';
-              }
-              return (
-                <div key={key} className="flex items-center justify-between py-3 border-b border-dark-border last:border-0">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>
-                  <span className={`text-sm font-semibold ${colorClass}`}>
-                    {formatMetric(key, rightVal)}
-                  </span>
+            {METRIC_GROUPS.map(group => (
+              <div key={group.label}>
+                <div className="text-xs text-slate-500 uppercase tracking-widest pt-4 pb-1 font-medium border-b border-dark-border/50">
+                  {group.label}
                 </div>
-              );
-            })}
+                {group.metrics.map(key => {
+                  const leftVal = data.template[key];
+                  const rightVal = data.match[key];
+                  let colorClass = 'text-slate-100';
+                  if (leftVal != null && rightVal != null && leftVal !== 0) {
+                    const pct = Math.abs((rightVal - leftVal) / Math.abs(leftVal)) * 100;
+                    if (pct <= 15) colorClass = 'text-green-400';
+                    else if (pct <= 40) colorClass = 'text-yellow-400';
+                    else colorClass = 'text-red-400';
+                  } else if (rightVal == null) {
+                    colorClass = 'text-slate-600';
+                  }
+                  return (
+                    <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0">
+                      <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>
+                      <span className={`text-sm font-semibold ${colorClass}`}>
+                        {formatMetric(key, rightVal)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       )}
