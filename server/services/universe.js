@@ -95,6 +95,8 @@ async function enrichStock(entry) {
         priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
       }
     }
+
+    entry.price = currentPrice ?? entry.price;
   }
 
   // --- Balance sheet ---

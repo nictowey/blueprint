@@ -91,7 +91,7 @@ Expand Blueprint's stock comparison and matching system from 9 display metrics /
 | `eps` | EPS (TTM) | `income[0].eps` |
 | `dividendYield` | Dividend Yield | `key-metrics-ttm.dividendYieldPercentageTTM` |
 
-**Total matched dimensions: 22**  
+\*\*Total matched dimensions: 27\*\*  
 **Total display fields: ~34**
 
 ---
