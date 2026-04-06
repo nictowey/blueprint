@@ -3,7 +3,7 @@ const fetch = require('node-fetch');
 const BASE = 'https://financialmodelingprep.com/stable';
 
 // Very safe rate limiting for Starter plan (300 calls/min max)
-const RATE_LIMIT_MS = 200;   // 300 calls/min max; sequential calls = safe
+const RATE_LIMIT_MS = 250;   // 240 calls/min — safe headroom under 300/min Starter limit
 const MAX_RETRIES = 3;
 
 function key() {
@@ -89,6 +89,16 @@ async function getKeyMetricsTTM(ticker) {
   return obj || {};
 }
 
+async function getBalanceSheet(ticker, limit = 1) {
+  const data = await fmpGet(`/balance-sheet-statement`, { symbol: ticker, period: 'annual', limit });
+  return Array.isArray(data) ? data : [];
+}
+
+async function getCashFlowStatement(ticker, limit = 1) {
+  const data = await fmpGet(`/cash-flow-statement`, { symbol: ticker, period: 'annual', limit });
+  return Array.isArray(data) ? data : [];
+}
+
 async function getHistoricalPrices(ticker, from, to) {
   const params = { symbol: ticker };
   if (from) params.from = from;
@@ -122,4 +132,6 @@ module.exports = {
   getHistoricalPrices,
   getScreener,
   getShortInterest,
+  getBalanceSheet,
+  getCashFlowStatement,
 };
