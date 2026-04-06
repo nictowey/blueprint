@@ -149,10 +149,14 @@ const MATCH_METRICS = [
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
   // Technical
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+  // Size (log-normalized)
+  'marketCap',
 ];
 ```
 
-`marketCap` stays with log-normalization. Existing distance/normalization logic unchanged.
+`marketCap` retains its existing log-normalization in `prepareValue`. All other metrics normalize linearly. Existing distance/normalization logic unchanged.
+
+> **Implementation note:** Yield and margin fields (`earningsYield`, `freeCashFlowYield`, `dividendYield`, `returnOnEquity`, `returnOnAssets`, `returnOnCapital`) may be returned by FMP as decimal fractions (e.g. `0.045`) or as percentages (e.g. `4.5`) depending on the endpoint version. Verify actual field values against a live API response before formatting — multiply by 100 only if stored as a decimal.
 
 ### `server/tests/universe.test.js`
 
