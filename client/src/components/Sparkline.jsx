@@ -18,8 +18,7 @@ export default function Sparkline({ data, gainPct, label = 'What happened after 
     return `${x},${y}`;
   }).join(' ');
 
-  const isPositive = gainPct == null || gainPct >= 0;
-  const strokeColor = isPositive ? '#22c55e' : '#ef4444';
+  const strokeColor = gainPct == null ? '#94a3b8' : gainPct >= 0 ? '#22c55e' : '#ef4444';
   const gainStr = gainPct == null
     ? '—'
     : `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%`;
@@ -32,7 +31,7 @@ export default function Sparkline({ data, gainPct, label = 'What happened after 
         </span>
         <span
           className="text-sm font-bold"
-          style={{ color: isPositive ? '#22c55e' : '#ef4444' }}
+          style={{ color: strokeColor }}
         >
           {gainStr} over {period}
         </span>
