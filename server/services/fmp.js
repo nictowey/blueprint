@@ -2,8 +2,9 @@ const fetch = require('node-fetch');
 
 const BASE = 'https://financialmodelingprep.com/stable';
 
-// Very safe rate limiting for Starter plan (300 calls/min max)
-const RATE_LIMIT_MS = 250;   // 240 calls/min — safe headroom under 300/min Starter limit
+// Rate limiting for Starter plan (300 calls/min max)
+// 220ms = ~272 calls/min — slightly above old 240, safely under 300
+const RATE_LIMIT_MS = 220;
 const MAX_RETRIES = 3;
 
 function key() {
@@ -13,7 +14,9 @@ function key() {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fmpGet(path, params = {}) {
+// throttle=true: enforce rate-limit delay (used during cache build)
+// throttle=false: skip delay (used for live user-initiated requests)
+async function fmpGet(path, params = {}, throttle = true) {
   let retries = 0;
 
   while (true) {
@@ -45,8 +48,8 @@ async function fmpGet(path, params = {}) {
         throw new Error(`FMP error: ${data['Error Message']}`);
       }
 
-      // Enforce delay after every successful call
-      await delay(RATE_LIMIT_MS);
+      // Enforce delay after every successful call — only during cache build
+      if (throttle) await delay(RATE_LIMIT_MS);
 
       return data;
 
@@ -64,46 +67,69 @@ async function fmpGet(path, params = {}) {
 // ==================== API Functions ====================
 
 async function searchTickers(query) {
-  const results = await fmpGet('/search', { query, limit: 10 });
-  return Array.isArray(results) ? results : [];
+  // Try symbol search first (exact ticker match)
+  try {
+    const results = await fmpGet('/search-symbol', { query, limit: 10 }, false);
+    if (Array.isArray(results) && results.length > 0) return results;
+  } catch (err) {
+    console.warn(`[FMP] /search-symbol failed for "${query}": ${err.message}`);
+  }
+  // Fallback: search by name
+  try {
+    const results = await fmpGet('/search-name', { query, limit: 10 }, false);
+    return Array.isArray(results) ? results : [];
+  } catch {
+    return [];
+  }
 }
 
-async function getProfile(ticker) {
-  const data = await fmpGet(`/profile/${ticker}`);
+async function getProfile(ticker, throttle = true) {
+  const data = await fmpGet(`/profile`, { symbol: ticker }, throttle);
   return Array.isArray(data) ? data[0] : data;
 }
 
-async function getIncomeStatements(ticker, limit = 10) {
-  const data = await fmpGet(`/income-statement`, { symbol: ticker, period: 'annual', limit });
+async function getIncomeStatements(ticker, limit = 10, throttle = true) {
+  const data = await fmpGet(`/income-statement`, { symbol: ticker, period: 'annual', limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getKeyMetricsAnnual(ticker) {
-  const data = await fmpGet(`/key-metrics`, { symbol: ticker, period: 'annual' });
+async function getKeyMetricsAnnual(ticker, throttle = true) {
+  const data = await fmpGet(`/key-metrics`, { symbol: ticker, period: 'annual' }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getKeyMetricsTTM(ticker) {
-  const data = await fmpGet(`/key-metrics-ttm`, { symbol: ticker });
+async function getRatiosAnnual(ticker, throttle = true) {
+  const data = await fmpGet(`/ratios`, { symbol: ticker, period: 'annual', limit: 10 }, throttle);
+  return Array.isArray(data) ? data : [];
+}
+
+async function getKeyMetricsTTM(ticker, throttle = true) {
+  const data = await fmpGet(`/key-metrics-ttm`, { symbol: ticker }, throttle);
   const obj = Array.isArray(data) ? data[0] : data;
   return obj || {};
 }
 
-async function getBalanceSheet(ticker, limit = 1) {
-  const data = await fmpGet(`/balance-sheet-statement`, { symbol: ticker, period: 'annual', limit });
+async function getRatiosTTM(ticker, throttle = true) {
+  const data = await fmpGet(`/ratios-ttm`, { symbol: ticker }, throttle);
+  const obj = Array.isArray(data) ? data[0] : data;
+  return obj || {};
+}
+
+async function getBalanceSheet(ticker, limit = 1, throttle = true) {
+  const data = await fmpGet(`/balance-sheet-statement`, { symbol: ticker, period: 'annual', limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getCashFlowStatement(ticker, limit = 1) {
-  const data = await fmpGet(`/cash-flow-statement`, { symbol: ticker, period: 'annual', limit });
+async function getCashFlowStatement(ticker, limit = 1, throttle = true) {
+  const data = await fmpGet(`/cash-flow-statement`, { symbol: ticker, period: 'annual', limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getHistoricalPrices(ticker, from, to) {
+async function getHistoricalPrices(ticker, from, to, throttle = true) {
   const params = { symbol: ticker };
   if (from) params.from = from;
   if (to) params.to = to;
-  const data = await fmpGet(`/historical-price-eod/full`, params);
+  const data = await fmpGet(`/historical-price-eod/full`, params, throttle);
   return Array.isArray(data?.historical) ? data.historical : (Array.isArray(data) ? data : []);
 }
 
@@ -114,9 +140,9 @@ async function getScreener(params = {}) {
   return Array.isArray(data) ? data : [];
 }
 
-async function getShortInterest(ticker) {
+async function getShortInterest(ticker, throttle = true) {
   try {
-    const data = await fmpGet(`/stock-short-interest/${ticker}`);
+    const data = await fmpGet(`/stock-short-interest`, { symbol: ticker }, throttle);
     return Array.isArray(data) && data.length > 0 ? data[0] : null;
   } catch {
     return null;
@@ -128,7 +154,9 @@ module.exports = {
   getProfile,
   getIncomeStatements,
   getKeyMetricsAnnual,
+  getRatiosAnnual,
   getKeyMetricsTTM,
+  getRatiosTTM,
   getHistoricalPrices,
   getScreener,
   getShortInterest,

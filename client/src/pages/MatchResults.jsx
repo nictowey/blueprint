@@ -36,16 +36,22 @@ export default function MatchResults() {
 
   useEffect(() => {
     if (!snapshot) return;
-    const params = new URLSearchParams({
-      ticker: snapshot.ticker,
-      date: snapshot.date,
-      ...(snapshot.peRatio          != null && { peRatio:          snapshot.peRatio }),
-      ...(snapshot.revenueGrowthYoY != null && { revenueGrowthYoY: snapshot.revenueGrowthYoY }),
-      ...(snapshot.grossMargin      != null && { grossMargin:      snapshot.grossMargin }),
-      ...(snapshot.marketCap        != null && { marketCap:        snapshot.marketCap }),
-      ...(snapshot.rsi14            != null && { rsi14:            snapshot.rsi14 }),
-      ...(snapshot.pctBelowHigh     != null && { pctBelowHigh:     snapshot.pctBelowHigh }),
-    });
+
+    // Send ALL available snapshot metrics so the matcher can score on every dimension
+    const MATCH_METRICS = [
+      'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+      'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
+      'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+      'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+      'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+      'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+      'marketCap',
+    ];
+
+    const params = new URLSearchParams({ ticker: snapshot.ticker, date: snapshot.date });
+    for (const metric of MATCH_METRICS) {
+      if (snapshot[metric] != null) params.set(metric, snapshot[metric]);
+    }
 
     fetch(`/api/matches?${params}`)
       .then(res => {

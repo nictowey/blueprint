@@ -9,12 +9,12 @@ router.get('/', async (req, res) => {
   try {
     const results = await fmp.searchTickers(q.trim());
     const filtered = results
-      .filter(r => r.exchangeShortName === 'NASDAQ' || r.exchangeShortName === 'NYSE')
+      .filter(r => r.exchange === 'NASDAQ' || r.exchange === 'NYSE')
       .slice(0, 10)
       .map(r => ({
         symbol: r.symbol,
         name: r.name,
-        exchangeShortName: r.exchangeShortName,
+        exchangeShortName: r.exchange,
       }));
     res.json(filtered);
   } catch (err) {

@@ -1,108 +1,91 @@
 const MATCH_METRICS = [
   // Valuation
-  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
   // Profitability
-  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
-  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+  'grossMargin', 'operatingMargin', 'netMargin', 'returnOnEquity', 'returnOnAssets',
   // Growth
-  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+  'revenueGrowthYoY', 'epsGrowthYoY',
   // Financial Health
-  'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  'currentRatio', 'debtToEquity',
   // Technical
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
-  // Size (log-normalized)
+  // Size (log normalized)
   'marketCap',
 ];
 
-// Log-normalize market cap before distance calculation
 function prepareValue(metric, value) {
-  if (value == null) return null;
-  if (metric === 'marketCap') {
-    return value > 0 ? Math.log(value) : null;
-  }
+  if (value == null || !isFinite(value)) return null;
+  if (metric === 'marketCap') return value > 0 ? Math.log(value) : null;
   return value;
 }
 
-// Compute min/max for a metric across all stocks (for normalization)
 function computeScale(stocks, metric) {
   const values = stocks
     .map(s => prepareValue(metric, s[metric]))
-    .filter(v => v != null && isFinite(v));
+    .filter(v => v != null);
   if (values.length === 0) return { min: 0, max: 1 };
   const min = Math.min(...values);
   const max = Math.max(...values);
   return { min, max: max === min ? min + 1 : max };
 }
 
-function normalizeValue(value, min, max) {
+function normalize(value, min, max) {
+  if (value == null) return 0.5; // neutral for missing values
   const clamped = Math.max(min, Math.min(max, value));
   return (clamped - min) / (max - min);
 }
 
-/**
- * Find the top 10 stocks from the universe that most closely match the snapshot.
- * @param {object} snapshot — Snapshot data shape
- * @param {Map<string, object>} universe — Map of ticker -> stock metrics
- * @returns {Array} ranked array of match result objects
- */
-function findMatches(snapshot, universe) {
-  const stocks = Array.from(universe.values());
+// New similarity function — much more reliable
+function calculateSimilarity(snapshot, stock, scales) {
+  let totalWeight = 0;
+  let score = 0;
 
-  // Pre-compute min/max scales across the full universe for each metric
-  const scales = {};
   for (const metric of MATCH_METRICS) {
-    scales[metric] = computeScale(stocks, metric);
+    const snapVal = prepareValue(metric, snapshot[metric]);
+    const stockVal = prepareValue(metric, stock[metric]);
+
+    if (snapVal === null || stockVal === null) {
+      // Missing value penalty (milder than before)
+      score += 0.3;
+      totalWeight += 1;
+      continue;
+    }
+
+    const normSnap = normalize(snapVal, scales[metric].min, scales[metric].max);
+    const normStock = normalize(stockVal, scales[metric].min, scales[metric].max);
+
+    // Weighted Euclidean distance contribution
+    const diff = Math.abs(normSnap - normStock);
+    const weight = 1.0; // you can tune per-metric later
+    score += (1 - diff) * weight;
+    totalWeight += weight;
   }
 
-  const results = stocks
-    .filter(stock => stock.ticker !== snapshot.ticker)
-    .map(stock => {
-      let sumSquared = 0;
-      let count = 0;
-      const diffs = [];
+  // Add sector bonus if available
+  if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
+    score += 0.15;
+    totalWeight += 0.15;
+  }
 
-      for (const metric of MATCH_METRICS) {
-        const snapRaw = prepareValue(metric, snapshot[metric]);
-        const stockRaw = prepareValue(metric, stock[metric]);
-        if (snapRaw == null || stockRaw == null || !isFinite(snapRaw) || !isFinite(stockRaw)) continue;
+  return totalWeight > 0 ? Math.max(0, Math.min(100, (score / totalWeight) * 100)) : 0;
+}
 
-        const { min, max } = scales[metric];
-        const normSnap = normalizeValue(snapRaw, min, max);
-        const normStock = normalizeValue(stockRaw, min, max);
-        const diff = Math.abs(normSnap - normStock);
+function findMatches(snapshot, universe, limit = 10) {
+  if (!snapshot || universe.size === 0) return [];
 
-        sumSquared += diff * diff;
-        count++;
-        diffs.push({ metric, diff });
-      }
+  // Pre-compute scales once
+  const scales = {};
+  MATCH_METRICS.forEach(metric => {
+    scales[metric] = computeScale(Array.from(universe.values()), metric);
+  });
 
-      let matchScore = 0;
-      if (count > 0) {
-        const maxDist = Math.sqrt(count); // max possible distance when all metrics are 0 vs 1
-        const dist = Math.sqrt(sumSquared);
-        matchScore = Math.round((1 - dist / maxDist) * 100);
-        matchScore = Math.max(0, Math.min(100, matchScore));
-      }
-
-      // Sort by diff ascending: smallest diff = most similar
-      diffs.sort((a, b) => a.diff - b.diff);
-      const topMatches = diffs.slice(0, 3).map(d => d.metric);
-
-      // topDifferences: largest diffs, but only if normalized diff > 0.2
-      const bigDiffs = diffs.filter(d => d.diff > 0.2).slice(-2).map(d => d.metric);
-
-      return {
-        ticker: stock.ticker,
-        companyName: stock.companyName,
-        sector: stock.sector,
-        price: stock.price,
-        matchScore,
-        topMatches,
-        topDifferences: bigDiffs,
-      };
-    })
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, 10);
+  const results = Array.from(universe.values())
+    .map(stock => ({
+      ...stock,
+      similarity: calculateSimilarity(snapshot, stock, scales)
+    }))
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit);
 
   return results;
 }

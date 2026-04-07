@@ -38,28 +38,33 @@ router.get('/', async (req, res) => {
   const fromStr = fromDate.toISOString().slice(0, 10);
 
   try {
-    const [profileData, incomeData, metricsData, histData, shortData, balanceSheetData, cashFlowData] =
+    const [profileData, incomeData, metricsData, ratiosData, histData, shortData, balanceSheetData, cashFlowData] =
       await Promise.allSettled([
-        fmp.getProfile(sym),
-        fmp.getIncomeStatements(sym, 4),
-        fmp.getKeyMetricsAnnual(sym),
-        fmp.getHistoricalPrices(sym, fromStr, date),
-        fmp.getShortInterest(sym),
-        fmp.getBalanceSheet(sym),
-        fmp.getCashFlowStatement(sym),
+        fmp.getProfile(sym, false),
+        fmp.getIncomeStatements(sym, 8, false),
+        fmp.getKeyMetricsAnnual(sym, false),
+        fmp.getRatiosAnnual(sym, false),
+        fmp.getHistoricalPrices(sym, fromStr, date, false),
+        fmp.getShortInterest(sym, false),
+        fmp.getBalanceSheet(sym, 4, false),
+        fmp.getCashFlowStatement(sym, 4, false),
       ]);
 
-    const profile = profileData.status === 'fulfilled' ? profileData.value : {};
-    const income = incomeData.status === 'fulfilled' ? incomeData.value : [];
-    const metrics = metricsData.status === 'fulfilled' ? metricsData.value : [];
-    const historical = histData.status === 'fulfilled' ? histData.value : [];
-    const shortRaw = shortData.status === 'fulfilled' ? shortData.value : null;
-    const balanceSheet = balanceSheetData.status === 'fulfilled' ? balanceSheetData.value : [];
-    const cashFlowStmt = cashFlowData.status === 'fulfilled' ? cashFlowData.value : [];
+    const profile    = profileData.status    === 'fulfilled' ? profileData.value    : {};
+    const income     = incomeData.status     === 'fulfilled' ? incomeData.value     : [];
+    const metrics    = metricsData.status    === 'fulfilled' ? metricsData.value    : [];
+    const ratios     = ratiosData.status     === 'fulfilled' ? ratiosData.value     : [];
+    const historical = histData.status       === 'fulfilled' ? histData.value       : [];
+    const shortRaw   = shortData.status      === 'fulfilled' ? shortData.value      : null;
+    const balanceSheet  = balanceSheetData.status  === 'fulfilled' ? balanceSheetData.value  : [];
+    const cashFlowStmt  = cashFlowData.status      === 'fulfilled' ? cashFlowData.value      : [];
 
     // Annual period on or before snapshot date
-    const curIncome = findPeriodOnOrBefore(income, date);
+    const curIncome  = findPeriodOnOrBefore(income, date);
     const curMetrics = findPeriodOnOrBefore(metrics, date);
+    const curRatios  = findPeriodOnOrBefore(ratios, date);
+    const curBalance = findPeriodOnOrBefore(balanceSheet, date);
+    const curCashFlow = findPeriodOnOrBefore(cashFlowStmt, date);
 
     // Prior income statement for revenue growth
     const priorIncome = curIncome
@@ -89,6 +94,12 @@ router.get('/', async (req, res) => {
       epsGrowthYoY = (curIncome.eps - priorIncome.eps) / Math.abs(priorIncome.eps);
     }
 
+    // Margins — calculated from income statement raw fields
+    const grossMargin     = curIncome?.revenue ? (curIncome.grossProfit / curIncome.revenue) : null;
+    const operatingMargin = curIncome?.revenue ? (curIncome.operatingIncome / curIncome.revenue) : null;
+    const netMargin       = curIncome?.revenue ? (curIncome.netIncome / curIncome.revenue) : null;
+    const ebitdaMargin    = curIncome?.revenue ? (curIncome.ebitda / curIncome.revenue) : null;
+
     // Price on snapshot date (newest-first historical array)
     const price = findPrice(historical, date);
 
@@ -99,7 +110,7 @@ router.get('/', async (req, res) => {
       .map(h => h.close);
     const rsi14 = computeRSI(pricesAsc.slice(-30));
 
-    // 52-week high (all prices in the 1-year window)
+    // 52-week high
     const high52w = historical.length > 0 ? Math.max(...historical.map(h => h.close)) : null;
     const pctBelowHigh =
       price != null && high52w != null && high52w > 0
@@ -109,7 +120,6 @@ router.get('/', async (req, res) => {
     // Moving averages
     let priceVsMa50 = null;
     let priceVsMa200 = null;
-
     if (pricesAsc.length >= 50) {
       const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
       if (price != null && ma50 > 0) priceVsMa50 = ((price - ma50) / ma50) * 100;
@@ -119,43 +129,40 @@ router.get('/', async (req, res) => {
       if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
     }
 
-    const curBalance = findPeriodOnOrBefore(balanceSheet, date);
-    const curCashFlow = findPeriodOnOrBefore(cashFlowStmt, date);
-
     res.json({
       ticker: sym,
       companyName: profile.companyName || sym,
       sector: profile.sector || null,
       date,
       price,
-      // Valuation
-      peRatio:           curMetrics?.peRatio ?? null,
-      priceToBook:       curMetrics?.pbRatio ?? null,
-      priceToSales:      curMetrics?.priceToSalesRatio ?? null,
-      evToEBITDA:        curMetrics?.evToEbitda ?? null,
-      evToRevenue:       curMetrics?.evToRevenue ?? null,
-      pegRatio:          curMetrics?.pegRatio ?? null,
+      // Valuation — from /ratios
+      peRatio:           curRatios?.priceToEarningsRatio ?? null,
+      priceToBook:       curRatios?.priceToBookRatio ?? null,
+      priceToSales:      curRatios?.priceToSalesRatio ?? null,
+      evToEBITDA:        curMetrics?.evToEBITDA ?? null,
+      evToRevenue:       curMetrics?.evToSales ?? null,
+      pegRatio:          curRatios?.priceToEarningsGrowthRatio ?? null,
       earningsYield:     curMetrics?.earningsYield ?? null,
-      // Profitability
-      grossMargin:       curIncome?.grossProfitRatio ?? null,
-      operatingMargin:   curIncome?.operatingIncomeRatio ?? null,
-      netMargin:         curIncome?.netIncomeRatio ?? null,
-      ebitdaMargin:      curIncome?.ebitdaratio ?? null,
+      // Profitability — margins calculated from income statement
+      grossMargin,
+      operatingMargin,
+      netMargin,
+      ebitdaMargin,
       returnOnEquity:    curMetrics?.returnOnEquity ?? null,
       returnOnAssets:    curMetrics?.returnOnAssets ?? null,
-      returnOnCapital:   curMetrics?.roic ?? null,
+      returnOnCapital:   curMetrics?.returnOnInvestedCapital ?? null,
       // Growth
       revenueGrowthYoY,
       revenueGrowth3yr,
       epsGrowthYoY,
       eps:               curIncome?.eps ?? null,
-      // Financial Health
-      currentRatio:      curMetrics?.currentRatio ?? null,
-      debtToEquity:      curMetrics?.debtToEquity ?? null,
-      interestCoverage:  curMetrics?.interestCoverage ?? null,
+      // Financial Health — from /ratios
+      currentRatio:      curRatios?.currentRatio ?? curMetrics?.currentRatio ?? null,
+      debtToEquity:      curRatios?.debtToEquityRatio ?? null,
+      interestCoverage:  curRatios?.interestCoverageRatio ?? null,
       netDebtToEBITDA:   curMetrics?.netDebtToEBITDA ?? null,
       freeCashFlowYield: curMetrics?.freeCashFlowYield ?? null,
-      dividendYield:     curMetrics?.dividendYield ?? null,
+      dividendYield:     curRatios?.dividendYield ?? null,
       totalCash:         curBalance?.cashAndCashEquivalents ?? null,
       totalDebt:         curBalance?.totalDebt ?? null,
       freeCashFlow:      curCashFlow?.freeCashFlow ?? null,
@@ -166,7 +173,7 @@ router.get('/', async (req, res) => {
       priceVsMa50,
       priceVsMa200,
       beta:              profile?.beta ?? null,
-      avgVolume:         profile?.volAvg ?? null,
+      avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
       // Overview
       marketCap:         curMetrics?.marketCap ?? null,
       shortInterestPct:  shortRaw?.shortInterestPercent ?? null,

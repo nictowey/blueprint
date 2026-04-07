@@ -36,6 +36,7 @@ async function enrichStock(entry) {
 
   // 6 sequential calls — each waits for the 250ms rate-limit delay in fmp.js
   const ttmData = await fmp.getKeyMetricsTTM(symbol);
+  const ttmRatios = await fmp.getRatiosTTM(symbol);
   const incomeData = await fmp.getIncomeStatements(symbol, 4);
   const historical = await fmp.getHistoricalPrices(symbol, from, to);
   const profileData = await fmp.getProfile(symbol);
@@ -105,31 +106,31 @@ async function enrichStock(entry) {
   const cashFlow = Array.isArray(cashFlowData) ? cashFlowData[0] || {} : {};
 
   // Update cache entry in-place
-  entry.peRatio            = ttmData.peRatioTTM ?? null;
-  entry.priceToBook        = ttmData.pbRatioTTM ?? null;
-  entry.priceToSales       = ttmData.priceToSalesRatioTTM ?? null;
+  entry.peRatio            = ttmRatios.priceToEarningsRatioTTM ?? null;
+  entry.priceToBook        = ttmRatios.priceToBookRatioTTM ?? null;
+  entry.priceToSales       = ttmRatios.priceToSalesRatioTTM ?? null;
   entry.evToEBITDA         = ttmData.evToEBITDATTM ?? null;
-  entry.evToRevenue        = ttmData.evToRevenueTTM ?? null;
-  entry.pegRatio           = ttmData.pegRatioTTM ?? null;
+  entry.evToRevenue        = ttmData.evToSalesTTM ?? null;
+  entry.pegRatio           = ttmRatios.priceToEarningsGrowthRatioTTM ?? null;
   entry.earningsYield      = ttmData.earningsYieldTTM ?? null;
-  entry.grossMargin        = income0.grossProfitRatio ?? null;
-  entry.operatingMargin    = income0.operatingIncomeRatio ?? null;
-  entry.netMargin          = income0.netIncomeRatio ?? null;
-  entry.ebitdaMargin       = income0.ebitdaratio ?? null;
+  entry.grossMargin        = ttmRatios.grossProfitMarginTTM ?? null;
+  entry.operatingMargin    = ttmRatios.operatingProfitMarginTTM ?? null;
+  entry.netMargin          = ttmRatios.netProfitMarginTTM ?? null;
+  entry.ebitdaMargin       = ttmRatios.ebitdaMarginTTM ?? null;
   entry.returnOnEquity     = ttmData.returnOnEquityTTM ?? null;
   entry.returnOnAssets     = ttmData.returnOnAssetsTTM ?? null;
-  entry.returnOnCapital    = ttmData.roicTTM ?? null;
+  entry.returnOnCapital    = ttmData.returnOnInvestedCapitalTTM ?? null;
   entry.revenueGrowthYoY  = revenueGrowthYoY;
   entry.revenueGrowth3yr  = revenueGrowth3yr;
   entry.epsGrowthYoY      = epsGrowthYoY;
   entry.eps                = income0.eps ?? null;
-  entry.currentRatio       = ttmData.currentRatioTTM ?? null;
-  entry.debtToEquity       = ttmData.debtToEquityTTM ?? null;
-  entry.interestCoverage   = ttmData.interestCoverageTTM ?? null;
+  entry.currentRatio       = ttmRatios.currentRatioTTM ?? ttmData.currentRatioTTM ?? null;
+  entry.debtToEquity       = ttmRatios.debtToEquityRatioTTM ?? null;
+  entry.interestCoverage   = ttmRatios.interestCoverageRatioTTM ?? null;
   entry.netDebtToEBITDA    = ttmData.netDebtToEBITDATTM ?? null;
   entry.freeCashFlowYield  = ttmData.freeCashFlowYieldTTM ?? null;
-  entry.dividendYield      = ttmData.dividendYieldPercentageTTM ?? null;
-  entry.marketCap          = ttmData.marketCapTTM ?? entry.marketCap;
+  entry.dividendYield      = ttmRatios.dividendYieldTTM ?? null;
+  entry.marketCap          = ttmData.marketCap ?? entry.marketCap;
   entry.totalCash          = balance.cashAndCashEquivalents ?? null;
   entry.totalDebt          = balance.totalDebt ?? null;
   entry.freeCashFlow       = cashFlow.freeCashFlow ?? null;
@@ -139,7 +140,7 @@ async function enrichStock(entry) {
   entry.priceVsMa50        = priceVsMa50;
   entry.priceVsMa200       = priceVsMa200;
   entry.beta               = profileData?.beta ?? null;
-  entry.avgVolume          = profileData?.volAvg ?? null;
+  entry.avgVolume          = profileData?.averageVolume ?? null;
 }
 
 async function buildCache() {
