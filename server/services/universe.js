@@ -1,40 +1,42 @@
-const fs = require('fs');
-const path = require('path');
+const fetch = require('node-fetch');
 const fmp = require('./fmp');
 const { computeRSI } = require('./rsi');
 
-const CACHE_DIR = process.env.CACHE_DIR || path.join(__dirname, '../../cache');
-const CACHE_FILE = path.join(CACHE_DIR, 'universe.json');
-const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const REDIS_KEY = 'universe_cache';
+const CACHE_TTL_SECONDS = 90000; // 25 hours
 
-function saveCacheToDisk(cache) {
+async function saveCacheToRedis(cache) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return;
   try {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    const data = {
-      savedAt: new Date().toISOString(),
-      stocks: Array.from(cache.entries()),
-    };
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(data));
-    console.log(`[universe] Cache saved to disk: ${cache.size} stocks`);
+    const data = JSON.stringify(Array.from(cache.entries()));
+    await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(['SET', REDIS_KEY, data, 'EX', String(CACHE_TTL_SECONDS)]),
+    });
+    console.log(`[universe] Cache saved to Redis: ${cache.size} stocks`);
   } catch (err) {
-    console.warn(`[universe] Failed to save cache to disk: ${err.message}`);
+    console.warn(`[universe] Failed to save cache to Redis: ${err.message}`);
   }
 }
 
-function loadCacheFromDisk() {
+async function loadCacheFromRedis() {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
   try {
-    if (!fs.existsSync(CACHE_FILE)) return null;
-    const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-    const age = Date.now() - new Date(data.savedAt).getTime();
-    if (age > CACHE_MAX_AGE_MS) {
-      console.log('[universe] Disk cache is stale, will rebuild from FMP');
-      return null;
-    }
-    const cache = new Map(data.stocks);
-    console.log(`[universe] Loaded cache from disk: ${cache.size} stocks`);
+    const res = await fetch(`${url}/get/${REDIS_KEY}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (!json.result) return null;
+    const cache = new Map(JSON.parse(json.result));
+    console.log(`[universe] Loaded cache from Redis: ${cache.size} stocks`);
     return cache;
   } catch (err) {
-    console.warn(`[universe] Failed to load cache from disk: ${err.message}`);
+    console.warn(`[universe] Failed to load cache from Redis: ${err.message}`);
     return null;
   }
 }
@@ -177,14 +179,14 @@ async function enrichStock(entry) {
   entry.pctBelowHigh       = pctBelowHigh;
   entry.priceVsMa50        = priceVsMa50;
   entry.priceVsMa200       = priceVsMa200;
-  entry.beta               = profileData?.beta ?? null;
-  entry.avgVolume          = profileData?.averageVolume ?? null;
+  entry.beta               = profileData?.beta ?? entry.beta ?? null;
+  entry.avgVolume          = profileData?.averageVolume ?? entry.avgVolume ?? null;
 }
 
 async function buildCache() {
-  const diskCache = loadCacheFromDisk();
-  if (diskCache) {
-    state.cache = diskCache;
+  const redisCache = await loadCacheFromRedis();
+  if (redisCache) {
+    state.cache = redisCache;
     state.ready = true;
     state.lastRefreshed = new Date().toISOString();
     return;
@@ -193,10 +195,10 @@ async function buildCache() {
   console.log('[universe] Starting cache build...');
   try {
     const screenerResults = await fmp.getScreener({
-      marketCapMoreThan: 500_000_000,
+      marketCapMoreThan: 50_000_000,
       country: 'US',
-      exchange: 'NYSE,NASDAQ',
-      limit: 1000,
+      exchange: 'NYSE,NASDAQ,AMEX,NYSE ARCA,BATS',
+      limit: 5000,
     });
 
     // Only skip stocks with no symbol — include all sectors and all market caps
@@ -214,6 +216,8 @@ async function buildCache() {
           sector:           s.sector || null,
           price:            s.price ?? null,
           marketCap:        s.marketCap ?? null,
+          beta:             s.beta ?? null,
+          avgVolume:        s.volume ?? null,
           // Valuation
           peRatio:          null,
           priceToBook:      null,
@@ -271,7 +275,7 @@ async function buildCache() {
     state.ready = true;
     state.lastRefreshed = new Date().toISOString();
     console.log(`[universe] Cache ready: ${newCache.size} stocks`);
-    saveCacheToDisk(newCache);
+    await saveCacheToRedis(newCache);
   } catch (err) {
     console.error('[universe] Cache build failed:', err.message);
     state.ready = false;
@@ -284,4 +288,4 @@ function startCache() {
   setInterval(buildCache, REFRESH_INTERVAL_MS);
 }
 
-module.exports = { startCache, getCache, isReady, getStatus, saveCacheToDisk, loadCacheFromDisk };
+module.exports = { startCache, getCache, isReady, getStatus, saveCacheToRedis, loadCacheFromRedis };
