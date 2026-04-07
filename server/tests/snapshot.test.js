@@ -11,6 +11,9 @@ const mockIncome = [
 const mockKeyMetrics = [
   { date: '2019-01-27', peRatio: 32.5, priceToSalesRatio: 5.2, marketCap: 81000000000 },
 ];
+const mockRatios = [
+  { date: '2019-01-27', priceToEarningsRatio: 32.5, priceToBookRatio: 8.1, priceToSalesRatio: 5.2 },
+];
 // 40 prices around 2019-06-15, newest first
 const mockHistorical = Array.from({ length: 40 }, (_, i) => ({
   date: new Date(Date.UTC(2019, 5, 15) - i * 86400000).toISOString().slice(0, 10),
@@ -23,6 +26,7 @@ beforeEach(() => {
   fmp.getKeyMetricsAnnual.mockResolvedValue(mockKeyMetrics);
   fmp.getHistoricalPrices.mockResolvedValue(mockHistorical);
   fmp.getShortInterest.mockResolvedValue(null);
+  fmp.getRatiosAnnual.mockResolvedValue(mockRatios);
   fmp.getBalanceSheet.mockResolvedValue([]);
   fmp.getCashFlowStatement.mockResolvedValue([]);
 });
@@ -57,6 +61,7 @@ describe('GET /api/snapshot', () => {
   test('null fields are present but null when data unavailable', async () => {
     fmp.getIncomeStatements.mockResolvedValue([]);
     fmp.getKeyMetricsAnnual.mockResolvedValue([]);
+    fmp.getRatiosAnnual.mockResolvedValue([]);
     const res = await request(app).get('/api/snapshot?ticker=NVDA&date=2019-06-15');
     expect(res.status).toBe(200);
     expect(res.body.peRatio).toBeNull();

@@ -43,12 +43,12 @@ describe('GET /api/matches', () => {
     expect(res.body.length).toBeLessThanOrEqual(10);
   });
 
-  test('each result has matchScore, topMatches, topDifferences', async () => {
+  test('each result has similarity score, ticker, and company name', async () => {
     const res = await request(app).get('/api/matches?ticker=NVDA&date=2019-06-15');
     for (const item of res.body) {
-      expect(typeof item.matchScore).toBe('number');
-      expect(Array.isArray(item.topMatches)).toBe(true);
-      expect(Array.isArray(item.topDifferences)).toBe(true);
+      expect(typeof item.similarity).toBe('number');
+      expect(typeof item.ticker).toBe('string');
+      expect(typeof item.companyName).toBe('string');
     }
   });
 });

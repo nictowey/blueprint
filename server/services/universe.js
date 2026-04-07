@@ -1,5 +1,43 @@
+const fs = require('fs');
+const path = require('path');
 const fmp = require('./fmp');
 const { computeRSI } = require('./rsi');
+
+const CACHE_DIR = process.env.CACHE_DIR || path.join(__dirname, '../../cache');
+const CACHE_FILE = path.join(CACHE_DIR, 'universe.json');
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function saveCacheToDisk(cache) {
+  try {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+    const data = {
+      savedAt: new Date().toISOString(),
+      stocks: Array.from(cache.entries()),
+    };
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(data));
+    console.log(`[universe] Cache saved to disk: ${cache.size} stocks`);
+  } catch (err) {
+    console.warn(`[universe] Failed to save cache to disk: ${err.message}`);
+  }
+}
+
+function loadCacheFromDisk() {
+  try {
+    if (!fs.existsSync(CACHE_FILE)) return null;
+    const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+    const age = Date.now() - new Date(data.savedAt).getTime();
+    if (age > CACHE_MAX_AGE_MS) {
+      console.log('[universe] Disk cache is stale, will rebuild from FMP');
+      return null;
+    }
+    const cache = new Map(data.stocks);
+    console.log(`[universe] Loaded cache from disk: ${cache.size} stocks`);
+    return cache;
+  } catch (err) {
+    console.warn(`[universe] Failed to load cache from disk: ${err.message}`);
+    return null;
+  }
+}
 
 const BATCH_SIZE = 1;
 const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -144,6 +182,14 @@ async function enrichStock(entry) {
 }
 
 async function buildCache() {
+  const diskCache = loadCacheFromDisk();
+  if (diskCache) {
+    state.cache = diskCache;
+    state.ready = true;
+    state.lastRefreshed = new Date().toISOString();
+    return;
+  }
+
   console.log('[universe] Starting cache build...');
   try {
     const screenerResults = await fmp.getScreener({
@@ -225,6 +271,7 @@ async function buildCache() {
     state.ready = true;
     state.lastRefreshed = new Date().toISOString();
     console.log(`[universe] Cache ready: ${newCache.size} stocks`);
+    saveCacheToDisk(newCache);
   } catch (err) {
     console.error('[universe] Cache build failed:', err.message);
     state.ready = false;
@@ -237,4 +284,4 @@ function startCache() {
   setInterval(buildCache, REFRESH_INTERVAL_MS);
 }
 
-module.exports = { startCache, getCache, isReady, getStatus };
+module.exports = { startCache, getCache, isReady, getStatus, saveCacheToDisk, loadCacheFromDisk };

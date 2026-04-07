@@ -24,14 +24,14 @@ describe('findMatches', () => {
     expect(results.length).toBeLessThanOrEqual(10);
   });
 
-  test('results are sorted by matchScore descending', () => {
+  test('results are sorted by similarity descending', () => {
     const universe = new Map();
     for (let i = 0; i < 15; i++) {
       universe.set(`STK${i}`, makeStock(`STK${i}`, { peRatio: 20 + i * 3 }));
     }
     const results = findMatches(snapshot, universe);
     for (let i = 0; i < results.length - 1; i++) {
-      expect(results[i].matchScore).toBeGreaterThanOrEqual(results[i + 1].matchScore);
+      expect(results[i].similarity).toBeGreaterThanOrEqual(results[i + 1].similarity);
     }
   });
 
@@ -43,24 +43,19 @@ describe('findMatches', () => {
     expect(results.find(r => r.ticker === 'TMPL')).toBeUndefined();
   });
 
-  test('perfect match scores 100', () => {
+  test('identical stock ranks first and scores higher than a divergent one', () => {
     const universe = new Map();
     universe.set('TWIN', makeStock('TWIN')); // identical to snapshot
+    universe.set('DIFF', makeStock('DIFF', { peRatio: 999, grossMargin: 0.01, rsi14: 5 }));
     const results = findMatches(snapshot, universe);
-    expect(results[0].matchScore).toBe(100);
+    expect(results[0].ticker).toBe('TWIN');
+    expect(results[0].similarity).toBeGreaterThan(results[1].similarity);
   });
 
   test('does not throw when metrics are null', () => {
     const universe = new Map();
     universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, rsi14: null, grossMargin: null }));
     expect(() => findMatches(snapshot, universe)).not.toThrow();
-  });
-
-  test('topMatches contains 3 metric keys', () => {
-    const universe = new Map();
-    universe.set('CLOSE', makeStock('CLOSE'));
-    const results = findMatches(snapshot, universe);
-    expect(results[0].topMatches).toHaveLength(3);
   });
 
   test('each result has required shape', () => {
@@ -72,9 +67,7 @@ describe('findMatches', () => {
       companyName: expect.any(String),
       sector: expect.any(String),
       price: expect.any(Number),
-      matchScore: expect.any(Number),
-      topMatches: expect.any(Array),
-      topDifferences: expect.any(Array),
+      similarity: expect.any(Number),
     });
   });
 });

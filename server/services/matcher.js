@@ -80,6 +80,7 @@ function findMatches(snapshot, universe, limit = 10) {
   });
 
   const results = Array.from(universe.values())
+    .filter(stock => stock.ticker !== snapshot.ticker)
     .map(stock => ({
       ...stock,
       similarity: calculateSimilarity(snapshot, stock, scales)
