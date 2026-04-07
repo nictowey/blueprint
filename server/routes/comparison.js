@@ -144,6 +144,9 @@ router.get('/', async (req, res) => {
     ? afterDate.toISOString().slice(0, 10)
     : new Date().toISOString().slice(0, 10);
 
+  const matchSparklineFrom = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const matchSparklineTo = new Date().toISOString().slice(0, 10);
+
   try {
     const fromDate = new Date(date);
     fromDate.setFullYear(fromDate.getFullYear() - 1);
@@ -160,7 +163,8 @@ router.get('/', async (req, res) => {
       : buildCurrentMetrics(matchSym);
 
     const [profileData, incomeData, metricsData, ratiosData, histData, shortData,
-           sparklineData, matchData, templateBalanceData, templateCashFlowData] =
+           sparklineData, matchData, templateBalanceData, templateCashFlowData,
+           matchSparklineData] =
       await Promise.allSettled([
         fmp.getProfile(sym, false),
         fmp.getIncomeStatements(sym, 10, false),
@@ -172,6 +176,7 @@ router.get('/', async (req, res) => {
         matchMetricsPromise,
         fmp.getBalanceSheet(sym, 4, false),
         fmp.getCashFlowStatement(sym, 4, false),
+        fmp.getHistoricalPrices(matchSym, matchSparklineFrom, matchSparklineTo, false),
       ]);
 
     const profile         = profileData.status         === 'fulfilled' ? profileData.value         : {};
@@ -289,7 +294,20 @@ router.get('/', async (req, res) => {
       if (start > 0) sparklineGainPct = ((end - start) / start) * 100;
     }
 
-    const result = { template, match: matchMetrics, sparkline, sparklineGainPct };
+    const matchSparklineRaw = matchSparklineData?.status === 'fulfilled' ? matchSparklineData.value : [];
+
+    const matchSparkline = [...matchSparklineRaw]
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map(h => ({ date: h.date, price: h.close }));
+
+    let matchSparklineGainPct = null;
+    if (matchSparkline.length >= 2) {
+      const start = matchSparkline[0].price;
+      const end = matchSparkline[matchSparkline.length - 1].price;
+      if (start > 0) matchSparklineGainPct = ((end - start) / start) * 100;
+    }
+
+    const result = { template, match: matchMetrics, sparkline, sparklineGainPct, matchSparkline, matchSparklineGainPct };
     comparisonCache.set(cacheKey, { data: result, ts: Date.now() });
     res.json(result);
   } catch (err) {
