@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../components/TickerSearch';
 import SnapshotCard from '../components/SnapshotCard';
@@ -17,6 +17,34 @@ export default function TemplatePicker() {
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [serverReady, setServerReady] = useState(true);
+  const [stockCount, setStockCount] = useState(0);
+  const pollRef = useRef(null);
+
+  // Poll /api/status until the universe cache is ready
+  useEffect(() => {
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        setServerReady(data.ready);
+        setStockCount(data.stockCount ?? 0);
+        if (data.ready && pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      } catch {
+        // server not yet reachable — keep polling
+      }
+    }
+
+    checkStatus();
+    pollRef.current = setInterval(checkStatus, 3000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   async function loadSnapshot() {
     if (!ticker.trim()) { setError('Enter a stock ticker'); return; }
@@ -43,6 +71,17 @@ export default function TemplatePicker() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-12">
+      {/* Warm-up banner */}
+      {!serverReady && (
+        <div className="mb-6 flex items-center gap-3 px-4 py-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-yellow-400 text-sm">
+          <span className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin shrink-0" />
+          <span>
+            Server warming up — {stockCount.toLocaleString()} stocks loaded so far.
+            Snapshot lookups work now; match results will be ready shortly.
+          </span>
+        </div>
+      )}
+
       {/* Hero */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold text-slate-100 mb-3">

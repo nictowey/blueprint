@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
@@ -10,6 +10,19 @@ const LOADING_MESSAGES = [
   'Almost there…',
 ];
 
+const MATCH_METRICS = [
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
+  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+  'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+  'marketCap',
+];
+
+const MAX_RETRIES = 12;
+const RETRY_INTERVAL_MS = 5000;
+
 export default function MatchResults() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -19,6 +32,14 @@ export default function MatchResults() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msgIdx, setMsgIdx] = useState(0);
+
+  // Warm-up retry state
+  const [warming, setWarming] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
+  const [warmStockCount, setWarmStockCount] = useState(0);
+  const retryRef = useRef(null);
+  const countdownRef = useRef(null);
+  const retriesLeft = useRef(MAX_RETRIES);
 
   // Redirect if no snapshot in state
   useEffect(() => {
@@ -34,33 +55,75 @@ export default function MatchResults() {
     return () => clearInterval(id);
   }, [loading]);
 
-  useEffect(() => {
+  const fetchMatches = useCallback(async () => {
     if (!snapshot) return;
-
-    // Send ALL available snapshot metrics so the matcher can score on every dimension
-    const MATCH_METRICS = [
-      'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
-      'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
-      'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
-      'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
-      'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
-      'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
-      'marketCap',
-    ];
 
     const params = new URLSearchParams({ ticker: snapshot.ticker, date: snapshot.date });
     for (const metric of MATCH_METRICS) {
       if (snapshot[metric] != null) params.set(metric, snapshot[metric]);
     }
 
-    fetch(`/api/matches?${params}`)
-      .then(res => {
-        if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Match failed'); });
-        return res.json();
-      })
-      .then(data => { setMatches(data); setLoading(false); })
-      .catch(err => { setError(err.message); setLoading(false); });
+    const res = await fetch(`/api/matches?${params}`);
+
+    if (res.status === 503) {
+      // Universe still warming up — schedule a retry
+      if (retriesLeft.current <= 0) {
+        setError('Server is still warming up. Please try again in a minute.');
+        setLoading(false);
+        setWarming(false);
+        return;
+      }
+
+      retriesLeft.current -= 1;
+      setWarming(true);
+
+      // Fetch stock count for the progress display
+      try {
+        const statusRes = await fetch('/api/status');
+        if (statusRes.ok) {
+          const status = await statusRes.json();
+          setWarmStockCount(status.stockCount ?? 0);
+        }
+      } catch { /* ignore */ }
+
+      // Start countdown
+      setRetryCountdown(RETRY_INTERVAL_MS / 1000);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      countdownRef.current = setInterval(() => {
+        setRetryCountdown(c => {
+          if (c <= 1) { clearInterval(countdownRef.current); return 0; }
+          return c - 1;
+        });
+      }, 1000);
+
+      retryRef.current = setTimeout(fetchMatches, RETRY_INTERVAL_MS);
+      return;
+    }
+
+    // Clear warm-up state on any non-503 response
+    setWarming(false);
+    if (retryRef.current) clearTimeout(retryRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setError(d.error || 'Match failed');
+      setLoading(false);
+      return;
+    }
+
+    const data = await res.json();
+    setMatches(data);
+    setLoading(false);
   }, [snapshot]);
+
+  useEffect(() => {
+    fetchMatches();
+    return () => {
+      if (retryRef.current) clearTimeout(retryRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, [fetchMatches]);
 
   if (!snapshot) return null;
 
@@ -91,8 +154,19 @@ export default function MatchResults() {
         <button className="btn-secondary" onClick={() => navigate(-1)}>← Back</button>
       </div>
 
-      {/* Loading state */}
-      {loading && (
+      {/* Warm-up retry state */}
+      {warming && (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-10 h-10 border-4 border-dark-border border-t-yellow-400 rounded-full animate-spin" />
+          <p className="text-yellow-400 text-sm font-medium">Universe warming up</p>
+          <p className="text-slate-500 text-xs">
+            {warmStockCount.toLocaleString()} stocks loaded — retrying in {retryCountdown}s…
+          </p>
+        </div>
+      )}
+
+      {/* Normal loading state */}
+      {loading && !warming && (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
           <p className="text-slate-400 text-sm animate-pulse">{LOADING_MESSAGES[msgIdx]}</p>
