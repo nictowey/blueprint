@@ -1,4 +1,4 @@
-export default function Sparkline({ data, gainPct }) {
+export default function Sparkline({ data, gainPct, label = 'What happened after this snapshot', period = '18 months' }) {
   if (!data || data.length < 2) {
     return <div className="h-24 flex items-center justify-center text-slate-600 text-sm">No price history</div>;
   }
@@ -28,13 +28,13 @@ export default function Sparkline({ data, gainPct }) {
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-slate-500 uppercase tracking-wider">
-          What happened after this snapshot
+          {label}
         </span>
         <span
           className="text-sm font-bold"
           style={{ color: isPositive ? '#22c55e' : '#ef4444' }}
         >
-          {gainStr} over 18 months
+          {gainStr} over {period}
         </span>
       </div>
       <svg
