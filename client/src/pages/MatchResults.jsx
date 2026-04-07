@@ -17,7 +17,6 @@ const MATCH_METRICS = [
   'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
-  'marketCap',
 ];
 
 const MAX_RETRIES = 12;
