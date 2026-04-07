@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
+const { getCache } = require('../services/universe');
 
 function findPeriodOnOrBefore(periods, targetDate) {
   const target = new Date(targetDate);
@@ -137,6 +138,16 @@ router.get('/', async (req, res) => {
     fromDate.setFullYear(fromDate.getFullYear() - 1);
     const fromStr = fromDate.toISOString().slice(0, 10);
 
+    // Use cached universe entry for match ticker if available — saves 7 FMP calls
+    const cachedMatch = getCache().get(matchSym);
+    const matchMetricsPromise = cachedMatch
+      ? Promise.resolve({
+          ...cachedMatch,
+          date: new Date().toISOString().slice(0, 10),
+          shortInterestPct: null,
+        })
+      : buildCurrentMetrics(matchSym);
+
     const [profileData, incomeData, metricsData, ratiosData, histData, shortData,
            sparklineData, matchData, templateBalanceData, templateCashFlowData] =
       await Promise.allSettled([
@@ -147,7 +158,7 @@ router.get('/', async (req, res) => {
         fmp.getHistoricalPrices(sym, fromStr, date, false),
         fmp.getShortInterest(sym, false),
         fmp.getHistoricalPrices(sym, date, sparklineEnd, false),
-        buildCurrentMetrics(matchSym),
+        matchMetricsPromise,
         fmp.getBalanceSheet(sym, 4, false),
         fmp.getCashFlowStatement(sym, 4, false),
       ]);

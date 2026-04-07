@@ -3,6 +3,10 @@ const router = express.Router();
 const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
 
+// Historical snapshots are immutable — cache indefinitely (24h TTL is conservative)
+const snapshotCache = new Map();
+const SNAPSHOT_CACHE_TTL = 24 * 60 * 60 * 1000;
+
 // Find the most recent period whose date falls on or before targetDate
 function findPeriodOnOrBefore(periods, targetDate) {
   const target = new Date(targetDate);
@@ -31,6 +35,11 @@ router.get('/', async (req, res) => {
   }
 
   const sym = ticker.toUpperCase();
+  const cacheKey = `${sym}:${date}`;
+  const cached = snapshotCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < SNAPSHOT_CACHE_TTL) {
+    return res.json(cached.data);
+  }
 
   // Fetch 1 year of prices before snapshot date for 52w high + RSI window
   const fromDate = new Date(date);
@@ -129,7 +138,7 @@ router.get('/', async (req, res) => {
       if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
     }
 
-    res.json({
+    const result = {
       ticker: sym,
       companyName: profile.companyName || sym,
       sector: profile.sector || null,
@@ -177,7 +186,9 @@ router.get('/', async (req, res) => {
       // Overview
       marketCap:         curMetrics?.marketCap ?? null,
       shortInterestPct:  shortRaw?.shortInterestPercent ?? null,
-    });
+    };
+    snapshotCache.set(cacheKey, { data: result, ts: Date.now() });
+    res.json(result);
   } catch (err) {
     console.error('[snapshot] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch snapshot data' });

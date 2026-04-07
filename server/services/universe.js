@@ -41,9 +41,9 @@ async function loadCacheFromRedis() {
   }
 }
 
-const BATCH_SIZE = 1;
-const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const RETRY_ON_FAIL_MS = 60 * 60 * 1000;          // 1 hour
+const INCREMENTAL_INTERVAL_MS = 10 * 60 * 1000;   // 10 minutes
+const INCREMENTAL_BATCH_SIZE = 10;                 // stocks per interval (~24h full cycle)
 
 const state = {
   cache: new Map(),
@@ -181,11 +181,22 @@ async function enrichStock(entry) {
   entry.priceVsMa200       = priceVsMa200;
   entry.beta               = profileData?.beta ?? entry.beta ?? null;
   entry.avgVolume          = profileData?.averageVolume ?? entry.avgVolume ?? null;
+  entry.lastEnriched       = Date.now();
 }
 
 async function buildCache() {
   const redisCache = await loadCacheFromRedis();
   if (redisCache) {
+    // Spread lastEnriched timestamps across the next 24h so incremental
+    // refresh cycles evenly rather than refreshing all stocks at once.
+    const stocks = Array.from(redisCache.values());
+    const now = Date.now();
+    const window = 24 * 60 * 60 * 1000;
+    stocks.forEach((entry, i) => {
+      if (!entry.lastEnriched) {
+        entry.lastEnriched = now - window + (i / stocks.length) * window;
+      }
+    });
     state.cache = redisCache;
     state.ready = true;
     state.lastRefreshed = new Date().toISOString();
@@ -283,9 +294,29 @@ async function buildCache() {
   }
 }
 
+async function refreshStalest(n = INCREMENTAL_BATCH_SIZE) {
+  if (!state.ready) return; // don't run during initial build
+  const entries = Array.from(state.cache.values())
+    .sort((a, b) => (a.lastEnriched ?? 0) - (b.lastEnriched ?? 0))
+    .slice(0, n);
+
+  if (entries.length === 0) return;
+  console.log(`[universe] Incremental refresh: ${entries.length} stocks`);
+
+  for (const entry of entries) {
+    try {
+      await enrichStock(entry);
+    } catch (err) {
+      console.warn(`[universe] Incremental skip ${entry.ticker}: ${err.message}`);
+    }
+  }
+
+  await saveCacheToRedis(state.cache);
+}
+
 function startCache() {
   buildCache();
-  setInterval(buildCache, REFRESH_INTERVAL_MS);
+  setInterval(refreshStalest, INCREMENTAL_INTERVAL_MS);
 }
 
 module.exports = { startCache, getCache, isReady, getStatus, saveCacheToRedis, loadCacheFromRedis };
