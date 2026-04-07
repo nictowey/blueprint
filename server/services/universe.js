@@ -145,8 +145,9 @@ async function enrichStock(entry) {
       }
     }
 
-    if (closes.length >= 200) {
-      const ma200 = closes.slice(-200).reduce((s, v) => s + v, 0) / 200;
+    if (closes.length > 0) {
+      const window200 = closes.slice(-200);
+      const ma200 = window200.reduce((s, v) => s + v, 0) / window200.length;
       if (currentPrice != null && ma200 > 0) {
         priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
       }

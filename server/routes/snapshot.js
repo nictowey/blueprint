@@ -133,8 +133,9 @@ router.get('/', async (req, res) => {
       const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
       if (price != null && ma50 > 0) priceVsMa50 = ((price - ma50) / ma50) * 100;
     }
-    if (pricesAsc.length >= 200) {
-      const ma200 = pricesAsc.slice(-200).reduce((s, v) => s + v, 0) / 200;
+    if (pricesAsc.length > 0) {
+      const window200 = pricesAsc.slice(-200);
+      const ma200 = window200.reduce((s, v) => s + v, 0) / window200.length;
       if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
     }
 
