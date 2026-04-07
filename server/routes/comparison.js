@@ -68,8 +68,8 @@ async function buildCurrentMetrics(ticker) {
     const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
     if (currentPrice != null && ma50 > 0) priceVsMa50 = ((currentPrice - ma50) / ma50) * 100;
   }
-  if (pricesAsc.length > 0) {
-    const ma200 = pricesAsc.reduce((s, v) => s + v, 0) / pricesAsc.length;
+  if (pricesAsc.length >= 200) {
+    const ma200 = pricesAsc.slice(-200).reduce((s, v) => s + v, 0) / 200;
     if (currentPrice != null && ma200 > 0) priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
   }
 
@@ -113,7 +113,7 @@ async function buildCurrentMetrics(ticker) {
     // Technical
     rsi14, pctBelowHigh, priceVsMa50, priceVsMa200,
     beta:              profile?.beta ?? null,
-    avgVolume:         profile?.averageVolume ?? null,
+    avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
     // Overview — key-metrics-ttm uses 'marketCap' not 'marketCapTTM'
     marketCap:         ttmMetrics.marketCap ?? null,
     shortInterestPct:  null,
@@ -226,8 +226,8 @@ router.get('/', async (req, res) => {
       const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
       if (price != null && ma50 > 0) priceVsMa50 = ((price - ma50) / ma50) * 100;
     }
-    if (pricesAsc.length > 0) {
-      const ma200 = pricesAsc.reduce((s, v) => s + v, 0) / pricesAsc.length;
+    if (pricesAsc.length >= 200) {
+      const ma200 = pricesAsc.slice(-200).reduce((s, v) => s + v, 0) / 200;
       if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
     }
 

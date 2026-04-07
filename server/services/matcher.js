@@ -56,19 +56,21 @@ function normalize(value, min, max) {
   return (clamped - min) / (max - min);
 }
 
+// Returns { score: 0-100, metricScores: [{ metric, similarity, hasValues }] }
 function calculateSimilarity(snapshot, stock, scales) {
   let totalWeight = 0;
   let score = 0;
+  const metricScores = [];
 
   for (const metric of MATCH_METRICS) {
     const snapVal = prepareValue(metric, snapshot[metric]);
     const stockVal = prepareValue(metric, stock[metric]);
     const weight = METRIC_WEIGHTS[metric] ?? 1.0;
 
-    // If snapshot is missing this dimension we can't compare — skip entirely
+    // Snapshot missing — can't compare, skip entirely
     if (snapVal === null) continue;
 
-    // If only the stock is missing — neutral score, still counts toward weight
+    // Stock missing — neutral contribution, not tracked for top/diff
     if (stockVal === null) {
       score += 0.5 * weight;
       totalWeight += weight;
@@ -77,10 +79,12 @@ function calculateSimilarity(snapshot, stock, scales) {
 
     const normSnap = normalize(snapVal, scales[metric].min, scales[metric].max);
     const normStock = normalize(stockVal, scales[metric].min, scales[metric].max);
-
     const diff = Math.abs(normSnap - normStock);
-    score += (1 - diff) * weight;
+    const metricSimilarity = 1 - diff;
+
+    score += metricSimilarity * weight;
     totalWeight += weight;
+    metricScores.push({ metric, similarity: metricSimilarity });
   }
 
   // Sector bonus
@@ -89,13 +93,13 @@ function calculateSimilarity(snapshot, stock, scales) {
     totalWeight += 0.15;
   }
 
-  return totalWeight > 0 ? Math.max(0, Math.min(100, (score / totalWeight) * 100)) : 0;
+  const finalScore = totalWeight > 0 ? Math.max(0, Math.min(100, (score / totalWeight) * 100)) : 0;
+  return { score: finalScore, metricScores };
 }
 
 function findMatches(snapshot, universe, limit = 10) {
   if (!snapshot || universe.size === 0) return [];
 
-  // Pre-compute scales once
   const scales = {};
   MATCH_METRICS.forEach(metric => {
     scales[metric] = computeScale(Array.from(universe.values()), metric);
@@ -103,11 +107,22 @@ function findMatches(snapshot, universe, limit = 10) {
 
   const results = Array.from(universe.values())
     .filter(stock => stock.ticker !== snapshot.ticker)
-    .map(stock => ({
-      ...stock,
-      similarity: calculateSimilarity(snapshot, stock, scales)
-    }))
-    .sort((a, b) => b.similarity - a.similarity)
+    .map(stock => {
+      const { score, metricScores } = calculateSimilarity(snapshot, stock, scales);
+
+      // Sort by per-metric similarity (unweighted) to find closest and most divergent
+      const ranked = [...metricScores].sort((a, b) => b.similarity - a.similarity);
+      const topMatches = ranked.slice(0, 3).map(m => m.metric);
+      const topDifferences = ranked.slice(-3).reverse().map(m => m.metric);
+
+      return {
+        ...stock,
+        matchScore: Math.round(score),
+        topMatches,
+        topDifferences,
+      };
+    })
+    .sort((a, b) => b.matchScore - a.matchScore)
     .slice(0, limit);
 
   return results;
