@@ -24,14 +24,14 @@ describe('findMatches', () => {
     expect(results.length).toBeLessThanOrEqual(10);
   });
 
-  test('results are sorted by similarity descending', () => {
+  test('results are sorted by matchScore descending', () => {
     const universe = new Map();
     for (let i = 0; i < 15; i++) {
       universe.set(`STK${i}`, makeStock(`STK${i}`, { peRatio: 20 + i * 3 }));
     }
     const results = findMatches(snapshot, universe);
     for (let i = 0; i < results.length - 1; i++) {
-      expect(results[i].similarity).toBeGreaterThanOrEqual(results[i + 1].similarity);
+      expect(results[i].matchScore).toBeGreaterThanOrEqual(results[i + 1].matchScore);
     }
   });
 
@@ -49,7 +49,7 @@ describe('findMatches', () => {
     universe.set('DIFF', makeStock('DIFF', { peRatio: 999, grossMargin: 0.01, rsi14: 5 }));
     const results = findMatches(snapshot, universe);
     expect(results[0].ticker).toBe('TWIN');
-    expect(results[0].similarity).toBeGreaterThan(results[1].similarity);
+    expect(results[0].matchScore).toBeGreaterThan(results[1].matchScore);
   });
 
   test('does not throw when metrics are null', () => {
@@ -67,7 +67,9 @@ describe('findMatches', () => {
       companyName: expect.any(String),
       sector: expect.any(String),
       price: expect.any(Number),
-      similarity: expect.any(Number),
+      matchScore: expect.any(Number),
+      topMatches: expect.any(Array),
+      topDifferences: expect.any(Array),
     });
   });
 });

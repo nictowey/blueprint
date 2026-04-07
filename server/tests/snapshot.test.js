@@ -62,7 +62,8 @@ describe('GET /api/snapshot', () => {
     fmp.getIncomeStatements.mockResolvedValue([]);
     fmp.getKeyMetricsAnnual.mockResolvedValue([]);
     fmp.getRatiosAnnual.mockResolvedValue([]);
-    const res = await request(app).get('/api/snapshot?ticker=NVDA&date=2019-06-15');
+    // Use a different ticker to avoid the in-memory snapshot cache from previous tests
+    const res = await request(app).get('/api/snapshot?ticker=AAPL&date=2019-06-15');
     expect(res.status).toBe(200);
     expect(res.body.peRatio).toBeNull();
     expect(res.body.grossMargin).toBeNull();
