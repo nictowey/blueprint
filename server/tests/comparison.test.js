@@ -19,8 +19,11 @@ const mockMatchHist = Array.from({ length: 30 }, (_, i) => ({
 
 const mockProfile = { companyName: 'NVIDIA Corp', sector: 'Technology', beta: 1.5, volAvg: 50000000 };
 
-beforeEach(() => {
-  // Default: universe cache is empty so buildCurrentMetrics runs
+function setupMocks() {
+  // Clear any leftover mock state from previous tests
+  jest.clearAllMocks();
+
+  // Universe cache empty → buildCurrentMetrics runs for the match ticker
   universe.getCache.mockReturnValue(new Map());
 
   fmp.getProfile.mockResolvedValue(mockProfile);
@@ -33,12 +36,19 @@ beforeEach(() => {
   fmp.getKeyMetricsTTM.mockResolvedValue({});
   fmp.getRatiosTTM.mockResolvedValue({});
 
-  // getHistoricalPrices: first call → template window, second → template sparkline, third → match 12-month
+  // getHistoricalPrices call order in the route:
+  //   [0] buildCurrentMetrics internal: getHistoricalPrices(matchSym, now-365d, now)
+  //   [1] Promise.allSettled slot 5: getHistoricalPrices(sym, fromStr, date) — template 1yr history
+  //   [2] Promise.allSettled slot 7: getHistoricalPrices(sym, date, sparklineEnd) — template sparkline
+  //   [3] Promise.allSettled slot 11: getHistoricalPrices(matchSym, matchSparklineFrom, matchSparklineTo) — match sparkline
   fmp.getHistoricalPrices
-    .mockResolvedValueOnce(mockTemplateHist)  // template 1yr historical
-    .mockResolvedValueOnce(mockTemplateHist)  // template sparkline (18 months after date)
-    .mockResolvedValueOnce(mockMatchHist);    // match ticker last 12 months
-});
+    .mockResolvedValueOnce(mockMatchHist)    // [0] buildCurrentMetrics internal
+    .mockResolvedValueOnce(mockTemplateHist) // [1] template 1yr historical
+    .mockResolvedValueOnce(mockTemplateHist) // [2] template sparkline
+    .mockResolvedValueOnce(mockMatchHist);   // [3] match sparkline
+}
+
+beforeEach(setupMocks);
 
 describe('GET /api/comparison', () => {
   test('returns 400 when required params are missing', async () => {
@@ -58,16 +68,32 @@ describe('GET /api/comparison', () => {
 
   test('returns matchSparklineGainPct as a number', async () => {
     const res = await request(app)
-      .get('/api/comparison?ticker=NVDA&date=2022-10-15&matchTicker=MSFT');
+      .get('/api/comparison?ticker=NVDA&date=2022-10-15&matchTicker=AAPL');
     expect(res.status).toBe(200);
     expect(typeof res.body.matchSparklineGainPct).toBe('number');
   });
 
   test('response still includes template sparkline fields', async () => {
     const res = await request(app)
-      .get('/api/comparison?ticker=NVDA&date=2022-10-15&matchTicker=MSFT');
+      .get('/api/comparison?ticker=NVDA&date=2022-10-15&matchTicker=GOOGL');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.sparkline)).toBe(true);
     expect(res.body).toHaveProperty('sparklineGainPct');
+  });
+
+  test('returns empty matchSparkline when match prices unavailable', async () => {
+    // beforeEach already called setupMocks(); we just need to replace the
+    // getHistoricalPrices queue so the match sparkline call rejects instead.
+    fmp.getHistoricalPrices.mockReset();
+    fmp.getHistoricalPrices
+      .mockResolvedValueOnce(mockMatchHist)    // buildCurrentMetrics internal
+      .mockResolvedValueOnce(mockTemplateHist) // template hist
+      .mockResolvedValueOnce(mockTemplateHist) // template sparkline
+      .mockRejectedValueOnce(new Error('FMP unavailable')); // match sparkline fails
+    const res = await request(app)
+      .get('/api/comparison?ticker=NVDA&date=2022-10-15&matchTicker=AMZN');
+    expect(res.status).toBe(200);
+    expect(res.body.matchSparkline).toEqual([]);
+    expect(res.body.matchSparklineGainPct).toBeNull();
   });
 });

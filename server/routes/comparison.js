@@ -294,7 +294,9 @@ router.get('/', async (req, res) => {
       if (start > 0) sparklineGainPct = ((end - start) / start) * 100;
     }
 
-    const matchSparklineRaw = matchSparklineData?.status === 'fulfilled' ? matchSparklineData.value : [];
+    const matchSparklineRaw = matchSparklineData?.status === 'fulfilled' && Array.isArray(matchSparklineData.value)
+      ? matchSparklineData.value
+      : [];
 
     const matchSparkline = [...matchSparklineRaw]
       .sort((a, b) => new Date(a.date) - new Date(b.date))
