@@ -10,8 +10,6 @@ const MATCH_METRICS = [
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
   // Technical
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
-  // Size (log normalized)
-  'marketCap',
 ];
 
 // Growth and profitability matter most for finding breakout candidates.
@@ -30,9 +28,12 @@ const METRIC_WEIGHTS = {
   netDebtToEBITDA: 1.5, freeCashFlowYield: 1.5,
   // Technical — lower weight
   rsi14: 0.5, pctBelowHigh: 0.5, priceVsMa50: 0.5, priceVsMa200: 0.5,
-  // Size
-  marketCap: 1.0,
 };
+
+// Fixed denominator: sum of ALL metric weights regardless of which are populated.
+// Null snapshot metrics contribute 0 to the numerator but their weight still counts here.
+const FIXED_TOTAL_WEIGHT = MATCH_METRICS.reduce((sum, m) => sum + (METRIC_WEIGHTS[m] ?? 1.0), 0);
+// = 35.0
 
 function prepareValue(metric, value) {
   if (value == null || !isFinite(value)) return null;
@@ -56,9 +57,8 @@ function normalize(value, min, max) {
   return (clamped - min) / (max - min);
 }
 
-// Returns { score: 0-100, metricScores: [{ metric, similarity, hasValues }] }
+// Returns { score: 0-100, metricScores: [{ metric, similarity }] }
 function calculateSimilarity(snapshot, stock, scales) {
-  let totalWeight = 0;
   let score = 0;
   const metricScores = [];
 
@@ -67,13 +67,12 @@ function calculateSimilarity(snapshot, stock, scales) {
     const stockVal = prepareValue(metric, stock[metric]);
     const weight = METRIC_WEIGHTS[metric] ?? 1.0;
 
-    // Snapshot missing — can't compare, skip entirely
+    // Snapshot missing — contributes 0 to numerator; weight already in FIXED_TOTAL_WEIGHT
     if (snapVal === null) continue;
 
-    // Stock missing — neutral contribution, not tracked for top/diff
+    // Stock missing — neutral contribution (0.5), not tracked for top/diff
     if (stockVal === null) {
       score += 0.5 * weight;
-      totalWeight += weight;
       continue;
     }
 
@@ -83,17 +82,15 @@ function calculateSimilarity(snapshot, stock, scales) {
     const metricSimilarity = 1 - diff;
 
     score += metricSimilarity * weight;
-    totalWeight += weight;
     metricScores.push({ metric, similarity: metricSimilarity });
   }
 
-  // Sector bonus
+  // Sector bonus — added to numerator only; denominator stays at FIXED_TOTAL_WEIGHT
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
     score += 0.15;
-    totalWeight += 0.15;
   }
 
-  const finalScore = totalWeight > 0 ? Math.max(0, Math.min(100, (score / totalWeight) * 100)) : 0;
+  const finalScore = Math.max(0, Math.min(100, (score / FIXED_TOTAL_WEIGHT) * 100));
   return { score: finalScore, metricScores };
 }
 
