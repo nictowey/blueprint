@@ -4,6 +4,11 @@ const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
 const { getCache } = require('../services/universe');
 
+// Template side is historical/immutable; match side updates every ~10 min with
+// the incremental refresh cycle — use matching TTL.
+const comparisonCache = new Map();
+const COMPARISON_CACHE_TTL = 10 * 60 * 1000;
+
 function findPeriodOnOrBefore(periods, targetDate) {
   const target = new Date(targetDate);
   return periods
@@ -126,6 +131,11 @@ router.get('/', async (req, res) => {
 
   const sym = ticker.toUpperCase();
   const matchSym = matchTicker.toUpperCase();
+  const cacheKey = `${sym}:${date}:${matchSym}`;
+  const cached = comparisonCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < COMPARISON_CACHE_TTL) {
+    return res.json(cached.data);
+  }
 
   const afterDate = new Date(date);
   afterDate.setMonth(afterDate.getMonth() + 18);
@@ -277,7 +287,9 @@ router.get('/', async (req, res) => {
       if (start > 0) sparklineGainPct = ((end - start) / start) * 100;
     }
 
-    res.json({ template, match: matchMetrics, sparkline, sparklineGainPct });
+    const result = { template, match: matchMetrics, sparkline, sparklineGainPct };
+    comparisonCache.set(cacheKey, { data: result, ts: Date.now() });
+    res.json(result);
   } catch (err) {
     console.error('[comparison] Error:', err.message);
     res.status(500).json({ error: 'Failed to fetch comparison data' });

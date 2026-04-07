@@ -49,15 +49,30 @@ const state = {
   cache: new Map(),
   ready: false,
   lastRefreshed: null,
+  lastIncrementalRefresh: null,
 };
 
 function getCache() { return state.cache; }
 function isReady() { return state.ready; }
 function getStatus() {
+  const entries = Array.from(state.cache.values());
+  const now = Date.now();
+  const stalest = entries.length > 0
+    ? Math.min(...entries.map(e => e.lastEnriched ?? 0))
+    : null;
+  const freshest = entries.length > 0
+    ? Math.max(...entries.map(e => e.lastEnriched ?? 0))
+    : null;
   return {
     ready: state.ready,
     stockCount: state.cache.size,
     lastRefreshed: state.lastRefreshed,
+    lastIncrementalRefresh: state.lastIncrementalRefresh,
+    nextIncrementalRefreshIn: state.lastIncrementalRefresh
+      ? Math.max(0, INCREMENTAL_INTERVAL_MS - (now - new Date(state.lastIncrementalRefresh).getTime()))
+      : null,
+    oldestEntryAge: stalest ? Math.round((now - stalest) / 1000 / 60) + 'm' : null,
+    newestEntryAge: freshest ? Math.round((now - freshest) / 1000 / 60) + 'm' : null,
   };
 }
 
@@ -311,6 +326,7 @@ async function refreshStalest(n = INCREMENTAL_BATCH_SIZE) {
     }
   }
 
+  state.lastIncrementalRefresh = new Date().toISOString();
   await saveCacheToRedis(state.cache);
 }
 
