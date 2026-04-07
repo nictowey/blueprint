@@ -156,11 +156,14 @@ export default function ComparisonDetail() {
               )}
             </div>
 
-            {/* Spacer to align with sparkline area */}
-            <div className="bg-dark-bg rounded-lg p-4 mb-6 flex items-center justify-center" style={{ minHeight: '120px' }}>
-              <p className="text-slate-600 text-sm text-center">
-                Current profile as of today
-              </p>
+            {/* Match sparkline — last 12 months */}
+            <div className="bg-dark-bg rounded-lg p-4 mb-6">
+              <Sparkline
+                data={data.matchSparkline}
+                gainPct={data.matchSparklineGainPct}
+                label="Last 12 months"
+                period="12 months"
+              />
             </div>
 
             {/* Price with color coding vs template */}
