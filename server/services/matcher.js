@@ -34,10 +34,10 @@ const METRIC_WEIGHTS = {
 // Null snapshot metrics contribute 0 to the numerator but their weight still counts here.
 const FIXED_TOTAL_WEIGHT = MATCH_METRICS.reduce((sum, m) => sum + (METRIC_WEIGHTS[m] ?? 1.0), 0);
 // = 35.0
+Object.freeze(MATCH_METRICS);
 
 function prepareValue(metric, value) {
   if (value == null || !isFinite(value)) return null;
-  if (metric === 'marketCap') return value > 0 ? Math.log(value) : null;
   return value;
 }
 
@@ -85,7 +85,8 @@ function calculateSimilarity(snapshot, stock, scales) {
     metricScores.push({ metric, similarity: metricSimilarity });
   }
 
-  // Sector bonus — added to numerator only; denominator stays at FIXED_TOTAL_WEIGHT
+  // Sector bonus: small nudge for same-sector matches. Adds to numerator only —
+  // scores above 100 before clamping are expected and handled by Math.min below.
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
     score += 0.15;
   }

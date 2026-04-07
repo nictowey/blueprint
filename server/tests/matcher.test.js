@@ -125,6 +125,8 @@ describe('findMatches — fixed denominator scoring', () => {
     const richResults = findMatches(richSnap, universe);
 
     expect(sparseResults[0].matchScore).toBeLessThan(richResults[0].matchScore);
+    // Max theoretical sparse score: weights of 5 metrics (6.5) / FIXED_TOTAL_WEIGHT (35.0) * 100 ≈ 18.6
+    expect(sparseResults[0].matchScore).toBeLessThan(25);
   });
 
   test('identical stock with all metrics populated scores above 90', () => {
