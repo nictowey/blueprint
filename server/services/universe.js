@@ -195,10 +195,10 @@ async function buildCache() {
   console.log('[universe] Starting cache build...');
   try {
     const screenerResults = await fmp.getScreener({
-      marketCapMoreThan: 50_000_000,
+      marketCapMoreThan: 100_000_000,
       country: 'US',
-      exchange: 'NYSE,NASDAQ,AMEX,NYSE ARCA,BATS',
-      limit: 5000,
+      exchange: 'NYSE,NASDAQ,AMEX',
+      limit: 1000,
     });
 
     // Only skip stocks with no symbol — include all sectors and all market caps
