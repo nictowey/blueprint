@@ -58,6 +58,28 @@ describe('GET /api/snapshot', () => {
     expect(res.body.revenueGrowthYoY).toBeCloseTo(0.206, 2);
   });
 
+  test('key-metrics fields are included in snapshot when available', async () => {
+    fmp.getKeyMetricsAnnual.mockResolvedValueOnce([
+      {
+        date: '2019-01-27',
+        evToEBITDA: 20.5,
+        evToSales: 5.2,
+        earningsYield: 0.049,
+        returnOnEquity: 0.443,
+        returnOnAssets: 0.17,
+        returnOnInvestedCapital: 0.22,
+        netDebtToEBITDA: 0.3,
+        freeCashFlowYield: 0.04,
+      },
+    ]);
+    const res = await request(app).get('/api/snapshot?ticker=MSFT&date=2019-06-15');
+    expect(res.status).toBe(200);
+    expect(res.body.evToEBITDA).toBe(20.5);
+    expect(res.body.evToRevenue).toBe(5.2);
+    expect(res.body.returnOnEquity).toBe(0.443);
+    expect(res.body.returnOnAssets).toBe(0.17);
+  });
+
   test('null fields are present but null when data unavailable', async () => {
     fmp.getIncomeStatements.mockResolvedValue([]);
     fmp.getKeyMetricsAnnual.mockResolvedValue([]);

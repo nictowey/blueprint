@@ -94,7 +94,7 @@ async function getIncomeStatements(ticker, limit = 10, throttle = true) {
 }
 
 async function getKeyMetricsAnnual(ticker, throttle = true) {
-  const data = await fmpGet(`/key-metrics`, { symbol: ticker, period: 'annual' }, throttle);
+  const data = await fmpGet(`/key-metrics`, { symbol: ticker, period: 'annual', limit: 15 }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
