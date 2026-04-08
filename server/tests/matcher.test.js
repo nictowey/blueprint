@@ -134,3 +134,41 @@ describe('findMatches — scoring', () => {
     expect(() => findMatches(makeStock('SNAP'), universe)).not.toThrow();
   });
 });
+
+describe('findMatches — outlier resistance', () => {
+  test('outlier stock does not inflate scores of normal stocks', () => {
+    const universe = new Map();
+    const icValues = [10, 15, 20, 25, 30, 35, 40, 45, 50, 5000];
+    icValues.forEach((ic, i) => {
+      universe.set(`S${i}`, makeStock(`S${i}`, { interestCoverage: ic }));
+    });
+
+    // Snapshot has interestCoverage of 20 — should match S2 (ic=20) best
+    const snap = makeStock('SNAP', { interestCoverage: 20 });
+    const results = findMatches(snap, universe);
+
+    const s2 = results.find(r => r.ticker === 'S2'); // ic=20, identical to snap
+    const s0 = results.find(r => r.ticker === 'S0'); // ic=10, divergent from snap
+
+    // With outlier compression both would score identically; with percentile clipping S2 > S0
+    expect(s2.matchScore).toBeGreaterThan(s0.matchScore);
+  });
+
+  test('scores show meaningful spread across varied universe', () => {
+    const universe = new Map();
+    universe.set('TWIN',  makeStock('TWIN'));
+    universe.set('CLOSE', makeStock('CLOSE', { peRatio: 22, grossMargin: 0.48 }));
+    universe.set('FAR',   makeStock('FAR',   { peRatio: 80, grossMargin: 0.1, revenueGrowthYoY: -0.3 }));
+
+    const snap = makeStock('SNAP');
+    const results = findMatches(snap, universe);
+
+    const twin  = results.find(r => r.ticker === 'TWIN').matchScore;
+    const close = results.find(r => r.ticker === 'CLOSE').matchScore;
+    const far   = results.find(r => r.ticker === 'FAR').matchScore;
+
+    expect(twin).toBeGreaterThan(close);
+    expect(close).toBeGreaterThan(far);
+    expect(twin - far).toBeGreaterThanOrEqual(10);
+  });
+});

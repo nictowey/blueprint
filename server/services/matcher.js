@@ -40,11 +40,12 @@ function prepareValue(metric, value) {
 function computeScale(stocks, metric) {
   const values = stocks
     .map(s => prepareValue(metric, s[metric]))
-    .filter(v => v != null);
+    .filter(v => v != null)
+    .sort((a, b) => a - b);
   if (values.length === 0) return { min: 0, max: 1 };
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  return { min, max: max === min ? min + 1 : max };
+  const p5  = values[Math.floor((values.length - 1) * 0.05)];
+  const p95 = values[Math.floor((values.length - 1) * 0.95)];
+  return { min: p5, max: p95 === p5 ? p5 + 1 : p95 };
 }
 
 function normalize(value, min, max) {
