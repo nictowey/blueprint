@@ -30,10 +30,6 @@ const METRIC_WEIGHTS = {
   rsi14: 0.5, pctBelowHigh: 0.5, priceVsMa50: 0.5, priceVsMa200: 0.5,
 };
 
-// Fixed denominator: sum of ALL metric weights regardless of which are populated.
-// Null snapshot metrics contribute 0 to the numerator but their weight still counts here.
-const FIXED_TOTAL_WEIGHT = MATCH_METRICS.reduce((sum, m) => sum + (METRIC_WEIGHTS[m] ?? 1.0), 0);
-// = 35.0
 Object.freeze(MATCH_METRICS);
 
 function prepareValue(metric, value) {
@@ -52,14 +48,16 @@ function computeScale(stocks, metric) {
 }
 
 function normalize(value, min, max) {
-  if (value == null) return 0.5; // neutral for missing values
   const clamped = Math.max(min, Math.min(max, value));
   return (clamped - min) / (max - min);
 }
 
-// Returns { score: 0-100, metricScores: [{ metric, similarity }] }
+// Score = weighted similarity on metrics where BOTH snapshot and stock have data.
+// Denominator is dynamic (only comparable metrics), so scores reflect actual similarity —
+// no neutral credit inflating stocks with missing data.
 function calculateSimilarity(snapshot, stock, scales) {
   let score = 0;
+  let totalWeight = 0;
   const metricScores = [];
 
   for (const metric of MATCH_METRICS) {
@@ -67,14 +65,8 @@ function calculateSimilarity(snapshot, stock, scales) {
     const stockVal = prepareValue(metric, stock[metric]);
     const weight = METRIC_WEIGHTS[metric] ?? 1.0;
 
-    // Snapshot missing — contributes 0 to numerator; weight already in FIXED_TOTAL_WEIGHT
-    if (snapVal === null) continue;
-
-    // Stock missing — neutral contribution (0.5), not tracked for top/diff
-    if (stockVal === null) {
-      score += 0.5 * weight;
-      continue;
-    }
+    // Skip if either side has no data — only compare what we can actually measure
+    if (snapVal === null || stockVal === null) continue;
 
     const normSnap = normalize(snapVal, scales[metric].min, scales[metric].max);
     const normStock = normalize(stockVal, scales[metric].min, scales[metric].max);
@@ -82,16 +74,17 @@ function calculateSimilarity(snapshot, stock, scales) {
     const metricSimilarity = 1 - diff;
 
     score += metricSimilarity * weight;
+    totalWeight += weight;
     metricScores.push({ metric, similarity: metricSimilarity });
   }
 
-  // Sector bonus: small nudge for same-sector matches. Adds to numerator only —
-  // scores above 100 before clamping are expected and handled by Math.min below.
+  // Sector bonus: small nudge for same-sector matches, included in the denominator
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
     score += 0.15;
+    totalWeight += 0.15;
   }
 
-  const finalScore = Math.max(0, Math.min(100, (score / FIXED_TOTAL_WEIGHT) * 100));
+  const finalScore = totalWeight > 0 ? Math.max(0, Math.min(100, (score / totalWeight) * 100)) : 0;
   return { score: finalScore, metricScores };
 }
 
@@ -108,20 +101,22 @@ function findMatches(snapshot, universe, limit = 10) {
     .map(stock => {
       const { score, metricScores } = calculateSimilarity(snapshot, stock, scales);
 
-      // Sort by per-metric similarity (unweighted) to find closest and most divergent
+      // Sort by per-metric similarity to find closest and most divergent
       const ranked = [...metricScores].sort((a, b) => b.similarity - a.similarity);
       const topMatches = ranked.slice(0, 3).map(m => m.metric);
       const topDifferences = ranked.slice(-3).reverse().map(m => m.metric);
 
       return {
         ...stock,
+        _rawScore: score,         // used for accurate ranking before rounding
         matchScore: Math.round(score),
         topMatches,
         topDifferences,
       };
     })
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, limit);
+    .sort((a, b) => b._rawScore - a._rawScore)  // sort by raw float, not rounded int
+    .slice(0, limit)
+    .map(({ _rawScore, ...rest }) => rest);       // strip internal field before returning
 
   return results;
 }

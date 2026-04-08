@@ -101,32 +101,16 @@ describe('findMatches', () => {
   });
 });
 
-describe('findMatches — fixed denominator scoring', () => {
-  test('sparse snapshot (5 metrics) scores lower than rich snapshot (20 metrics)', () => {
+describe('findMatches — scoring', () => {
+  test('stocks with different metric profiles score differently', () => {
     const universe = new Map();
-    universe.set('CANDIDATE', makeStock('CANDIDATE'));
-
-    // Sparse: only 5 metrics populated on snapshot
-    const sparseSnap = {
-      ticker: 'SPARSE', sector: 'Technology',
-      peRatio: 20, grossMargin: 0.5, revenueGrowthYoY: 0.2, rsi14: 50, pctBelowHigh: 10,
-      priceToBook: null, priceToSales: null, evToEBITDA: null, evToRevenue: null,
-      pegRatio: null, earningsYield: null, operatingMargin: null, netMargin: null,
-      ebitdaMargin: null, returnOnEquity: null, returnOnAssets: null, returnOnCapital: null,
-      revenueGrowth3yr: null, epsGrowthYoY: null, currentRatio: null, debtToEquity: null,
-      interestCoverage: null, netDebtToEBITDA: null, freeCashFlowYield: null,
-      priceVsMa50: null, priceVsMa200: null,
-    };
-
-    // Rich: all metrics populated on snapshot (identical values to CANDIDATE)
-    const richSnap = makeStock('RICH');
-
-    const sparseResults = findMatches(sparseSnap, universe);
-    const richResults = findMatches(richSnap, universe);
-
-    expect(sparseResults[0].matchScore).toBeLessThan(richResults[0].matchScore);
-    // Max theoretical sparse score: weights of 5 metrics (6.5) / FIXED_TOTAL_WEIGHT (35.0) * 100 ≈ 18.6
-    expect(sparseResults[0].matchScore).toBeLessThan(25);
+    const snapshot = makeStock('SNAP');
+    universe.set('GOOD', makeStock('GOOD'));
+    universe.set('POOR', makeStock('POOR', { peRatio: 999, grossMargin: 0.01, revenueGrowthYoY: -0.5, returnOnEquity: 0.01 }));
+    const results = findMatches(snapshot, universe);
+    const goodScore = results.find(r => r.ticker === 'GOOD').matchScore;
+    const poorScore = results.find(r => r.ticker === 'POOR').matchScore;
+    expect(goodScore).toBeGreaterThan(poorScore);
   });
 
   test('identical stock with all metrics populated scores above 90', () => {
