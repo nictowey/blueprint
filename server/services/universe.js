@@ -3,6 +3,8 @@ const fmp = require('./fmp');
 const { computeRSI } = require('./rsi');
 
 const REDIS_KEY = 'universe_cache';
+const CACHE_VERSION_KEY = 'universe_cache_version';
+const CACHE_VERSION = 2; // bump to invalidate old cache (v2: ETF/fund exclusion, market cap tiers)
 const CACHE_TTL_SECONDS = 90000; // 25 hours
 
 async function saveCacheToRedis(cache) {
@@ -11,12 +13,18 @@ async function saveCacheToRedis(cache) {
   if (!url || !token) return;
   try {
     const data = JSON.stringify(Array.from(cache.entries()));
+    // Save cache data and version atomically
     await fetch(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(['SET', REDIS_KEY, data, 'EX', String(CACHE_TTL_SECONDS)]),
     });
-    console.log(`[universe] Cache saved to Redis: ${cache.size} stocks`);
+    await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(['SET', CACHE_VERSION_KEY, String(CACHE_VERSION), 'EX', String(CACHE_TTL_SECONDS)]),
+    });
+    console.log(`[universe] Cache saved to Redis: ${cache.size} stocks (v${CACHE_VERSION})`);
   } catch (err) {
     console.warn(`[universe] Failed to save cache to Redis: ${err.message}`);
   }
@@ -27,13 +35,24 @@ async function loadCacheFromRedis() {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
   try {
+    // Check version first
+    const vRes = await fetch(`${url}/get/${CACHE_VERSION_KEY}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const vJson = await vRes.json();
+    const storedVersion = parseInt(vJson.result, 10);
+    if (storedVersion !== CACHE_VERSION) {
+      console.log(`[universe] Redis cache version mismatch (stored: ${storedVersion || 'none'}, expected: ${CACHE_VERSION}) — rebuilding`);
+      return null;
+    }
+
     const res = await fetch(`${url}/get/${REDIS_KEY}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
     if (!json.result) return null;
     const cache = new Map(JSON.parse(json.result));
-    console.log(`[universe] Loaded cache from Redis: ${cache.size} stocks`);
+    console.log(`[universe] Loaded cache from Redis: ${cache.size} stocks (v${CACHE_VERSION})`);
     return cache;
   } catch (err) {
     console.warn(`[universe] Failed to load cache from Redis: ${err.message}`);
