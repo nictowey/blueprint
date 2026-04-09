@@ -305,6 +305,49 @@ function metricSimilarity(metric, snapVal, stockVal) {
   return Math.max(0, 1 - diff);
 }
 
+// ---------- Growth quality check ----------
+// Penalizes matches where EPS growth is high but revenue growth diverges in direction
+// from the snapshot. This catches "earnings recovery" companies that aren't
+// truly growing the top line the way the template company was.
+
+function growthQualityPenalty(snapshot, stock) {
+  const snapRevG = snapshot.revenueGrowthYoY;
+  const snapEpsG = snapshot.epsGrowthYoY;
+  const stockRevG = stock.revenueGrowthYoY;
+  const stockEpsG = stock.epsGrowthYoY;
+
+  // Only apply if both have growth data
+  if (snapRevG == null || snapEpsG == null || stockRevG == null || stockEpsG == null) return 1.0;
+  if (!isFinite(snapRevG) || !isFinite(snapEpsG) || !isFinite(stockRevG) || !isFinite(stockEpsG)) return 1.0;
+
+  let penalty = 1.0;
+
+  // If snapshot has positive revenue growth but match has negative (or vice versa),
+  // apply a penalty proportional to how different the directions are.
+  // e.g., CLS had +17% rev growth; a match with -6% rev growth is directionally wrong.
+  if (snapRevG > 0.05 && stockRevG < -0.02) {
+    penalty *= 0.94; // 6% penalty for revenue direction mismatch
+  } else if (snapRevG < -0.02 && stockRevG > 0.05) {
+    penalty *= 0.94;
+  }
+
+  // If snapshot had balanced growth (both rev & EPS positive), reward matches that also
+  // have balanced growth; penalize those with extreme EPS growth but declining revenue
+  // (likely cost-cutting or one-time gains, not sustainable breakout growth)
+  if (snapRevG > 0.05 && snapEpsG > 0.10) {
+    // Snapshot is a "quality grower" — revenue up AND eps up
+    if (stockRevG < 0 && stockEpsG > 1.0) {
+      // Match has declining revenue but extreme EPS growth (>100%) — likely recovery, not breakout
+      penalty *= 0.90; // 10% penalty
+    } else if (stockRevG > 0.03 && stockEpsG > 0.05) {
+      // Match also has balanced growth — small reward
+      penalty *= 1.03; // 3% bonus
+    }
+  }
+
+  return penalty;
+}
+
 // ---------- Core similarity scoring ----------
 
 function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
@@ -322,7 +365,7 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
     overlapCount++;
     score += similarity * weight;
     totalWeight += weight;
-    metricScores.push({ metric, similarity });
+    metricScores.push({ metric, similarity, weight });
   }
 
   if (totalWeight === 0) {
@@ -337,9 +380,11 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
     : 0;
   baseScore *= Math.sqrt(overlapRatio);
 
+  // Growth quality adjustment: penalize/reward based on growth profile alignment
+  baseScore *= growthQualityPenalty(snapshot, stock);
+
   // Sector match bonus: same-sector matches get a boost since breakout patterns
   // are more comparable within the same sector/industry.
-  // Apply bonus before clamping, but cap at 99 to preserve differentiation at the top
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
     baseScore *= (1 + SECTOR_MATCH_BONUS);
   }
@@ -372,9 +417,17 @@ function findMatches(snapshot, universe, limit = 10) {
       const { score, metricScores, overlapCount, overlapRatio } =
         calculateSimilarity(snapshot, stock, snapshotPopulatedCount);
 
-      const ranked = [...metricScores].sort((a, b) => b.similarity - a.similarity);
-      const topMatches = ranked.slice(0, 3).map(m => m.metric);
-      const topDifferences = ranked.slice(-3).reverse().map(m => m.metric);
+      // Rank by weighted contribution (similarity × weight) so the most IMPORTANT
+      // matching metrics surface, not just the ones with highest raw similarity.
+      // This means investors see "revenueGrowthYoY, pegRatio" instead of "returnOnAssets, netMargin"
+      const rankedByContribution = [...metricScores]
+        .sort((a, b) => (b.similarity * b.weight) - (a.similarity * a.weight));
+      const topMatches = rankedByContribution.slice(0, 3).map(m => m.metric);
+
+      // For differences, rank by weighted MISS (how much score was lost on this metric)
+      const rankedByMiss = [...metricScores]
+        .sort((a, b) => ((1 - a.similarity) * a.weight) - ((1 - b.similarity) * b.weight));
+      const topDifferences = rankedByMiss.slice(0, 3).map(m => m.metric);
 
       return {
         ...stock,
