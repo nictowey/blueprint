@@ -16,6 +16,7 @@ const MATCH_METRICS = [
   'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
   'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  'marketCap',
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
 ];
 
