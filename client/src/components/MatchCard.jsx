@@ -1,8 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
 
+const CIRCUMFERENCE = 150.8; // 2π × r=24
+
 export default function MatchCard({ match, snapshot, rank }) {
   const navigate = useNavigate();
+  const offset = CIRCUMFERENCE * (1 - match.matchScore / 100);
 
   function goToComparison() {
     navigate('/comparison', { state: { snapshot, matchTicker: match.ticker } });
@@ -28,22 +31,48 @@ export default function MatchCard({ match, snapshot, rank }) {
             </span>
           </div>
         </div>
-        <div className="text-right">
-          <div
-            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold"
-            style={{
-              background: 'linear-gradient(135deg, #6c63ff22, #6c63ff44)',
-              border: '1px solid #6c63ff66',
-              color: '#a09cf5',
-            }}
+
+        {/* Score ring */}
+        <div style={{ position: 'relative', width: 60, height: 60, flexShrink: 0 }}>
+          <svg
+            width="60"
+            height="60"
+            viewBox="0 0 60 60"
+            style={{ transform: 'rotate(-90deg)' }}
           >
-            {match.matchScore}% Match
+            <circle
+              cx="30" cy="30" r="24"
+              fill="none"
+              stroke="#1e2433"
+              strokeWidth="5"
+            />
+            <circle
+              cx="30" cy="30" r="24"
+              fill="none"
+              stroke="#6c63ff"
+              strokeWidth="5"
+              strokeLinecap="round"
+              strokeDasharray={CIRCUMFERENCE}
+              strokeDashoffset={offset}
+            />
+          </svg>
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#a09cf5', lineHeight: 1 }}>
+              {match.matchScore}
+            </span>
+            <span style={{ fontSize: '0.48rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#475569' }}>
+              match
+            </span>
           </div>
         </div>
       </div>
 
       {/* Metric tags */}
-      <div className="flex flex-wrap gap-1.5 mb-4">
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {match.topMatches.map(key => (
           <span key={key} className="tag-green">
             {METRIC_LABELS[key] || key} ✓
@@ -56,7 +85,10 @@ export default function MatchCard({ match, snapshot, rank }) {
         ))}
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <span className="text-xs text-slate-600">
+          {match.metricsCompared}/26 metrics compared
+        </span>
         <button className="btn-secondary" onClick={goToComparison}>
           View Comparison →
         </button>
