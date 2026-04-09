@@ -52,30 +52,231 @@ const METRIC_WEIGHTS = {
   rsi14: 1.0,
 };
 
+// ---------- Metric classification for specialized similarity functions ----------
+
+// Valuation ratios: use log-scale comparison (can span 5x–50x+ ranges)
+const RATIO_METRICS = new Set([
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
+  'currentRatio', 'interestCoverage',
+]);
+
+// Margin / percentage metrics: bounded roughly -1 to +1, use absolute diff
+const MARGIN_METRICS = new Set([
+  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
+  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+  'earningsYield', 'freeCashFlowYield',
+]);
+
+// Growth rates: can swing wildly (-100% to +500%), use dampened comparison
+const GROWTH_METRICS = new Set([
+  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+]);
+
+// Technical indicators with known bounded ranges
+const TECHNICAL_BOUNDED = new Set([
+  'rsi14',        // 0-100
+  'pctBelowHigh', // 0-100
+]);
+
+// Technical indicators expressed as % vs moving average
+const TECHNICAL_PCT = new Set([
+  'priceVsMa50', 'priceVsMa200',
+]);
+
 const MIN_OVERLAP_RATIO = 0.6;
 const EPSILON = 0.01;
+const SECTOR_MATCH_BONUS = 0.06; // 6% bonus for same-sector matches
 
 Object.freeze(MATCH_METRICS);
+
+// ---------- Same-company detection ----------
+
+// Extended suffix stripping for share classes, warrants, units, preferred, etc.
+function baseTicker(t) {
+  return t
+    .replace(/\.(A|B|C|V|K|P)$/i, '')        // BRK.A, MKC.V → BRK, MKC
+    .replace(/-(A|B|C|WS|WT|U|V|P|R|W|UN)$/i, '') // SPAC-A, FOO-WS → SPAC, FOO
+    .replace(/[LP]$/i, '');                    // GOOGL → GOOG, preferred
+}
+
+// Common dual-class tickers where the base-ticker approach fails (ZG/Z, FOX/FOXA, etc.)
+// Map each variant to a canonical company ID
+const DUAL_CLASS_MAP = {
+  'GOOG': 'GOOG', 'GOOGL': 'GOOG',
+  'Z': 'Z', 'ZG': 'Z',
+  'FOX': 'FOX', 'FOXA': 'FOX',
+  'LBRDK': 'LBRDK', 'LBRDA': 'LBRDK',
+  'NWS': 'NWS', 'NWSA': 'NWS',
+  'DISCA': 'DISCA', 'DISCB': 'DISCA', 'DISCK': 'DISCA',
+  'VIACA': 'VIACA', 'VIACB': 'VIACA',
+  'BF-A': 'BF', 'BF-B': 'BF', 'BF.A': 'BF', 'BF.B': 'BF',
+  'MOG-A': 'MOG', 'MOG-B': 'MOG', 'MOG.A': 'MOG', 'MOG.B': 'MOG',
+  'LSXMA': 'LSXMA', 'LSXMK': 'LSXMA',
+  'HEI': 'HEI', 'HEI-A': 'HEI', 'HEI.A': 'HEI',
+  'LEN': 'LEN', 'LEN-B': 'LEN', 'LEN.B': 'LEN',
+  'MKC': 'MKC', 'MKC-V': 'MKC', 'MKC.V': 'MKC',
+  'UA': 'UA', 'UAA': 'UA',
+};
+
+function isSameCompany(tickerA, tickerB, nameA, nameB) {
+  if (tickerA === tickerB) return true;
+
+  // Check base ticker stripping
+  const baseA = baseTicker(tickerA);
+  const baseB = baseTicker(tickerB);
+  if (baseA === baseB) return true;
+
+  // Check known dual-class map
+  const canonA = DUAL_CLASS_MAP[tickerA.toUpperCase()];
+  const canonB = DUAL_CLASS_MAP[tickerB.toUpperCase()];
+  if (canonA && canonB && canonA === canonB) return true;
+
+  // Name-based similarity: if both names exist and one starts with the other's first 2 words
+  if (nameA && nameB) {
+    const wordsA = nameA.replace(/[,.\-()]/g, '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+    const wordsB = nameB.replace(/[,.\-()]/g, '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+    if (wordsA.length > 4 && wordsB.length > 4 && (wordsA === wordsB)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ---------- Metric-specific similarity functions ----------
+
+/**
+ * Ratio metrics (P/E, P/B, EV/EBITDA, etc.)
+ * Use log-scale because ratios can span huge ranges (5x to 200x for P/E).
+ * Both values must be positive for log comparison; if signs differ, penalize heavily.
+ * Scale: 2x ratio diff ≈ 70%, 3x ≈ 52%, 5x ≈ 30%, 10x ≈ 0%
+ */
+function ratioSimilarity(snapVal, stockVal) {
+  // If signs differ (one profitable, one not), very different
+  if ((snapVal > 0) !== (stockVal > 0)) {
+    // Small similarity if both near zero
+    const absSnap = Math.abs(snapVal);
+    const absStock = Math.abs(stockVal);
+    if (absSnap < 2 && absStock < 2) return 0.3;
+    return 0.05;
+  }
+
+  const absSnap = Math.abs(snapVal);
+  const absStock = Math.abs(stockVal);
+
+  // Guard against zero/tiny values
+  if (absSnap < EPSILON && absStock < EPSILON) return 1.0;
+  if (absSnap < EPSILON || absStock < EPSILON) return 0.1;
+
+  const logDiff = Math.abs(Math.log10(absSnap) - Math.log10(absStock));
+  return Math.max(0, 1 - logDiff);
+}
+
+/**
+ * Margin / percentage metrics (gross margin, ROE, etc.)
+ * These are typically -1 to +1 (or -100% to +100%), use absolute difference.
+ * 10 percentage points apart ≈ 90%, 30pp ≈ 70%, 50pp ≈ 50%.
+ * Scale factor: 1.0 absolute difference = 0% similar.
+ */
+function marginSimilarity(snapVal, stockVal) {
+  const diff = Math.abs(snapVal - stockVal);
+  return Math.max(0, 1 - diff);
+}
+
+/**
+ * Growth rates (revenue growth YoY, EPS growth, etc.)
+ * Can swing from -1.0 (-100%) to +5.0 (+500%) or more.
+ * Use dampened comparison: compress extreme values via atan scaling before comparing.
+ * This prevents a 500% grower from being "infinitely far" from a 100% grower.
+ */
+function growthSimilarity(snapVal, stockVal) {
+  // Compress to ~(-1.2, 1.2) range using atan scaling
+  const compress = (v) => Math.atan(v * 2) / (Math.PI / 2);
+  const compSnap = compress(snapVal);
+  const compStock = compress(stockVal);
+  const diff = Math.abs(compSnap - compStock);
+  // Max possible diff in compressed space is ~2.4, normalize to 0-1
+  return Math.max(0, 1 - diff / 2.0);
+}
+
+/**
+ * Bounded technical indicators (RSI: 0-100, pctBelowHigh: 0-100)
+ * Use absolute difference scaled to the known range.
+ * 10 points apart ≈ 90%, 30 points ≈ 70%, 50 points ≈ 50%.
+ */
+function boundedSimilarity(snapVal, stockVal, maxRange = 100) {
+  const diff = Math.abs(snapVal - stockVal);
+  return Math.max(0, 1 - diff / maxRange);
+}
+
+/**
+ * Technical percentage metrics (priceVsMa50, priceVsMa200: typically -50 to +100)
+ * Use absolute difference with a reasonable scale.
+ * 10% apart ≈ 80%, 25% ≈ 50%, 50% ≈ 0%.
+ */
+function technicalPctSimilarity(snapVal, stockVal) {
+  const diff = Math.abs(snapVal - stockVal);
+  return Math.max(0, 1 - diff / 50);
+}
+
+/**
+ * Market cap: log-scale comparison (same as before, well-calibrated)
+ */
+function marketCapSimilarity(snapVal, stockVal) {
+  if (snapVal <= 0 || stockVal <= 0) return null;
+  const logDiff = Math.abs(Math.log10(snapVal) - Math.log10(stockVal));
+  return Math.max(0, 1 - logDiff);
+}
+
+/**
+ * Beta: absolute difference with scale factor.
+ * Beta typically 0.5-2.5; 0.5 apart ≈ 67%, 1.0 apart ≈ 33%.
+ */
+function betaSimilarity(snapVal, stockVal) {
+  const diff = Math.abs(snapVal - stockVal);
+  return Math.max(0, 1 - diff / 1.5);
+}
+
+/**
+ * Debt-to-equity: can range from 0 to 10+. Use log-scale for positive values,
+ * special handling for negative equity.
+ */
+function debtToEquitySimilarity(snapVal, stockVal) {
+  // Negative equity (both negative) — both distressed
+  if (snapVal < 0 && stockVal < 0) return 0.7;
+  // One negative, one positive — very different
+  if ((snapVal < 0) !== (stockVal < 0)) return 0.1;
+  // Both positive — use log scale
+  const safeSnap = Math.max(snapVal, 0.01);
+  const safeStock = Math.max(stockVal, 0.01);
+  const logDiff = Math.abs(Math.log10(safeSnap) - Math.log10(safeStock));
+  return Math.max(0, 1 - logDiff);
+}
+
+// ---------- Master similarity dispatcher ----------
 
 function metricSimilarity(metric, snapVal, stockVal) {
   if (snapVal == null || stockVal == null || !isFinite(snapVal) || !isFinite(stockVal)) {
     return null;
   }
 
-  // Market cap: use log-scale comparison since values span orders of magnitude.
-  // One order of magnitude (10x) difference = 0% similar.
-  // 2x difference ≈ 70%, 3x ≈ 52%, 5x ≈ 30%.
-  if (metric === 'marketCap') {
-    if (snapVal <= 0 || stockVal <= 0) return null;
-    const logDiff = Math.abs(Math.log10(snapVal) - Math.log10(stockVal));
-    return Math.max(0, 1 - logDiff);
-  }
+  if (metric === 'marketCap') return marketCapSimilarity(snapVal, stockVal);
+  if (metric === 'beta') return betaSimilarity(snapVal, stockVal);
+  if (metric === 'debtToEquity') return debtToEquitySimilarity(snapVal, stockVal);
+  if (metric === 'netDebtToEBITDA') return debtToEquitySimilarity(snapVal, stockVal);
+  if (RATIO_METRICS.has(metric)) return ratioSimilarity(snapVal, stockVal);
+  if (MARGIN_METRICS.has(metric)) return marginSimilarity(snapVal, stockVal);
+  if (GROWTH_METRICS.has(metric)) return growthSimilarity(snapVal, stockVal);
+  if (TECHNICAL_BOUNDED.has(metric)) return boundedSimilarity(snapVal, stockVal, 100);
+  if (TECHNICAL_PCT.has(metric)) return technicalPctSimilarity(snapVal, stockVal);
 
-  // Direct percentage difference for all other metrics
+  // Fallback: generic percentage difference
   const denominator = Math.max(Math.abs(snapVal), Math.abs(stockVal), EPSILON);
   const diff = Math.abs(snapVal - stockVal) / denominator;
   return Math.max(0, 1 - diff);
 }
+
+// ---------- Core similarity scoring ----------
 
 function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
   let score = 0;
@@ -101,14 +302,23 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
 
   let baseScore = (score / totalWeight) * 100;
 
+  // Overlap penalty: penalize matches with sparse data coverage
   const overlapRatio = snapshotPopulatedCount > 0
     ? overlapCount / snapshotPopulatedCount
     : 0;
   baseScore *= Math.sqrt(overlapRatio);
 
+  // Sector match bonus: same-sector matches get a boost since breakout patterns
+  // are more comparable within the same sector/industry
+  if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
+    baseScore *= (1 + SECTOR_MATCH_BONUS);
+  }
+
   const finalScore = Math.max(0, Math.min(100, baseScore));
   return { score: finalScore, metricScores, overlapCount, overlapRatio };
 }
+
+// ---------- Match finding ----------
 
 function findMatches(snapshot, universe, limit = 10) {
   if (!snapshot || universe.size === 0) return [];
@@ -121,13 +331,13 @@ function findMatches(snapshot, universe, limit = 10) {
   if (snapshotPopulatedCount < 4) return [];
 
   const allStocks = Array.from(universe.values());
-
-  // Strip share-class suffixes for same-company detection
-  const baseTicker = (t) => t.replace(/\.(A|B|C)$/i, '').replace(/-(A|B|C|WS|U)$/i, '').replace(/L$/i, '');
   const snapBase = baseTicker(snapshot.ticker);
 
   const results = allStocks
-    .filter(stock => stock.ticker !== snapshot.ticker && baseTicker(stock.ticker) !== snapBase)
+    .filter(stock => !isSameCompany(
+      stock.ticker, snapshot.ticker,
+      stock.companyName, snapshot.companyName
+    ))
     .map(stock => {
       const { score, metricScores, overlapCount, overlapRatio } =
         calculateSimilarity(snapshot, stock, snapshotPopulatedCount);
@@ -154,4 +364,4 @@ function findMatches(snapshot, universe, limit = 10) {
   return results;
 }
 
-module.exports = { findMatches, MATCH_METRICS };
+module.exports = { findMatches, MATCH_METRICS, isSameCompany, baseTicker };

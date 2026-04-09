@@ -1,26 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getCache, isReady } = require('../services/universe');
-const { findMatches, MATCH_METRICS } = require('../services/matcher');
+const { findMatches, MATCH_METRICS, isSameCompany } = require('../services/matcher');
 
 let cachedResult = null;
 let lastComputed = 0;
 const CACHE_TTL = 30 * 60 * 1000; // recompute every 30 min
-
-// Strip share-class suffixes to get the base company symbol
-// e.g. GOOG/GOOGL → GOOG, BRK.A/BRK.B → BRK, FOO-A/FOO-B → FOO
-function baseTicker(ticker) {
-  return ticker
-    .replace(/\.(A|B|C)$/i, '')    // BRK.A → BRK
-    .replace(/-(A|B|C|WS|U)$/i, '') // SPAC-A → SPAC
-    .replace(/L$/i, '');            // GOOGL → GOOG
-}
-
-function isSameCompany(tickerA, tickerB) {
-  const baseA = baseTicker(tickerA);
-  const baseB = baseTicker(tickerB);
-  return baseA === baseB;
-}
 
 function computeTopPairs(limit = 20) {
   const cache = getCache();
@@ -36,8 +21,8 @@ function computeTopPairs(limit = 20) {
     const matches = findMatches(stock, cache, 5);
 
     for (const match of matches) {
-      // Skip same-company share classes (GOOG vs GOOGL, BRK.A vs BRK.B)
-      if (isSameCompany(stock.ticker, match.ticker)) continue;
+      // Skip same-company share classes (uses improved detection from matcher)
+      if (isSameCompany(stock.ticker, match.ticker, stock.companyName, match.companyName)) continue;
 
       // Dedupe: A↔B same as B↔A
       const pairKey = [stock.ticker, match.ticker].sort().join(':');
