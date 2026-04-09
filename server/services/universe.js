@@ -221,17 +221,36 @@ async function buildCache() {
 
   console.log('[universe] Starting cache build...');
   try {
-    const screenerResults = await fmp.getScreener({
-      marketCapMoreThan: 100_000_000,
+    // FMP screener caps at 1000 per request — paginate by market cap tiers
+    const baseParams = {
       country: 'US',
       isEtf: false,
       isFund: false,
       isActivelyTrading: true,
-      limit: 5000,
-    });
+      limit: 1000,
+    };
 
-    // Only individual stocks — exclude any ETFs/funds that slip through
-    const filtered = screenerResults.filter(s => s.symbol && !s.isEtf && !s.isFund);
+    const tiers = [
+      { marketCapMoreThan: 10_000_000_000 },                                          // large cap ($10B+)
+      { marketCapMoreThan: 2_000_000_000, marketCapLowerThan: 10_000_000_000 },        // mid cap ($2B–$10B)
+      { marketCapMoreThan: 500_000_000,   marketCapLowerThan: 2_000_000_000 },         // small cap ($500M–$2B)
+      { marketCapMoreThan: 100_000_000,   marketCapLowerThan: 500_000_000 },           // micro cap ($100M–$500M)
+    ];
+
+    const allResults = [];
+    for (const tier of tiers) {
+      const results = await fmp.getScreener({ ...baseParams, ...tier });
+      console.log(`[universe] Screener tier $${(tier.marketCapMoreThan / 1e9).toFixed(1)}B+: ${results.length} results`);
+      allResults.push(...results);
+    }
+
+    // Dedupe by symbol, exclude ETFs/funds
+    const seen = new Set();
+    const filtered = allResults.filter(s => {
+      if (!s.symbol || s.isEtf || s.isFund || seen.has(s.symbol)) return false;
+      seen.add(s.symbol);
+      return true;
+    });
 
     console.log(`[universe] ${filtered.length} stocks to process. Fetching metrics...`);
 
