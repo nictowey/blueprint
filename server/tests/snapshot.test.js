@@ -25,6 +25,8 @@ const mockQuarterlyBalance = [
 const mockQuarterlyCashFlow = [
   { date: '2023-10-29', freeCashFlow: 7500e6, operatingCashFlow: 7800e6 },
   { date: '2023-07-30', freeCashFlow: 6300e6, operatingCashFlow: 6500e6 },
+  { date: '2023-04-30', freeCashFlow: 3200e6, operatingCashFlow: 3500e6 },
+  { date: '2023-01-29', freeCashFlow: 2800e6, operatingCashFlow: 3100e6 },
 ];
 
 // 250 prices around 2023-12-15, newest first

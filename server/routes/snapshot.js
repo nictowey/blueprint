@@ -166,7 +166,12 @@ router.get('/', async (req, res) => {
     const totalCurrentLiabilities = curBalance?.totalCurrentLiabilities ?? null;
     const totalDebt = curBalance?.totalDebt ?? null;
     const cash = curBalance?.cashAndCashEquivalents ?? null;
-    const ttmFCF = curCashFlow?.freeCashFlow ?? null;
+
+    // TTM free cash flow — sum 4 most recent quarters (single quarter would be ~4x too low)
+    const ttmCashFlowQ = cashFlowQuarters.slice(0, 4);
+    const ttmFCF = ttmCashFlowQ.length >= 4
+      ? ttmCashFlowQ.reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
+      : (cashFlowQuarters[0]?.freeCashFlow ?? null);
 
     const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
     const ev = (computedMarketCap != null && totalDebt != null && cash != null)
@@ -191,7 +196,8 @@ router.get('/', async (req, res) => {
     const currentRatio = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities !== 0)
       ? totalCurrentAssets / totalCurrentLiabilities : null;
     const debtToEquity = (totalDebt != null && equity != null && equity !== 0) ? totalDebt / equity : null;
-    const interestCoverage = (ttm && ttm.interestExpense > 0) ? ttm.operatingIncome / ttm.interestExpense : null;
+    const interestCoverage = (ttm && ttm.interestExpense != null && ttm.interestExpense !== 0)
+      ? ttm.operatingIncome / Math.abs(ttm.interestExpense) : null;
     const netDebtToEBITDA = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;
     const freeCashFlowYield = (ttmFCF != null && computedMarketCap > 0) ? ttmFCF / computedMarketCap : null;
 
