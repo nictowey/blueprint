@@ -26,8 +26,8 @@ const PORT = process.env.PORT || 3001;
 
 if (require.main === module) {
   const { startCache } = require('./services/universe');
-  app.listen(PORT, () => {
-    console.log(`[server] Running on port ${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[server] Running on 0.0.0.0:${PORT}`);
     startCache();
   });
 }
