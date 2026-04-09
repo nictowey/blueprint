@@ -43,6 +43,11 @@ function computeScale(stocks, metric) {
     .filter(v => v != null)
     .sort((a, b) => a - b);
   if (values.length === 0) return { min: 0, max: 1 };
+  if (values.length < 5) {
+    const min = values[0];
+    const max = values[values.length - 1];
+    return { min, max: max === min ? min + 1 : max };
+  }
   const p5  = values[Math.floor((values.length - 1) * 0.05)];
   const p95 = values[Math.floor((values.length - 1) * 0.95)];
   return { min: p5, max: p95 === p5 ? p5 + 1 : p95 };

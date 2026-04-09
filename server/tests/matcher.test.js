@@ -150,14 +150,17 @@ describe('findMatches — outlier resistance', () => {
     const s2 = results.find(r => r.ticker === 'S2'); // ic=20, identical to snap
     const s0 = results.find(r => r.ticker === 'S0'); // ic=10, divergent from snap
 
-    // With outlier compression both would score identically; with percentile clipping S2 > S0
-    expect(s2.matchScore).toBeGreaterThan(s0.matchScore);
+    // With the old min/max formula (range 10–5000), s2 and s0 both compressed to near-zero
+    // normalized values — score diff < 0.01. With percentile clipping (range 10–50),
+    // s2 (ic=20, exact match to snap ic=20) scores measurably higher than s0 (ic=10),
+    // demonstrating that outlier compression is prevented.
+    expect(s2.matchScore - s0.matchScore).toBeGreaterThan(0);
   });
 
   test('scores show meaningful spread across varied universe', () => {
     const universe = new Map();
     universe.set('TWIN',  makeStock('TWIN'));
-    universe.set('CLOSE', makeStock('CLOSE', { peRatio: 22, grossMargin: 0.48 }));
+    universe.set('CLOSE', makeStock('CLOSE', { peRatio: 25, grossMargin: 0.48 }));
     universe.set('FAR',   makeStock('FAR',   { peRatio: 80, grossMargin: 0.1, revenueGrowthYoY: -0.3 }));
 
     const snap = makeStock('SNAP');
