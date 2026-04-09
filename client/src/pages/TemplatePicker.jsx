@@ -55,14 +55,16 @@ export default function TemplatePicker() {
     };
   }, []);
 
-  async function loadSnapshot() {
-    if (!ticker.trim()) { setError('Enter a stock ticker'); return; }
-    if (!date) { setError('Select a date'); return; }
+  async function loadSnapshot(overrideTicker, overrideDate) {
+    const t = overrideTicker || ticker;
+    const d = overrideDate || date;
+    if (!t.trim()) { setError('Enter a stock ticker'); return; }
+    if (!d) { setError('Select a date'); return; }
     setError(null);
     setLoading(true);
     setSnapshot(null);
     try {
-      const res = await fetch(`/api/snapshot?ticker=${encodeURIComponent(ticker)}&date=${date}`);
+      const res = await fetch(`/api/snapshot?ticker=${encodeURIComponent(t)}&date=${d}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load snapshot');
       setSnapshot(data);
@@ -151,7 +153,7 @@ export default function TemplatePicker() {
               <button
                 key={ex.ticker}
                 className="border border-dark-border hover:border-accent/50 bg-dark-card hover:bg-dark-card/80 text-left px-4 py-2.5 rounded-lg transition-all duration-150 group"
-                onClick={() => { setTicker(ex.ticker); setDate(ex.date); }}
+                onClick={() => { setTicker(ex.ticker); setDate(ex.date); loadSnapshot(ex.ticker, ex.date); }}
               >
                 <span className="font-mono font-bold text-slate-200 text-sm group-hover:text-accent transition-colors">{ex.ticker}</span>
                 <span className="text-slate-500 text-xs ml-2">{ex.date}</span>

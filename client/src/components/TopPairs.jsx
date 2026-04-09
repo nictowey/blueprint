@@ -38,21 +38,42 @@ export default function TopPairs() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/top-pairs')
-      .then(res => {
+    let cancelled = false;
+    let retryTimer = null;
+
+    async function fetchPairs() {
+      try {
+        const res = await fetch('/api/top-pairs');
+        if (cancelled) return;
+
+        if (res.status === 202) {
+          // Still computing — retry in 10s
+          retryTimer = setTimeout(fetchPairs, 10000);
+          return;
+        }
         if (!res.ok) throw new Error('not ready');
-        return res.json();
-      })
-      .then(data => { setPairs(data); setLoading(false); })
-      .catch(() => setLoading(false));
+
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data)) {
+          setPairs(data);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchPairs();
+    return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer); };
   }, []);
 
   if (loading) {
     return (
       <div className="mt-12">
         <h2 className="text-lg font-semibold text-slate-300 mb-4">Top Matches Today</h2>
-        <div className="flex justify-center py-8">
+        <div className="flex flex-col items-center justify-center py-8 gap-2">
           <div className="w-6 h-6 border-2 border-dark-border border-t-accent rounded-full animate-spin" />
+          <p className="text-xs text-slate-600">Scanning the universe for similar stocks…</p>
         </div>
       </div>
     );
