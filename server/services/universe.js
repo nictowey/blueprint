@@ -254,6 +254,7 @@ async function buildCache() {
 
     console.log(`[universe] ${filtered.length} stocks to process. Fetching metrics...`);
 
+    const buildStart = Date.now();
     const newCache = new Map();
 
     for (const s of filtered) {
@@ -310,8 +311,11 @@ async function buildCache() {
         const entry = newCache.get(s.symbol);
         await enrichStock(entry);
 
-        if (newCache.size % 10 === 0) {
-          console.log(`[universe] Progress: ${newCache.size} stocks loaded...`);
+        if (newCache.size % 100 === 0 || newCache.size === 1) {
+          const elapsed = ((Date.now() - buildStart) / 1000 / 60).toFixed(1);
+          const rate = newCache.size / ((Date.now() - buildStart) / 1000 / 60) || 0;
+          const remaining = rate > 0 ? ((filtered.length - newCache.size) / rate).toFixed(0) : '?';
+          console.log(`[universe] Progress: ${newCache.size}/${filtered.length} stocks (${elapsed}min elapsed, ~${remaining}min remaining)`);
         }
       } catch (err) {
         console.warn(`[universe] Skipped ${s.symbol}: ${err.message}`);
@@ -322,7 +326,8 @@ async function buildCache() {
     state.cache = newCache;
     state.ready = true;
     state.lastRefreshed = new Date().toISOString();
-    console.log(`[universe] Cache ready: ${newCache.size} stocks`);
+    const totalMin = ((Date.now() - buildStart) / 1000 / 60).toFixed(1);
+    console.log(`[universe] ✓ Cache ready: ${newCache.size} stocks in ${totalMin} minutes`);
     await saveCacheToRedis(newCache);
   } catch (err) {
     console.error('[universe] Cache build failed:', err.message);
