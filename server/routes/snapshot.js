@@ -17,6 +17,8 @@ function periodsOnOrBefore(periods, targetDate) {
 // Sum flow metrics across an array of quarterly periods
 function sumQuarters(quarters) {
   const sum = (field) => quarters.reduce((s, q) => s + (q[field] ?? 0), 0);
+  // For shares, use the most recent quarter's diluted share count
+  const sharesOut = quarters[0]?.weightedAverageShsOutDil ?? null;
   return {
     revenue: sum('revenue'),
     grossProfit: sum('grossProfit'),
@@ -24,6 +26,8 @@ function sumQuarters(quarters) {
     netIncome: sum('netIncome'),
     ebitda: sum('ebitda'),
     eps: sum('eps'),
+    interestExpense: sum('interestExpense'),
+    sharesOut,
   };
 }
 
@@ -59,14 +63,10 @@ router.get('/', async (req, res) => {
   const fromStr = fromDate.toISOString().slice(0, 10);
 
   try {
-    const [profileData, incomeData, metricsData, ratiosData, histData, shortData, balanceSheetData, cashFlowData, balanceSheetAnnualData, cashFlowAnnualData] =
+    const [profileData, incomeData, histData, shortData, balanceSheetData, cashFlowData, balanceSheetAnnualData, cashFlowAnnualData] =
       await Promise.allSettled([
         fmp.getProfile(sym, false),
         fmp.getIncomeStatements(sym, 20, false, 'quarter'),
-        // Key-metrics and ratios: quarterly endpoints require a higher FMP plan (402).
-        // Fall back to annual — still the best available for valuation/return ratios.
-        fmp.getKeyMetricsAnnual(sym, false),
-        fmp.getRatiosAnnual(sym, false),
         fmp.getHistoricalPrices(sym, fromStr, date, false),
         fmp.getShortInterest(sym, false),
         fmp.getBalanceSheet(sym, 8, false, 'quarter'),
@@ -79,8 +79,6 @@ router.get('/', async (req, res) => {
 
     const profile    = profileData.status    === 'fulfilled' ? profileData.value    : {};
     const income     = incomeData.status     === 'fulfilled' ? incomeData.value     : [];
-    const metrics    = metricsData.status    === 'fulfilled' ? metricsData.value    : [];
-    const ratios     = ratiosData.status     === 'fulfilled' ? ratiosData.value     : [];
     const historical = histData.status       === 'fulfilled' ? histData.value       : [];
     const shortRaw   = shortData.status      === 'fulfilled' ? shortData.value      : null;
     const balanceSheetQ = balanceSheetData.status  === 'fulfilled' ? balanceSheetData.value  : [];
@@ -93,8 +91,6 @@ router.get('/', async (req, res) => {
 
     // --- Quarterly periods on or before snapshot date ---
     const incomeQuarters = periodsOnOrBefore(income, date);
-    const metricsQuarters = periodsOnOrBefore(metrics, date);
-    const ratiosQuarters = periodsOnOrBefore(ratios, date);
     const balanceQuarters = periodsOnOrBefore(balanceSheet, date);
     const cashFlowQuarters = periodsOnOrBefore(cashFlowStmt, date);
 
@@ -130,11 +126,6 @@ router.get('/', async (req, res) => {
       epsGrowthYoY = (ttm.eps - priorTtm.eps) / Math.abs(priorTtm.eps);
     }
 
-    // --- Valuation & return ratios from most recent annual key-metrics/ratios ---
-    // (Quarterly endpoints require a higher FMP plan; annual is the best available)
-    const curMetrics = metricsQuarters[0] || null;
-    const curRatios = ratiosQuarters[0] || null;
-
     // --- Balance sheet & cash flow from most recent quarter ---
     const curBalance = balanceQuarters[0] || null;
     const curCashFlow = cashFlowQuarters[0] || null;
@@ -167,6 +158,43 @@ router.get('/', async (req, res) => {
       if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
     }
 
+    // --- Computed valuation, return, and financial health ratios ---
+    const sharesOut = ttm?.sharesOut ?? null;
+    const equity = curBalance?.totalStockholdersEquity ?? null;
+    const totalAssets = curBalance?.totalAssets ?? null;
+    const totalCurrentAssets = curBalance?.totalCurrentAssets ?? null;
+    const totalCurrentLiabilities = curBalance?.totalCurrentLiabilities ?? null;
+    const totalDebt = curBalance?.totalDebt ?? null;
+    const cash = curBalance?.cashAndCashEquivalents ?? null;
+    const ttmFCF = curCashFlow?.freeCashFlow ?? null;
+
+    const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
+    const ev = (computedMarketCap != null && totalDebt != null && cash != null)
+      ? computedMarketCap + totalDebt - cash : null;
+
+    // Valuation
+    const peRatio = (price > 0 && ttm?.eps > 0) ? price / ttm.eps : null;
+    const priceToSales = (computedMarketCap > 0 && ttm?.revenue > 0) ? computedMarketCap / ttm.revenue : null;
+    const priceToBook = (computedMarketCap > 0 && equity > 0) ? computedMarketCap / equity : null;
+    const evToEBITDA = (ev != null && ttm?.ebitda > 0) ? ev / ttm.ebitda : null;
+    const evToRevenue = (ev != null && ttm?.revenue > 0) ? ev / ttm.revenue : null;
+    const earningsYield = (price > 0 && ttm) ? ttm.eps / price : null;
+    const pegRatio = (peRatio > 0 && epsGrowthYoY > 0) ? peRatio / (epsGrowthYoY * 100) : null;
+
+    // Returns
+    const returnOnEquity = (ttm && equity != null && equity !== 0) ? ttm.netIncome / equity : null;
+    const returnOnAssets = (ttm && totalAssets != null && totalAssets !== 0) ? ttm.netIncome / totalAssets : null;
+    const returnOnCapital = (ttm && equity != null && totalDebt != null && cash != null && (equity + totalDebt - cash) !== 0)
+      ? ttm.operatingIncome / (equity + totalDebt - cash) : null;
+
+    // Financial Health
+    const currentRatio = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities !== 0)
+      ? totalCurrentAssets / totalCurrentLiabilities : null;
+    const debtToEquity = (totalDebt != null && equity != null && equity !== 0) ? totalDebt / equity : null;
+    const interestCoverage = (ttm && ttm.interestExpense > 0) ? ttm.operatingIncome / ttm.interestExpense : null;
+    const netDebtToEBITDA = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;
+    const freeCashFlowYield = (ttmFCF != null && computedMarketCap > 0) ? ttmFCF / computedMarketCap : null;
+
     const result = {
       ticker: sym,
       companyName: profile.companyName || sym,
@@ -174,36 +202,36 @@ router.get('/', async (req, res) => {
       date,
       price,
       ttmRevenue: ttm ? ttm.revenue : null,
-      // Valuation — from most recent quarterly metrics/ratios
-      peRatio:           curRatios?.priceToEarningsRatio ?? null,
-      priceToBook:       curRatios?.priceToBookRatio ?? null,
-      priceToSales:      curRatios?.priceToSalesRatio ?? null,
-      evToEBITDA:        curMetrics?.evToEBITDA ?? null,
-      evToRevenue:       curMetrics?.evToSales ?? null,
-      pegRatio:          curRatios?.priceToEarningsGrowthRatio ?? null,
-      earningsYield:     curMetrics?.earningsYield ?? null,
+      // Valuation — computed from price + TTM + balance sheet
+      peRatio:           peRatio ?? null,
+      priceToBook:       priceToBook ?? null,
+      priceToSales:      priceToSales ?? null,
+      evToEBITDA:        evToEBITDA ?? null,
+      evToRevenue:       evToRevenue ?? null,
+      pegRatio:          pegRatio ?? null,
+      earningsYield:     earningsYield ?? null,
       // Profitability — TTM margins
       grossMargin,
       operatingMargin,
       netMargin,
       ebitdaMargin,
-      returnOnEquity:    curMetrics?.returnOnEquity ?? null,
-      returnOnAssets:    curMetrics?.returnOnAssets ?? null,
-      returnOnCapital:   curMetrics?.returnOnInvestedCapital ?? null,
+      returnOnEquity:    returnOnEquity ?? null,
+      returnOnAssets:    returnOnAssets ?? null,
+      returnOnCapital:   returnOnCapital ?? null,
       // Growth — TTM vs prior-year TTM
       revenueGrowthYoY,
       revenueGrowth3yr,
       epsGrowthYoY,
       eps:               ttm ? ttm.eps : null,
       // Financial Health
-      currentRatio:      curRatios?.currentRatio ?? curMetrics?.currentRatio ?? null,
-      debtToEquity:      curRatios?.debtToEquityRatio ?? null,
-      interestCoverage:  curRatios?.interestCoverageRatio ?? null,
-      netDebtToEBITDA:   curMetrics?.netDebtToEBITDA ?? null,
-      freeCashFlowYield: curMetrics?.freeCashFlowYield ?? null,
-      dividendYield:     curRatios?.dividendYield ?? null,
-      totalCash:         curBalance?.cashAndCashEquivalents ?? null,
-      totalDebt:         curBalance?.totalDebt ?? null,
+      currentRatio:      currentRatio ?? null,
+      debtToEquity:      debtToEquity ?? null,
+      interestCoverage:  interestCoverage ?? null,
+      netDebtToEBITDA:   netDebtToEBITDA ?? null,
+      freeCashFlowYield: freeCashFlowYield ?? null,
+      dividendYield:     null,
+      totalCash:         cash,
+      totalDebt:         totalDebt,
       freeCashFlow:      curCashFlow?.freeCashFlow ?? null,
       operatingCashFlow: curCashFlow?.operatingCashFlow ?? null,
       // Technical
@@ -214,7 +242,7 @@ router.get('/', async (req, res) => {
       beta:              profile?.beta ?? null,
       avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
       // Overview
-      marketCap:         curMetrics?.marketCap ?? null,
+      marketCap:         computedMarketCap ?? null,
       shortInterestPct:  shortRaw?.shortInterestPercent ?? null,
     };
     snapshotCache.set(cacheKey, { data: result, ts: Date.now() });
