@@ -95,9 +95,19 @@ describe('findMatches', () => {
       sector: expect.any(String),
       price: expect.any(Number),
       matchScore: expect.any(Number),
+      metricsCompared: expect.any(Number),
       topMatches: expect.any(Array),
       topDifferences: expect.any(Array),
     });
+  });
+
+  test('metricsCompared equals number of metrics with data on both sides', () => {
+    const universe = new Map();
+    // Stock with 3 metrics nulled out
+    universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, grossMargin: null, rsi14: null }));
+    const results = findMatches(snapshot, universe);
+    // snapshot has all 26 metrics; SPARSE has 23 non-null; 23 are comparable
+    expect(results[0].metricsCompared).toBe(23);
   });
 });
 

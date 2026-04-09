@@ -64,6 +64,7 @@ function normalize(value, min, max) {
 function calculateSimilarity(snapshot, stock, scales) {
   let score = 0;
   let totalWeight = 0;
+  let metricsCompared = 0;
   const metricScores = [];
 
   for (const metric of MATCH_METRICS) {
@@ -73,6 +74,8 @@ function calculateSimilarity(snapshot, stock, scales) {
 
     // Skip if either side has no data — only compare what we can actually measure
     if (snapVal === null || stockVal === null) continue;
+
+    metricsCompared++;
 
     const normSnap = normalize(snapVal, scales[metric].min, scales[metric].max);
     const normStock = normalize(stockVal, scales[metric].min, scales[metric].max);
@@ -91,7 +94,7 @@ function calculateSimilarity(snapshot, stock, scales) {
   }
 
   const finalScore = totalWeight > 0 ? Math.max(0, Math.min(100, (score / totalWeight) * 100)) : 0;
-  return { score: finalScore, metricScores };
+  return { score: finalScore, metricScores, metricsCompared };
 }
 
 function findMatches(snapshot, universe, limit = 10) {
@@ -105,7 +108,7 @@ function findMatches(snapshot, universe, limit = 10) {
   const results = Array.from(universe.values())
     .filter(stock => stock.ticker !== snapshot.ticker)
     .map(stock => {
-      const { score, metricScores } = calculateSimilarity(snapshot, stock, scales);
+      const { score, metricScores, metricsCompared } = calculateSimilarity(snapshot, stock, scales);
 
       // Sort by per-metric similarity to find closest and most divergent
       const ranked = [...metricScores].sort((a, b) => b.similarity - a.similarity);
@@ -116,6 +119,7 @@ function findMatches(snapshot, universe, limit = 10) {
         ...stock,
         _rawScore: score,         // used for accurate ranking before rounding
         matchScore: Math.round(score),
+        metricsCompared,
         topMatches,
         topDifferences,
       };
