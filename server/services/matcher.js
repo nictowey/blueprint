@@ -118,12 +118,17 @@ const DUAL_CLASS_MAP = {
   'UA': 'UA', 'UAA': 'UA',
   // Rebrands / restructurings
   'MSTR': 'MSTR', 'STRK': 'MSTR',
+  // Dual-class / tracking stocks
+  'FWONK': 'FWON', 'FWONA': 'FWON',
+  'LSXMA': 'LSXM', 'LSXMK': 'LSXM', 'LSXMB': 'LSXM',
+  'BATRK': 'BATR', 'BATRA': 'BATR',
   // Parent / subsidiary / bond tickers
   'CMCSA': 'CMCSA', 'CCZ': 'CMCSA',
   'SO': 'SO', 'SOJC': 'SO', 'SOJD': 'SO', 'SOJE': 'SO',
   'ETR': 'ETR', 'ELC': 'ETR',
   'RGA': 'RGA', 'RZB': 'RGA', 'RZC': 'RGA',
   'FHN': 'FHN', 'FHN-A': 'FHN', 'FHN-B': 'FHN', 'FHN-C': 'FHN', 'FHN-D': 'FHN', 'FHN-E': 'FHN',
+  'ESBA': 'ESRT', 'ESRT': 'ESRT',  // Empire State Realty
 };
 
 function isSameCompany(tickerA, tickerB, nameA, nameB) {
