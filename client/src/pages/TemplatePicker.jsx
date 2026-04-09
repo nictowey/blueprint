@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../components/TickerSearch';
 import SnapshotCard from '../components/SnapshotCard';
+import TopPairs from '../components/TopPairs';
 
 // Yesterday as YYYY-MM-DD (max date for picker)
 function yesterday() {
@@ -147,6 +148,9 @@ export default function TemplatePicker() {
           </div>
         </>
       )}
+
+      {/* Top pairs across the universe */}
+      {serverReady && <TopPairs />}
     </main>
   );
 }

@@ -13,6 +13,7 @@ app.use('/api/snapshot',   require('./routes/snapshot'));
 app.use('/api/matches',    require('./routes/matches'));
 app.use('/api/comparison', require('./routes/comparison'));
 app.use('/api/status',     require('./routes/status'));
+app.use('/api/top-pairs',  require('./routes/top-pairs'));
 
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
