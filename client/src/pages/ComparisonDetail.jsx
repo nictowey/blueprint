@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
+import { getMetricColor } from '../utils/metricColor';
 
 const METRIC_GROUPS = [
   { label: 'Overview',         metrics: ['marketCap', 'eps', 'dividendYield'] },
@@ -183,15 +184,7 @@ export default function ComparisonDetail() {
                 {group.metrics.map(key => {
                   const leftVal = data.template[key];
                   const rightVal = data.match[key];
-                  let colorClass = 'text-slate-100';
-                  if (leftVal != null && rightVal != null && leftVal !== 0) {
-                    const pct = Math.abs((rightVal - leftVal) / Math.abs(leftVal)) * 100;
-                    if (pct <= 15) colorClass = 'text-green-400';
-                    else if (pct <= 40) colorClass = 'text-yellow-400';
-                    else colorClass = 'text-red-400';
-                  } else if (rightVal == null) {
-                    colorClass = 'text-slate-600';
-                  }
+                  const colorClass = getMetricColor(key, leftVal, rightVal);
                   return (
                     <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0">
                       <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>

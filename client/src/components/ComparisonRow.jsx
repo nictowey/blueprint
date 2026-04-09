@@ -1,15 +1,9 @@
 import { formatMetric } from '../utils/format';
+import { getMetricColor } from '../utils/metricColor';
 
-// Color-code by % difference between two metric values
+// Color-code match metric: green = better, yellow = in line, red = worse
 function getDiffColor(key, leftVal, rightVal) {
-  if (leftVal == null || rightVal == null) return 'text-slate-600';
-  let leftNum = leftVal;
-  let rightNum = rightVal;
-  if (leftNum === 0) return rightNum === 0 ? 'text-green-400' : 'text-red-400';
-  const pctDiff = Math.abs((rightNum - leftNum) / Math.abs(leftNum)) * 100;
-  if (pctDiff <= 15) return 'text-green-400';
-  if (pctDiff <= 40) return 'text-yellow-400';
-  return 'text-red-400';
+  return getMetricColor(key, leftVal, rightVal);
 }
 
 function DotIndicator({ colorClass }) {
