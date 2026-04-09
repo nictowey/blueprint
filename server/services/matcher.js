@@ -15,21 +15,41 @@ const MATCH_METRICS = [
 ];
 
 const METRIC_WEIGHTS = {
-  // Valuation
-  peRatio: 2.0, priceToBook: 1.0, priceToSales: 1.5,
-  evToEBITDA: 2.0, evToRevenue: 1.0, pegRatio: 1.5, earningsYield: 1.0,
-  // Profitability
-  grossMargin: 1.5, operatingMargin: 2.0, netMargin: 1.5, ebitdaMargin: 1.0,
-  returnOnEquity: 2.0, returnOnAssets: 1.5, returnOnCapital: 1.5,
-  // Growth
-  revenueGrowthYoY: 2.5, revenueGrowth3yr: 2.0, epsGrowthYoY: 2.0,
-  // Financial Health
-  currentRatio: 1.0, debtToEquity: 1.5, interestCoverage: 1.0,
-  netDebtToEBITDA: 1.5, freeCashFlowYield: 1.5,
-  // Size — strong penalty for different market cap tiers
-  marketCap: 2.5,
-  // Technical — momentum and trend matter for finding similar setups
-  rsi14: 1.0, pctBelowHigh: 2.0, priceVsMa50: 1.5, priceVsMa200: 2.0, beta: 1.5,
+  // --- Tier 1: Defines the opportunity (3.0) ---
+  revenueGrowthYoY: 3.0,   // accelerating revenue = #1 signal
+  epsGrowthYoY: 3.0,       // earnings acceleration = operating leverage
+  pegRatio: 3.0,           // growth relative to valuation = value of growth
+  operatingMargin: 3.0,    // margin profile defines business economics
+  returnOnEquity: 3.0,     // capital efficiency = competitive moat
+
+  // --- Tier 2: Confirms the setup (2.0-2.5) ---
+  peRatio: 2.5,            // how market prices earnings
+  evToEBITDA: 2.5,         // enterprise valuation
+  priceVsMa200: 2.5,       // institutional trend direction
+  pctBelowHigh: 2.5,       // near high = breakout, far below = distressed
+  marketCap: 2.5,          // size tier defines growth runway
+  revenueGrowth3yr: 2.0,   // sustained growth track record
+
+  // --- Tier 3: Risk check (1.5) ---
+  debtToEquity: 1.5,       // leverage risk
+  freeCashFlowYield: 1.5,  // real cash generation
+  netDebtToEBITDA: 1.5,    // balance sheet health
+  beta: 1.5,               // volatility/risk profile
+  returnOnCapital: 1.5,    // invested capital efficiency
+  priceVsMa50: 1.5,        // short-term momentum
+
+  // --- Tier 4: Supporting context (1.0) ---
+  grossMargin: 1.0,
+  netMargin: 1.0,
+  ebitdaMargin: 1.0,
+  returnOnAssets: 1.0,
+  priceToBook: 1.0,
+  priceToSales: 1.0,
+  evToRevenue: 1.0,
+  earningsYield: 1.0,
+  currentRatio: 1.0,
+  interestCoverage: 1.0,
+  rsi14: 1.0,
 };
 
 const MIN_OVERLAP_RATIO = 0.6;
