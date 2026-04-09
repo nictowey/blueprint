@@ -4,7 +4,7 @@ const { computeRSI } = require('./rsi');
 
 const REDIS_KEY = 'universe_cache';
 const CACHE_VERSION_KEY = 'universe_cache_version';
-const CACHE_VERSION = 3; // v3: compute ratios from raw quarterly data (same as snapshot.js)
+const CACHE_VERSION = 2; // accept existing Redis cache; incremental refresh applies new formulas
 const CACHE_TTL_SECONDS = 90000; // 25 hours
 
 async function saveCacheToRedis(cache) {
@@ -377,11 +377,26 @@ async function buildCache() {
         const entry = newCache.get(s.symbol);
         await enrichStock(entry);
 
+        // Make server usable early — mark ready once we have 100+ enriched stocks
+        if (!state.ready && newCache.size >= 100) {
+          state.cache = newCache;
+          state.ready = true;
+          state.lastRefreshed = new Date().toISOString();
+          console.log(`[universe] Early ready: ${newCache.size} stocks available while build continues`);
+        }
+
         if (newCache.size % 100 === 0 || newCache.size === 1) {
           const elapsed = ((Date.now() - buildStart) / 1000 / 60).toFixed(1);
           const rate = newCache.size / ((Date.now() - buildStart) / 1000 / 60) || 0;
           const remaining = rate > 0 ? ((filtered.length - newCache.size) / rate).toFixed(0) : '?';
           console.log(`[universe] Progress: ${newCache.size}/${filtered.length} stocks (${elapsed}min elapsed, ~${remaining}min remaining)`);
+        }
+
+        // Save to Redis every 500 stocks so progress survives restarts
+        if (newCache.size % 500 === 0) {
+          state.cache = newCache;
+          await saveCacheToRedis(newCache);
+          console.log(`[universe] Checkpoint saved: ${newCache.size} stocks`);
         }
       } catch (err) {
         console.warn(`[universe] Skipped ${s.symbol}: ${err.message}`);
