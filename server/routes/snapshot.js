@@ -3,16 +3,28 @@ const router = express.Router();
 const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
 
-// Historical snapshots are immutable — cache indefinitely (24h TTL is conservative)
 const snapshotCache = new Map();
 const SNAPSHOT_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-// Find the most recent period whose date falls on or before targetDate
-function findPeriodOnOrBefore(periods, targetDate) {
+// Filter periods on or before targetDate, sorted newest-first
+function periodsOnOrBefore(periods, targetDate) {
   const target = new Date(targetDate);
   return periods
     .filter(p => new Date(p.date) <= target)
-    .sort((a, b) => new Date(b.date) - new Date(a.date))[0] || null;
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+// Sum flow metrics across an array of quarterly periods
+function sumQuarters(quarters) {
+  const sum = (field) => quarters.reduce((s, q) => s + (q[field] ?? 0), 0);
+  return {
+    revenue: sum('revenue'),
+    grossProfit: sum('grossProfit'),
+    operatingIncome: sum('operatingIncome'),
+    netIncome: sum('netIncome'),
+    ebitda: sum('ebitda'),
+    eps: sum('eps'),
+  };
 }
 
 // Find price on or before targetDate from newest-first historical array
@@ -50,13 +62,13 @@ router.get('/', async (req, res) => {
     const [profileData, incomeData, metricsData, ratiosData, histData, shortData, balanceSheetData, cashFlowData] =
       await Promise.allSettled([
         fmp.getProfile(sym, false),
-        fmp.getIncomeStatements(sym, 8, false),
-        fmp.getKeyMetricsAnnual(sym, false),
-        fmp.getRatiosAnnual(sym, false),
+        fmp.getIncomeStatements(sym, 20, false, 'quarter'),
+        fmp.getKeyMetricsAnnual(sym, false, 'quarter', 20),
+        fmp.getRatiosAnnual(sym, false, 'quarter', 20),
         fmp.getHistoricalPrices(sym, fromStr, date, false),
         fmp.getShortInterest(sym, false),
-        fmp.getBalanceSheet(sym, 4, false),
-        fmp.getCashFlowStatement(sym, 4, false),
+        fmp.getBalanceSheet(sym, 8, false, 'quarter'),
+        fmp.getCashFlowStatement(sym, 8, false, 'quarter'),
       ]);
 
     const profile    = profileData.status    === 'fulfilled' ? profileData.value    : {};
@@ -68,65 +80,69 @@ router.get('/', async (req, res) => {
     const balanceSheet  = balanceSheetData.status  === 'fulfilled' ? balanceSheetData.value  : [];
     const cashFlowStmt  = cashFlowData.status      === 'fulfilled' ? cashFlowData.value      : [];
 
-    // Annual period on or before snapshot date
-    const curIncome  = findPeriodOnOrBefore(income, date);
-    const curMetrics = findPeriodOnOrBefore(metrics, date);
-    const curRatios  = findPeriodOnOrBefore(ratios, date);
-    const curBalance = findPeriodOnOrBefore(balanceSheet, date);
-    const curCashFlow = findPeriodOnOrBefore(cashFlowStmt, date);
+    // --- Quarterly periods on or before snapshot date ---
+    const incomeQuarters = periodsOnOrBefore(income, date);
+    const metricsQuarters = periodsOnOrBefore(metrics, date);
+    const ratiosQuarters = periodsOnOrBefore(ratios, date);
+    const balanceQuarters = periodsOnOrBefore(balanceSheet, date);
+    const cashFlowQuarters = periodsOnOrBefore(cashFlowStmt, date);
 
-    // Prior income statement for revenue growth
-    const priorIncome = curIncome
-      ? income.find(p => p.date !== curIncome.date && new Date(p.date) < new Date(curIncome.date))
-      : null;
+    // --- TTM from 4 most recent quarters ---
+    const ttmIncomeQ = incomeQuarters.slice(0, 4);
+    const priorTtmIncomeQ = incomeQuarters.slice(4, 8);
 
-    // Revenue growth YoY
+    const ttm = ttmIncomeQ.length >= 4 ? sumQuarters(ttmIncomeQ) : null;
+    const priorTtm = priorTtmIncomeQ.length >= 4 ? sumQuarters(priorTtmIncomeQ) : null;
+
+    // --- Margins from TTM ---
+    const grossMargin     = ttm && ttm.revenue ? ttm.grossProfit / ttm.revenue : null;
+    const operatingMargin = ttm && ttm.revenue ? ttm.operatingIncome / ttm.revenue : null;
+    const netMargin       = ttm && ttm.revenue ? ttm.netIncome / ttm.revenue : null;
+    const ebitdaMargin    = ttm && ttm.revenue ? ttm.ebitda / ttm.revenue : null;
+
+    // --- Growth: TTM vs prior-year TTM ---
     let revenueGrowthYoY = null;
-    if (curIncome?.revenue != null && priorIncome?.revenue && priorIncome.revenue !== 0) {
-      revenueGrowthYoY = (curIncome.revenue - priorIncome.revenue) / Math.abs(priorIncome.revenue);
+    if (ttm && priorTtm && priorTtm.revenue !== 0) {
+      revenueGrowthYoY = (ttm.revenue - priorTtm.revenue) / Math.abs(priorTtm.revenue);
     }
 
-    // Revenue 3yr CAGR
-    const income3yrAgo = curIncome
-      ? income
-          .filter(p => new Date(p.date) < new Date(curIncome.date))
-          .sort((a, b) => new Date(b.date) - new Date(a.date))[2] || null
-      : null;
+    // Revenue 3yr CAGR: need TTM from ~3 years ago
+    const ttm3yrAgoQ = incomeQuarters.slice(12, 16);
+    const ttm3yrAgo = ttm3yrAgoQ.length >= 4 ? sumQuarters(ttm3yrAgoQ) : null;
     let revenueGrowth3yr = null;
-    if (curIncome?.revenue != null && income3yrAgo?.revenue && income3yrAgo.revenue !== 0) {
-      revenueGrowth3yr = Math.pow(curIncome.revenue / income3yrAgo.revenue, 1 / 3) - 1;
+    if (ttm && ttm3yrAgo && ttm3yrAgo.revenue > 0) {
+      revenueGrowth3yr = Math.pow(ttm.revenue / ttm3yrAgo.revenue, 1 / 3) - 1;
     }
 
-    // EPS growth YoY
     let epsGrowthYoY = null;
-    if (curIncome?.eps != null && priorIncome?.eps && priorIncome.eps !== 0) {
-      epsGrowthYoY = (curIncome.eps - priorIncome.eps) / Math.abs(priorIncome.eps);
+    if (ttm && priorTtm && priorTtm.eps !== 0) {
+      epsGrowthYoY = (ttm.eps - priorTtm.eps) / Math.abs(priorTtm.eps);
     }
 
-    // Margins — calculated from income statement raw fields
-    const grossMargin     = curIncome?.revenue ? (curIncome.grossProfit / curIncome.revenue) : null;
-    const operatingMargin = curIncome?.revenue ? (curIncome.operatingIncome / curIncome.revenue) : null;
-    const netMargin       = curIncome?.revenue ? (curIncome.netIncome / curIncome.revenue) : null;
-    const ebitdaMargin    = curIncome?.revenue ? (curIncome.ebitda / curIncome.revenue) : null;
+    // --- Valuation & return ratios from most recent quarterly key-metrics/ratios ---
+    const curMetrics = metricsQuarters[0] || null;
+    const curRatios = ratiosQuarters[0] || null;
 
-    // Price on snapshot date (newest-first historical array)
+    // --- Balance sheet & cash flow from most recent quarter ---
+    const curBalance = balanceQuarters[0] || null;
+    const curCashFlow = cashFlowQuarters[0] || null;
+
+    // --- Price ---
     const price = findPrice(historical, date);
 
-    // RSI: oldest-first, last 30 prices on or before snapshot date
+    // --- Technical indicators (unchanged — price-based) ---
     const pricesAsc = [...historical]
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .filter(h => new Date(h.date) <= new Date(date))
       .map(h => h.close);
     const rsi14 = computeRSI(pricesAsc.slice(-30));
 
-    // 52-week high
     const high52w = historical.length > 0 ? Math.max(...historical.map(h => h.close)) : null;
     const pctBelowHigh =
       price != null && high52w != null && high52w > 0
         ? ((high52w - price) / high52w) * 100
         : null;
 
-    // Moving averages
     let priceVsMa50 = null;
     let priceVsMa200 = null;
     if (pricesAsc.length >= 50) {
@@ -145,7 +161,8 @@ router.get('/', async (req, res) => {
       sector: profile.sector || null,
       date,
       price,
-      // Valuation — from /ratios
+      ttmRevenue: ttm ? ttm.revenue : null,
+      // Valuation — from most recent quarterly metrics/ratios
       peRatio:           curRatios?.priceToEarningsRatio ?? null,
       priceToBook:       curRatios?.priceToBookRatio ?? null,
       priceToSales:      curRatios?.priceToSalesRatio ?? null,
@@ -153,7 +170,7 @@ router.get('/', async (req, res) => {
       evToRevenue:       curMetrics?.evToSales ?? null,
       pegRatio:          curRatios?.priceToEarningsGrowthRatio ?? null,
       earningsYield:     curMetrics?.earningsYield ?? null,
-      // Profitability — margins calculated from income statement
+      // Profitability — TTM margins
       grossMargin,
       operatingMargin,
       netMargin,
@@ -161,12 +178,12 @@ router.get('/', async (req, res) => {
       returnOnEquity:    curMetrics?.returnOnEquity ?? null,
       returnOnAssets:    curMetrics?.returnOnAssets ?? null,
       returnOnCapital:   curMetrics?.returnOnInvestedCapital ?? null,
-      // Growth
+      // Growth — TTM vs prior-year TTM
       revenueGrowthYoY,
       revenueGrowth3yr,
       epsGrowthYoY,
-      eps:               curIncome?.eps ?? null,
-      // Financial Health — from /ratios
+      eps:               ttm ? ttm.eps : null,
+      // Financial Health
       currentRatio:      curRatios?.currentRatio ?? curMetrics?.currentRatio ?? null,
       debtToEquity:      curRatios?.debtToEquityRatio ?? null,
       interestCoverage:  curRatios?.interestCoverageRatio ?? null,
