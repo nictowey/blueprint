@@ -1,6 +1,6 @@
 const MATCH_METRICS = [
   // Valuation
-  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
   // Profitability
   'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
   'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
@@ -46,7 +46,6 @@ const METRIC_WEIGHTS = {
   priceToBook: 1.0,
   priceToSales: 1.0,
   evToRevenue: 1.0,
-  earningsYield: 1.0,
   currentRatio: 1.0,
   interestCoverage: 1.0,
   rsi14: 1.0,
@@ -64,7 +63,7 @@ const RATIO_METRICS = new Set([
 const MARGIN_METRICS = new Set([
   'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
   'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
-  'earningsYield', 'freeCashFlowYield',
+  'freeCashFlowYield',
 ]);
 
 // Growth rates: can swing wildly (-100% to +500%), use dampened comparison
@@ -430,9 +429,14 @@ function findMatches(snapshot, universe, limit = 10) {
       const topMatches = rankedByContribution.slice(0, 3).map(m => m.metric);
 
       // For differences, rank by weighted MISS (how much score was lost on this metric)
+      // Sort DESCENDING so the biggest misses come first
+      const topMatchSet = new Set(topMatches);
       const rankedByMiss = [...metricScores]
-        .sort((a, b) => ((1 - a.similarity) * a.weight) - ((1 - b.similarity) * b.weight));
-      const topDifferences = rankedByMiss.slice(0, 3).map(m => m.metric);
+        .sort((a, b) => ((1 - b.similarity) * b.weight) - ((1 - a.similarity) * a.weight));
+      const topDifferences = rankedByMiss
+        .filter(m => !topMatchSet.has(m.metric))
+        .slice(0, 3)
+        .map(m => m.metric);
 
       return {
         ...stock,

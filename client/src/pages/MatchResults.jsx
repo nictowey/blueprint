@@ -11,7 +11,7 @@ const LOADING_MESSAGES = [
 ];
 
 const MATCH_METRICS = [
-  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
   'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
   'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
   'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
