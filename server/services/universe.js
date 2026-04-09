@@ -225,11 +225,14 @@ async function buildCache() {
       marketCapMoreThan: 100_000_000,
       country: 'US',
       exchange: 'NYSE,NASDAQ,AMEX',
+      isEtf: false,
+      isFund: false,
+      isActivelyTrading: true,
       limit: 1000,
     });
 
-    // Only skip stocks with no symbol — include all sectors and all market caps
-    const filtered = screenerResults.filter(s => s.symbol);
+    // Only individual stocks — exclude any ETFs/funds that slip through
+    const filtered = screenerResults.filter(s => s.symbol && !s.isEtf && !s.isFund);
 
     console.log(`[universe] ${filtered.length} stocks to process. Fetching metrics...`);
 
