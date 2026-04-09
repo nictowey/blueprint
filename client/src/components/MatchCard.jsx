@@ -1,6 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
 
+const KEY_STATS = [
+  { key: 'peRatio', label: 'P/E' },
+  { key: 'revenueGrowthYoY', label: 'Rev Growth' },
+  { key: 'operatingMargin', label: 'Op Margin' },
+  { key: 'returnOnEquity', label: 'ROE' },
+];
+
 const CIRCUMFERENCE = 150.8; // 2π × r=24
 
 export default function MatchCard({ match, snapshot, rank }) {
@@ -68,6 +75,20 @@ export default function MatchCard({ match, snapshot, rank }) {
               match
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Key stats row */}
+      <div className="flex gap-4 mb-3 py-2 px-1">
+        {KEY_STATS.map(({ key, label }) => (
+          <div key={key} className="text-center">
+            <p className="text-[10px] text-slate-600 uppercase tracking-wider">{label}</p>
+            <p className="text-xs font-semibold text-slate-300">{formatMetric(key, match[key])}</p>
+          </div>
+        ))}
+        <div className="text-center">
+          <p className="text-[10px] text-slate-600 uppercase tracking-wider">Mkt Cap</p>
+          <p className="text-xs font-semibold text-slate-300">{formatMetric('marketCap', match.marketCap)}</p>
         </div>
       </div>
 

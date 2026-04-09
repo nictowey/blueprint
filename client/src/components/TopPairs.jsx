@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function formatMarketCap(val) {
   if (val == null) return '—';
@@ -32,6 +33,7 @@ function ScoreRing({ score }) {
 }
 
 export default function TopPairs() {
+  const navigate = useNavigate();
   const [pairs, setPairs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +68,16 @@ export default function TopPairs() {
       </p>
       <div className="space-y-2">
         {pairs.map((pair, i) => (
-          <div key={i} className="card flex items-center gap-4 py-3 px-4">
+          <div
+            key={i}
+            className="card flex items-center gap-4 py-3 px-4 cursor-pointer hover:border-accent/40 transition-colors"
+            onClick={() => navigate('/comparison', {
+              state: {
+                snapshot: { ...pair.stockA, date: new Date().toISOString().slice(0, 10) },
+                matchTicker: pair.stockB.ticker,
+              },
+            })}
+          >
             <ScoreRing score={pair.matchScore} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 text-sm">

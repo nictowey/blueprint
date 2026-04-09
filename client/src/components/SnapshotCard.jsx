@@ -1,9 +1,10 @@
 import { formatMetric, METRIC_LABELS } from '../utils/format';
 
 const METRICS = [
-  'price', 'peRatio', 'priceToSales',
-  'revenueGrowthYoY', 'grossMargin', 'rsi14',
-  'pctBelowHigh', 'marketCap', 'shortInterestPct',
+  'price', 'marketCap', 'peRatio',
+  'revenueGrowthYoY', 'epsGrowthYoY', 'operatingMargin',
+  'returnOnEquity', 'pctBelowHigh', 'priceVsMa200',
+  'debtToEquity', 'freeCashFlowYield', 'rsi14',
 ];
 
 function MetricCell({ label, value }) {
@@ -38,7 +39,7 @@ export default function SnapshotCard({ snapshot }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
         {METRICS.map(key => (
           <MetricCell
             key={key}
