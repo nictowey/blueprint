@@ -4,7 +4,7 @@ const { computeRSI } = require('./rsi');
 
 const REDIS_KEY = 'universe_cache';
 const CACHE_VERSION_KEY = 'universe_cache_version';
-const CACHE_VERSION = 2; // bump to invalidate old cache (v2: ETF/fund exclusion, market cap tiers)
+const CACHE_VERSION = 3; // v3: compute ratios from raw quarterly data (same as snapshot.js)
 const CACHE_TTL_SECONDS = 90000; // 25 hours
 
 async function saveCacheToRedis(cache) {
@@ -99,6 +99,22 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function dateStr(d) { return d.toISOString().slice(0, 10); }
 
+// Sum flow metrics across quarterly periods — mirrors snapshot.js exactly
+function sumQuarters(quarters) {
+  const sum = (field) => quarters.reduce((s, q) => s + (q[field] ?? 0), 0);
+  const sharesOut = quarters[0]?.weightedAverageShsOutDil ?? null;
+  return {
+    revenue: sum('revenue'),
+    grossProfit: sum('grossProfit'),
+    operatingIncome: sum('operatingIncome'),
+    netIncome: sum('netIncome'),
+    ebitda: sum('ebitda'),
+    eps: sum('eps'),
+    interestExpense: sum('interestExpense'),
+    sharesOut,
+  };
+}
+
 async function enrichStock(entry) {
   const symbol = entry.ticker;
 
@@ -108,34 +124,55 @@ async function enrichStock(entry) {
   const from = fromDate.toISOString().slice(0, 10);
   const to = toDate.toISOString().slice(0, 10);
 
-  // 6 sequential calls — each waits for the 250ms rate-limit delay in fmp.js
-  const ttmData = await fmp.getKeyMetricsTTM(symbol);
-  const ttmRatios = await fmp.getRatiosTTM(symbol);
-  const incomeData = await fmp.getIncomeStatements(symbol, 4);
-  const historical = await fmp.getHistoricalPrices(symbol, from, to);
-  const profileData = await fmp.getProfile(symbol);
-  const balanceData = await fmp.getBalanceSheet(symbol, 1);
-  const cashFlowData = await fmp.getCashFlowStatement(symbol, 1);
+  // 5 sequential calls (down from 7 — dropped TTM endpoints)
+  // All ratios computed from raw quarterly data, same formulas as snapshot.js
+  const incomeData    = await fmp.getIncomeStatements(symbol, 16, true, 'quarter');
+  const balanceData   = await fmp.getBalanceSheet(symbol, 1, true, 'quarter');
+  const cashFlowData  = await fmp.getCashFlowStatement(symbol, 4, true, 'quarter');
+  const historical    = await fmp.getHistoricalPrices(symbol, from, to);
+  const profileData   = await fmp.getProfile(symbol);
 
-  // --- Income ---
-  const income0 = incomeData[0] || {};
-  const income1 = incomeData[1] || {};
-  const income3 = incomeData[3] || {};
+  // --- TTM from 4 most recent quarters (same as snapshot.js) ---
+  const ttmQ = incomeData.slice(0, 4);
+  const priorTtmQ = incomeData.slice(4, 8);
+  const ttm = ttmQ.length >= 4 ? sumQuarters(ttmQ) : null;
+  const priorTtm = priorTtmQ.length >= 4 ? sumQuarters(priorTtmQ) : null;
 
+  // --- Growth: TTM vs prior-year TTM ---
   let revenueGrowthYoY = null;
-  if (income0.revenue != null && income1.revenue && income1.revenue !== 0) {
-    revenueGrowthYoY = (income0.revenue - income1.revenue) / Math.abs(income1.revenue);
+  if (ttm && priorTtm && priorTtm.revenue !== 0) {
+    revenueGrowthYoY = (ttm.revenue - priorTtm.revenue) / Math.abs(priorTtm.revenue);
   }
 
+  const ttm3yrAgoQ = incomeData.slice(12, 16);
+  const ttm3yrAgo = ttm3yrAgoQ.length >= 4 ? sumQuarters(ttm3yrAgoQ) : null;
   let revenueGrowth3yr = null;
-  if (income0.revenue != null && income3.revenue && income3.revenue !== 0) {
-    revenueGrowth3yr = Math.pow(income0.revenue / income3.revenue, 1 / 3) - 1;
+  if (ttm && ttm3yrAgo && ttm3yrAgo.revenue > 0) {
+    revenueGrowth3yr = Math.pow(ttm.revenue / ttm3yrAgo.revenue, 1 / 3) - 1;
   }
 
   let epsGrowthYoY = null;
-  if (income0.eps != null && income1.eps && income1.eps !== 0) {
-    epsGrowthYoY = (income0.eps - income1.eps) / Math.abs(income1.eps);
+  if (ttm && priorTtm && priorTtm.eps !== 0) {
+    epsGrowthYoY = (ttm.eps - priorTtm.eps) / Math.abs(priorTtm.eps);
   }
+
+  // --- Balance sheet (latest quarterly) ---
+  const balance = Array.isArray(balanceData) ? balanceData[0] || {} : {};
+  const equity = balance.totalStockholdersEquity ?? null;
+  const totalAssets = balance.totalAssets ?? null;
+  const totalCurrentAssets = balance.totalCurrentAssets ?? null;
+  const totalCurrentLiabilities = balance.totalCurrentLiabilities ?? null;
+  const totalDebt = balance.totalDebt ?? null;
+  const cash = balance.cashAndCashEquivalents ?? null;
+
+  // --- Cash flow TTM (sum 4 quarters, same as snapshot.js) ---
+  const cfQuarters = Array.isArray(cashFlowData) ? cashFlowData : [];
+  const ttmFCF = cfQuarters.length >= 4
+    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
+    : (cfQuarters[0]?.freeCashFlow ?? null);
+  const ttmOperatingCF = cfQuarters.length >= 4
+    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
+    : (cfQuarters[0]?.operatingCashFlow ?? null);
 
   // --- Historical prices ---
   let rsi14 = null;
@@ -144,7 +181,6 @@ async function enrichStock(entry) {
   let priceVsMa200 = null;
 
   if (Array.isArray(historical) && historical.length > 0) {
-    // historical comes back newest-first; reverse for oldest-first
     const oldestFirst = [...historical].reverse();
     const closes = oldestFirst.map(d => d.close).filter(c => c != null);
 
@@ -159,64 +195,75 @@ async function enrichStock(entry) {
 
     if (closes.length >= 50) {
       const ma50 = closes.slice(-50).reduce((s, v) => s + v, 0) / 50;
-      if (currentPrice != null && ma50 > 0) {
-        priceVsMa50 = ((currentPrice - ma50) / ma50) * 100;
-      }
+      if (currentPrice != null && ma50 > 0) priceVsMa50 = ((currentPrice - ma50) / ma50) * 100;
     }
 
     if (closes.length > 0) {
       const window200 = closes.slice(-200);
       const ma200 = window200.reduce((s, v) => s + v, 0) / window200.length;
-      if (currentPrice != null && ma200 > 0) {
-        priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
-      }
+      if (currentPrice != null && ma200 > 0) priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
     }
 
     entry.price = currentPrice ?? entry.price;
   }
 
-  // --- Balance sheet ---
-  const balance = Array.isArray(balanceData) ? balanceData[0] || {} : {};
-  // --- Cash flow ---
-  const cashFlow = Array.isArray(cashFlowData) ? cashFlowData[0] || {} : {};
+  // --- Computed ratios (same formulas as snapshot.js) ---
+  const sharesOut = ttm?.sharesOut ?? null;
+  const price = entry.price;
+  const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
+  const ev = (computedMarketCap != null && totalDebt != null && cash != null)
+    ? computedMarketCap + totalDebt - cash : null;
 
-  // Update cache entry in-place
-  entry.peRatio            = ttmRatios.priceToEarningsRatioTTM ?? null;
-  entry.priceToBook        = ttmRatios.priceToBookRatioTTM ?? null;
-  entry.priceToSales       = ttmRatios.priceToSalesRatioTTM ?? null;
-  entry.evToEBITDA         = ttmData.evToEBITDATTM ?? null;
-  entry.evToRevenue        = ttmData.evToSalesTTM ?? null;
-  entry.pegRatio           = ttmRatios.priceToEarningsGrowthRatioTTM ?? null;
-  entry.earningsYield      = ttmData.earningsYieldTTM ?? null;
-  entry.grossMargin        = ttmRatios.grossProfitMarginTTM ?? null;
-  entry.operatingMargin    = ttmRatios.operatingProfitMarginTTM ?? null;
-  entry.netMargin          = ttmRatios.netProfitMarginTTM ?? null;
-  entry.ebitdaMargin       = ttmRatios.ebitdaMarginTTM ?? null;
-  entry.returnOnEquity     = ttmData.returnOnEquityTTM ?? null;
-  entry.returnOnAssets     = ttmData.returnOnAssetsTTM ?? null;
-  entry.returnOnCapital    = ttmData.returnOnInvestedCapitalTTM ?? null;
-  entry.revenueGrowthYoY  = revenueGrowthYoY;
-  entry.revenueGrowth3yr  = revenueGrowth3yr;
-  entry.epsGrowthYoY      = epsGrowthYoY;
-  entry.eps                = income0.eps ?? null;
-  entry.currentRatio       = ttmRatios.currentRatioTTM ?? ttmData.currentRatioTTM ?? null;
-  entry.debtToEquity       = ttmRatios.debtToEquityRatioTTM ?? null;
-  entry.interestCoverage   = ttmRatios.interestCoverageRatioTTM ?? null;
-  entry.netDebtToEBITDA    = ttmData.netDebtToEBITDATTM ?? null;
-  entry.freeCashFlowYield  = ttmData.freeCashFlowYieldTTM ?? null;
-  entry.dividendYield      = ttmRatios.dividendYieldTTM ?? null;
-  entry.marketCap          = ttmData.marketCap ?? entry.marketCap;
-  entry.totalCash          = balance.cashAndCashEquivalents ?? null;
-  entry.totalDebt          = balance.totalDebt ?? null;
-  entry.freeCashFlow       = cashFlow.freeCashFlow ?? null;
-  entry.operatingCashFlow  = cashFlow.operatingCashFlow ?? null;
-  entry.rsi14              = rsi14;
-  entry.pctBelowHigh       = pctBelowHigh;
-  entry.priceVsMa50        = priceVsMa50;
-  entry.priceVsMa200       = priceVsMa200;
-  entry.beta               = profileData?.beta ?? entry.beta ?? null;
-  entry.avgVolume          = profileData?.averageVolume ?? entry.avgVolume ?? null;
-  entry.lastEnriched       = Date.now();
+  // Valuation
+  entry.peRatio        = (price > 0 && ttm?.eps > 0) ? price / ttm.eps : null;
+  entry.priceToSales   = (computedMarketCap > 0 && ttm?.revenue > 0) ? computedMarketCap / ttm.revenue : null;
+  entry.priceToBook    = (computedMarketCap > 0 && equity > 0) ? computedMarketCap / equity : null;
+  entry.evToEBITDA     = (ev != null && ttm?.ebitda > 0) ? ev / ttm.ebitda : null;
+  entry.evToRevenue    = (ev != null && ttm?.revenue > 0) ? ev / ttm.revenue : null;
+  entry.earningsYield  = (price > 0 && ttm) ? ttm.eps / price : null;
+  entry.pegRatio       = (entry.peRatio > 0 && epsGrowthYoY > 0) ? entry.peRatio / (epsGrowthYoY * 100) : null;
+
+  // Margins
+  entry.grossMargin     = ttm && ttm.revenue ? ttm.grossProfit / ttm.revenue : null;
+  entry.operatingMargin = ttm && ttm.revenue ? ttm.operatingIncome / ttm.revenue : null;
+  entry.netMargin       = ttm && ttm.revenue ? ttm.netIncome / ttm.revenue : null;
+  entry.ebitdaMargin    = ttm && ttm.revenue ? ttm.ebitda / ttm.revenue : null;
+
+  // Returns
+  entry.returnOnEquity   = (ttm && equity != null && equity !== 0) ? ttm.netIncome / equity : null;
+  entry.returnOnAssets   = (ttm && totalAssets != null && totalAssets !== 0) ? ttm.netIncome / totalAssets : null;
+  entry.returnOnCapital  = (ttm && equity != null && totalDebt != null && cash != null && (equity + totalDebt - cash) !== 0)
+    ? ttm.operatingIncome / (equity + totalDebt - cash) : null;
+
+  // Growth
+  entry.revenueGrowthYoY = revenueGrowthYoY;
+  entry.revenueGrowth3yr = revenueGrowth3yr;
+  entry.epsGrowthYoY     = epsGrowthYoY;
+  entry.eps              = ttm ? ttm.eps : null;
+
+  // Financial Health
+  entry.currentRatio     = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities !== 0)
+    ? totalCurrentAssets / totalCurrentLiabilities : null;
+  entry.debtToEquity     = (totalDebt != null && equity != null && equity !== 0) ? totalDebt / equity : null;
+  entry.interestCoverage = (ttm && ttm.interestExpense != null && ttm.interestExpense !== 0)
+    ? ttm.operatingIncome / Math.abs(ttm.interestExpense) : null;
+  entry.netDebtToEBITDA  = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;
+  entry.freeCashFlowYield = (ttmFCF != null && computedMarketCap > 0) ? ttmFCF / computedMarketCap : null;
+  entry.dividendYield    = profileData?.lastDiv && price > 0 ? profileData.lastDiv / price : null;
+  entry.marketCap        = computedMarketCap ?? entry.marketCap;
+  entry.totalCash        = cash;
+  entry.totalDebt        = totalDebt;
+  entry.freeCashFlow     = ttmFCF;
+  entry.operatingCashFlow = ttmOperatingCF;
+
+  // Technical
+  entry.rsi14        = rsi14;
+  entry.pctBelowHigh = pctBelowHigh;
+  entry.priceVsMa50  = priceVsMa50;
+  entry.priceVsMa200 = priceVsMa200;
+  entry.beta         = profileData?.beta ?? entry.beta ?? null;
+  entry.avgVolume    = profileData?.averageVolume ?? entry.avgVolume ?? null;
+  entry.lastEnriched = Date.now();
 }
 
 async function buildCache() {

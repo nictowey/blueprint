@@ -19,13 +19,14 @@ function setup() {
 }
 
 describe('saveCacheToRedis', () => {
-  test('POSTs a SET command with all stock entries and a 25h TTL', async () => {
+  test('POSTs a SET command with all stock entries, TTL, and version', async () => {
     const { fetch, saveCacheToRedis } = setup();
     fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'OK' }) });
 
     await saveCacheToRedis(sampleCache);
 
-    expect(fetch).toHaveBeenCalledTimes(1);
+    // 2 calls: one for cache data, one for version
+    expect(fetch).toHaveBeenCalledTimes(2);
     const [url, options] = fetch.mock.calls[0];
     expect(url).toBe('https://fake.upstash.io');
     expect(options.method).toBe('POST');
@@ -39,6 +40,11 @@ describe('saveCacheToRedis', () => {
     expect(stored[0][0]).toBe('AAPL');
     expect(body[3]).toBe('EX');
     expect(Number(body[4])).toBeGreaterThan(0);
+
+    // Version call
+    const versionBody = JSON.parse(fetch.mock.calls[1][1].body);
+    expect(versionBody[0]).toBe('SET');
+    expect(versionBody[1]).toBe('universe_cache_version');
   });
 
   test('does not throw when Redis request fails', async () => {
@@ -73,18 +79,25 @@ describe('loadCacheFromRedis', () => {
     expect(await loadCacheFromRedis()).toBeNull();
   });
 
+  test('returns null on version mismatch', async () => {
+    const { fetch, loadCacheFromRedis } = setup();
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ result: '1' }) });
+    expect(await loadCacheFromRedis()).toBeNull();
+  });
+
   test('returns null on a Redis cache miss', async () => {
     const { fetch, loadCacheFromRedis } = setup();
-    fetch.mockResolvedValue({ ok: true, json: async () => ({ result: null }) });
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '3' }) }) // version OK
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: null }) }); // no data
     expect(await loadCacheFromRedis()).toBeNull();
   });
 
   test('returns a Map with all stock entries on a cache hit', async () => {
     const { fetch, loadCacheFromRedis } = setup();
-    fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ result: JSON.stringify(sampleEntries) }),
-    });
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '3' }) }) // version OK
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: JSON.stringify(sampleEntries) }) });
 
     const result = await loadCacheFromRedis();
     expect(result).toBeInstanceOf(Map);
@@ -95,7 +108,9 @@ describe('loadCacheFromRedis', () => {
 
   test('returns null when Redis returns corrupt data', async () => {
     const { fetch, loadCacheFromRedis } = setup();
-    fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'not valid json {{{' }) });
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '3' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 'not valid json {{{' }) });
     expect(await loadCacheFromRedis()).toBeNull();
   });
 
