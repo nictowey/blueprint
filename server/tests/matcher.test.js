@@ -5,7 +5,6 @@ const makeStock = (ticker, overrides = {}) => ({
   companyName: `${ticker} Corp`,
   sector: 'Technology',
   price: 100,
-  // Valuation
   peRatio: 20,
   priceToBook: 3.0,
   priceToSales: 2.5,
@@ -13,7 +12,6 @@ const makeStock = (ticker, overrides = {}) => ({
   evToRevenue: 3.0,
   pegRatio: 1.5,
   earningsYield: 0.05,
-  // Profitability
   grossMargin: 0.5,
   operatingMargin: 0.2,
   netMargin: 0.15,
@@ -21,27 +19,23 @@ const makeStock = (ticker, overrides = {}) => ({
   returnOnEquity: 0.18,
   returnOnAssets: 0.1,
   returnOnCapital: 0.14,
-  // Growth
   revenueGrowthYoY: 0.2,
   revenueGrowth3yr: 0.18,
   epsGrowthYoY: 0.22,
-  // Financial Health
   currentRatio: 1.8,
   debtToEquity: 0.5,
   interestCoverage: 8.0,
   netDebtToEBITDA: 1.2,
   freeCashFlowYield: 0.04,
-  // Technical
   rsi14: 50,
   pctBelowHigh: 10,
   priceVsMa50: 2.0,
   priceVsMa200: 8.0,
-  // Size (not in MATCH_METRICS but kept for compatibility)
   marketCap: 10_000_000_000,
   ...overrides,
 });
 
-describe('findMatches', () => {
+describe('findMatches — basic behavior', () => {
   const snapshot = makeStock('TMPL');
 
   test('returns at most 10 results', () => {
@@ -70,21 +64,6 @@ describe('findMatches', () => {
     expect(results.find(r => r.ticker === 'TMPL')).toBeUndefined();
   });
 
-  test('identical stock ranks first and scores higher than a divergent one', () => {
-    const universe = new Map();
-    universe.set('TWIN', makeStock('TWIN')); // identical to snapshot
-    universe.set('DIFF', makeStock('DIFF', { peRatio: 999, grossMargin: 0.01, rsi14: 5 }));
-    const results = findMatches(snapshot, universe);
-    expect(results[0].ticker).toBe('TWIN');
-    expect(results[0].matchScore).toBeGreaterThan(results[1].matchScore);
-  });
-
-  test('does not throw when metrics are null', () => {
-    const universe = new Map();
-    universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, rsi14: null, grossMargin: null }));
-    expect(() => findMatches(snapshot, universe)).not.toThrow();
-  });
-
   test('each result has required shape', () => {
     const universe = new Map();
     universe.set('A', makeStock('A'));
@@ -101,88 +80,125 @@ describe('findMatches', () => {
     });
   });
 
-  test('metricsCompared equals number of metrics with data on both sides', () => {
+  test('does not throw when metrics are null', () => {
     const universe = new Map();
-    // Stock with 3 metrics nulled out
-    universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, grossMargin: null, rsi14: null }));
-    const results = findMatches(snapshot, universe);
-    // snapshot has all 27 metrics; SPARSE has 24 non-null; 24 are comparable
-    expect(results[0].metricsCompared).toBe(24);
+    universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, rsi14: null, grossMargin: null }));
+    expect(() => findMatches(snapshot, universe)).not.toThrow();
+  });
+
+  test('returns empty when snapshot has fewer than 4 metrics', () => {
+    const sparse = { ticker: 'TMPL', peRatio: 20, grossMargin: 0.5, rsi14: 50 };
+    const universe = new Map();
+    universe.set('A', makeStock('A'));
+    expect(findMatches(sparse, universe)).toEqual([]);
   });
 });
 
-describe('findMatches — scoring', () => {
-  test('stocks with different metric profiles score differently', () => {
-    const universe = new Map();
+describe('findMatches — percentage difference scoring', () => {
+  test('identical stock scores 100', () => {
     const snapshot = makeStock('SNAP');
-    universe.set('GOOD', makeStock('GOOD'));
-    universe.set('POOR', makeStock('POOR', { peRatio: 999, grossMargin: 0.01, revenueGrowthYoY: -0.5, returnOnEquity: 0.01 }));
-    const results = findMatches(snapshot, universe);
-    const goodScore = results.find(r => r.ticker === 'GOOD').matchScore;
-    const poorScore = results.find(r => r.ticker === 'POOR').matchScore;
-    expect(goodScore).toBeGreaterThan(poorScore);
-  });
-
-  test('identical stock with all metrics populated scores above 90', () => {
     const universe = new Map();
     universe.set('TWIN', makeStock('TWIN'));
-    const snapshot = makeStock('TMPL2');
     const results = findMatches(snapshot, universe);
-    expect(results[0].matchScore).toBeGreaterThan(90);
+    expect(results[0].matchScore).toBe(100);
   });
 
+  test('stock with 10% higher P/E scores lower than identical stock', () => {
+    const snapshot = makeStock('SNAP');
+    const universe = new Map();
+    universe.set('TWIN', makeStock('TWIN'));
+    universe.set('CLOSE', makeStock('CLOSE', { peRatio: 22 }));
+    const results = findMatches(snapshot, universe);
+    const twin = results.find(r => r.ticker === 'TWIN');
+    const close = results.find(r => r.ticker === 'CLOSE');
+    expect(twin.matchScore).toBeGreaterThan(close.matchScore);
+  });
+
+  test('stock with doubled P/E scores much lower', () => {
+    const snapshot = makeStock('SNAP', { peRatio: 50 });
+    const universe = new Map();
+    universe.set('CLOSE', makeStock('CLOSE', { peRatio: 55 }));
+    universe.set('FAR', makeStock('FAR', { peRatio: 100 }));
+    const results = findMatches(snapshot, universe);
+    const close = results.find(r => r.ticker === 'CLOSE');
+    const far = results.find(r => r.ticker === 'FAR');
+    expect(close.matchScore).toBeGreaterThan(far.matchScore);
+    expect(close.matchScore - far.matchScore).toBeGreaterThanOrEqual(1);
+  });
+
+  test('sector does NOT affect scoring', () => {
+    const snapshot = makeStock('SNAP', { sector: 'Technology' });
+    const universe = new Map();
+    universe.set('SAME', makeStock('SAME', { sector: 'Technology' }));
+    universe.set('DIFF', makeStock('DIFF', { sector: 'Healthcare' }));
+    const results = findMatches(snapshot, universe);
+    const same = results.find(r => r.ticker === 'SAME');
+    const diff = results.find(r => r.ticker === 'DIFF');
+    expect(same.matchScore).toBe(diff.matchScore);
+  });
+
+  test('marketCap uses log-scale comparison', () => {
+    const snapshot = makeStock('SNAP', { marketCap: 10_000_000_000 });
+    const universe = new Map();
+    universe.set('DOUBLE', makeStock('DOUBLE', { marketCap: 20_000_000_000 }));
+    universe.set('TENFOLD', makeStock('TENFOLD', { marketCap: 100_000_000_000 }));
+    const results = findMatches(snapshot, universe);
+    const dbl = results.find(r => r.ticker === 'DOUBLE');
+    const tenX = results.find(r => r.ticker === 'TENFOLD');
+    expect(dbl.matchScore).toBeGreaterThan(tenX.matchScore);
+  });
+
+  test('metricsCompared equals number of metrics with data on both sides', () => {
+    const snapshot = makeStock('SNAP');
+    const universe = new Map();
+    universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, grossMargin: null, rsi14: null }));
+    const results = findMatches(snapshot, universe);
+    expect(results[0].metricsCompared).toBe(24);
+  });
+
+  test('overlap penalty reduces score for sparse matches', () => {
+    const snapshot = makeStock('SNAP');
+    const universe = new Map();
+    universe.set('FULL', makeStock('FULL'));
+    universe.set('SPARSE', makeStock('SPARSE', {
+      peRatio: null, priceToBook: null, priceToSales: null,
+      evToEBITDA: null, evToRevenue: null, pegRatio: null,
+      earningsYield: null, rsi14: null, pctBelowHigh: null,
+    }));
+    const results = findMatches(snapshot, universe);
+    const full = results.find(r => r.ticker === 'FULL');
+    const sparse = results.find(r => r.ticker === 'SPARSE');
+    expect(full.matchScore).toBeGreaterThan(sparse.matchScore);
+  });
+
+  test('filters out stocks below 60% overlap', () => {
+    const snapshot = makeStock('SNAP');
+    const universe = new Map();
+    universe.set('TOOSPARSE', {
+      ticker: 'TOOSPARSE', companyName: 'Too Sparse', sector: 'Tech', price: 100,
+      peRatio: 20, grossMargin: 0.5, revenueGrowthYoY: 0.2, rsi14: 50,
+      currentRatio: 1.8, debtToEquity: 0.5, netMargin: 0.15, operatingMargin: 0.2,
+    });
+    const results = findMatches(snapshot, universe);
+    expect(results.find(r => r.ticker === 'TOOSPARSE')).toBeUndefined();
+  });
+
+  test('opposite sign values score 0% similarity for that metric', () => {
+    const snapshot = makeStock('SNAP', { revenueGrowthYoY: 0.30 });
+    const universe = new Map();
+    universe.set('NEG', makeStock('NEG', { revenueGrowthYoY: -0.30 }));
+    const results = findMatches(snapshot, universe);
+    const neg = results.find(r => r.ticker === 'NEG');
+    expect(neg.topDifferences).toContain('revenueGrowthYoY');
+  });
+});
+
+describe('findMatches — MATCH_METRICS', () => {
   test('marketCap is included in MATCH_METRICS', () => {
-    const { MATCH_METRICS } = require('../services/matcher');
     expect(MATCH_METRICS).toContain('marketCap');
   });
 
-  test('findMatches does not throw when marketCap is absent from stock', () => {
-    const universe = new Map();
-    const stockWithoutMarketCap = { ...makeStock('NOMC') };
-    delete stockWithoutMarketCap.marketCap;
-    universe.set('NOMC', stockWithoutMarketCap);
-    expect(() => findMatches(makeStock('SNAP'), universe)).not.toThrow();
-  });
-});
-
-describe('findMatches — outlier resistance', () => {
-  test('outlier stock does not inflate scores of normal stocks', () => {
-    const universe = new Map();
-    const icValues = [10, 15, 20, 25, 30, 35, 40, 45, 50, 5000];
-    icValues.forEach((ic, i) => {
-      universe.set(`S${i}`, makeStock(`S${i}`, { interestCoverage: ic }));
-    });
-
-    // Snapshot has interestCoverage of 20 — should match S2 (ic=20) best
-    const snap = makeStock('SNAP', { interestCoverage: 20 });
-    const results = findMatches(snap, universe);
-
-    const s2 = results.find(r => r.ticker === 'S2'); // ic=20, identical to snap
-    const s0 = results.find(r => r.ticker === 'S0'); // ic=10, divergent from snap
-
-    // S9 is the extreme outlier (ic=5000). With old min/max normalization, every stock
-    // compressed into [0, 0.01] and the outlier looked ~99% similar to everything.
-    // With log transform + IQR, the outlier is correctly penalized — S2 (exact ic match)
-    // should score higher than S9 (wildly divergent ic).
-    const s9 = results.find(r => r.ticker === 'S9');
-    expect(s2.matchScore).toBeGreaterThan(s9.matchScore);
-  });
-
-  test('scores show meaningful spread across varied universe', () => {
-    const universe = new Map();
-    universe.set('TWIN',  makeStock('TWIN'));
-    universe.set('CLOSE', makeStock('CLOSE', { peRatio: 25, grossMargin: 0.48 }));
-    universe.set('FAR',   makeStock('FAR',   { peRatio: 80, grossMargin: 0.1, revenueGrowthYoY: -0.3 }));
-
-    const snap = makeStock('SNAP');
-    const results = findMatches(snap, universe);
-
-    const twin  = results.find(r => r.ticker === 'TWIN').matchScore;
-    const close = results.find(r => r.ticker === 'CLOSE').matchScore;
-    const far   = results.find(r => r.ticker === 'FAR').matchScore;
-
-    expect(twin).toBeGreaterThan(close);
-    expect(close).toBeGreaterThan(far);
-    expect(twin - far).toBeGreaterThanOrEqual(5);
+  test('MATCH_METRICS has 27 entries', () => {
+    expect(MATCH_METRICS).toHaveLength(27);
   });
 });
