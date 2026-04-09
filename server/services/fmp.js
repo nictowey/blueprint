@@ -88,18 +88,18 @@ async function getProfile(ticker, throttle = true) {
   return Array.isArray(data) ? data[0] : data;
 }
 
-async function getIncomeStatements(ticker, limit = 10, throttle = true) {
-  const data = await fmpGet(`/income-statement`, { symbol: ticker, period: 'annual', limit }, throttle);
+async function getIncomeStatements(ticker, limit = 10, throttle = true, period = 'annual') {
+  const data = await fmpGet(`/income-statement`, { symbol: ticker, period, limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getKeyMetricsAnnual(ticker, throttle = true) {
-  const data = await fmpGet(`/key-metrics`, { symbol: ticker, period: 'annual', limit: 15 }, throttle);
+async function getKeyMetricsAnnual(ticker, throttle = true, period = 'annual', limit = 15) {
+  const data = await fmpGet(`/key-metrics`, { symbol: ticker, period, limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getRatiosAnnual(ticker, throttle = true) {
-  const data = await fmpGet(`/ratios`, { symbol: ticker, period: 'annual', limit: 10 }, throttle);
+async function getRatiosAnnual(ticker, throttle = true, period = 'annual', limit = 10) {
+  const data = await fmpGet(`/ratios`, { symbol: ticker, period, limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
@@ -115,13 +115,13 @@ async function getRatiosTTM(ticker, throttle = true) {
   return obj || {};
 }
 
-async function getBalanceSheet(ticker, limit = 1, throttle = true) {
-  const data = await fmpGet(`/balance-sheet-statement`, { symbol: ticker, period: 'annual', limit }, throttle);
+async function getBalanceSheet(ticker, limit = 1, throttle = true, period = 'annual') {
+  const data = await fmpGet(`/balance-sheet-statement`, { symbol: ticker, period, limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
-async function getCashFlowStatement(ticker, limit = 1, throttle = true) {
-  const data = await fmpGet(`/cash-flow-statement`, { symbol: ticker, period: 'annual', limit }, throttle);
+async function getCashFlowStatement(ticker, limit = 1, throttle = true, period = 'annual') {
+  const data = await fmpGet(`/cash-flow-statement`, { symbol: ticker, period, limit }, throttle);
   return Array.isArray(data) ? data : [];
 }
 
