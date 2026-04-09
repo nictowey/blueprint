@@ -11,25 +11,25 @@ const MATCH_METRICS = [
   // Size
   'marketCap',
   // Technical
-  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta',
 ];
 
 const METRIC_WEIGHTS = {
   // Valuation
-  peRatio: 1.5, priceToBook: 1.0, priceToSales: 1.0,
-  evToEBITDA: 1.5, evToRevenue: 1.0, pegRatio: 1.5, earningsYield: 1.0,
+  peRatio: 2.0, priceToBook: 1.0, priceToSales: 1.5,
+  evToEBITDA: 2.0, evToRevenue: 1.0, pegRatio: 1.5, earningsYield: 1.0,
   // Profitability
   grossMargin: 1.5, operatingMargin: 2.0, netMargin: 1.5, ebitdaMargin: 1.0,
   returnOnEquity: 2.0, returnOnAssets: 1.5, returnOnCapital: 1.5,
-  // Growth — highest weight
-  revenueGrowthYoY: 2.5, revenueGrowth3yr: 2.5, epsGrowthYoY: 2.0,
+  // Growth
+  revenueGrowthYoY: 2.5, revenueGrowth3yr: 2.0, epsGrowthYoY: 2.0,
   // Financial Health
   currentRatio: 1.0, debtToEquity: 1.5, interestCoverage: 1.0,
   netDebtToEBITDA: 1.5, freeCashFlowYield: 1.5,
-  // Size
-  marketCap: 1.5,
-  // Technical — lower weight
-  rsi14: 0.5, pctBelowHigh: 0.5, priceVsMa50: 0.5, priceVsMa200: 0.5,
+  // Size — strong penalty for different market cap tiers
+  marketCap: 2.5,
+  // Technical — momentum and trend matter for finding similar setups
+  rsi14: 1.0, pctBelowHigh: 2.0, priceVsMa50: 1.5, priceVsMa200: 2.0, beta: 1.5,
 };
 
 const MIN_OVERLAP_RATIO = 0.6;
@@ -42,13 +42,13 @@ function metricSimilarity(metric, snapVal, stockVal) {
     return null;
   }
 
-  // Market cap: use log-scale comparison since values span orders of magnitude
+  // Market cap: use log-scale comparison since values span orders of magnitude.
+  // One order of magnitude (10x) difference = 0% similar.
+  // 2x difference ≈ 70%, 3x ≈ 52%, 5x ≈ 30%.
   if (metric === 'marketCap') {
     if (snapVal <= 0 || stockVal <= 0) return null;
-    const logSnap = Math.log10(snapVal);
-    const logStock = Math.log10(stockVal);
-    const diff = Math.abs(logSnap - logStock) / Math.max(Math.abs(logSnap), Math.abs(logStock));
-    return Math.max(0, 1 - diff);
+    const logDiff = Math.abs(Math.log10(snapVal) - Math.log10(stockVal));
+    return Math.max(0, 1 - logDiff);
   }
 
   // Direct percentage difference for all other metrics

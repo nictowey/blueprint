@@ -31,6 +31,7 @@ const makeStock = (ticker, overrides = {}) => ({
   pctBelowHigh: 10,
   priceVsMa50: 2.0,
   priceVsMa200: 8.0,
+  beta: 1.2,
   marketCap: 10_000_000_000,
   ...overrides,
 });
@@ -153,7 +154,7 @@ describe('findMatches — percentage difference scoring', () => {
     const universe = new Map();
     universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, grossMargin: null, rsi14: null }));
     const results = findMatches(snapshot, universe);
-    expect(results[0].metricsCompared).toBe(24);
+    expect(results[0].metricsCompared).toBe(25);
   });
 
   test('overlap penalty reduces score for sparse matches', () => {
@@ -198,7 +199,11 @@ describe('findMatches — MATCH_METRICS', () => {
     expect(MATCH_METRICS).toContain('marketCap');
   });
 
-  test('MATCH_METRICS has 27 entries', () => {
-    expect(MATCH_METRICS).toHaveLength(27);
+  test('MATCH_METRICS has 28 entries', () => {
+    expect(MATCH_METRICS).toHaveLength(28);
+  });
+
+  test('beta is included in MATCH_METRICS', () => {
+    expect(MATCH_METRICS).toContain('beta');
   });
 });

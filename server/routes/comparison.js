@@ -397,7 +397,7 @@ const MATCH_METRIC_KEYS = [
   'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
   'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
-  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta',
 ];
 
 router.get('/', async (req, res) => {
