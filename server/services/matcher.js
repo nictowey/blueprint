@@ -116,6 +116,14 @@ const DUAL_CLASS_MAP = {
   'LEN': 'LEN', 'LEN-B': 'LEN', 'LEN.B': 'LEN',
   'MKC': 'MKC', 'MKC-V': 'MKC', 'MKC.V': 'MKC',
   'UA': 'UA', 'UAA': 'UA',
+  // Rebrands / restructurings
+  'MSTR': 'MSTR', 'STRK': 'MSTR',
+  // Parent / subsidiary / bond tickers
+  'CMCSA': 'CMCSA', 'CCZ': 'CMCSA',
+  'SO': 'SO', 'SOJC': 'SO', 'SOJD': 'SO', 'SOJE': 'SO',
+  'ETR': 'ETR', 'ELC': 'ETR',
+  'RGA': 'RGA', 'RZB': 'RGA', 'RZC': 'RGA',
+  'FHN': 'FHN', 'FHN-A': 'FHN', 'FHN-B': 'FHN', 'FHN-C': 'FHN', 'FHN-D': 'FHN', 'FHN-E': 'FHN',
 };
 
 function isSameCompany(tickerA, tickerB, nameA, nameB) {
@@ -131,11 +139,32 @@ function isSameCompany(tickerA, tickerB, nameA, nameB) {
   const canonB = DUAL_CLASS_MAP[tickerB.toUpperCase()];
   if (canonA && canonB && canonA === canonB) return true;
 
-  // Name-based similarity: if both names exist and one starts with the other's first 2 words
+  // Name-based similarity: check if company names indicate the same parent entity
   if (nameA && nameB) {
-    const wordsA = nameA.replace(/[,.\-()]/g, '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
-    const wordsB = nameB.replace(/[,.\-()]/g, '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
-    if (wordsA.length > 4 && wordsB.length > 4 && (wordsA === wordsB)) {
+    const cleanName = (n) => n.replace(/[,.\-()'"]/g, '').replace(/\s+/g, ' ').toLowerCase().trim();
+    const cleanA = cleanName(nameA);
+    const cleanB = cleanName(nameB);
+
+    // Check if first 2 significant words match (skip "the")
+    const sigWords = (s) => s.replace(/^the /, '').split(' ').filter(w => w.length > 2).slice(0, 2).join(' ');
+    const sigA = sigWords(cleanA);
+    const sigB = sigWords(cleanB);
+    if (sigA.length > 4 && sigB.length > 4 && sigA === sigB) {
+      return true;
+    }
+
+    // Check if one name's first distinctive word matches the other
+    // (catches parent/subsidiary like "Entergy Corporation" / "Entergy Louisiana")
+    // Skip generic words that appear across unrelated companies
+    const GENERIC_WORDS = new Set([
+      'american', 'national', 'first', 'united', 'general', 'international',
+      'global', 'pacific', 'western', 'eastern', 'southern', 'northern',
+      'central', 'federal', 'royal', 'new', 'great', 'golden', 'silver',
+      'liberty', 'eagle', 'summit', 'premier', 'standard', 'advanced',
+    ]);
+    const firstWordA = cleanA.split(' ')[0];
+    const firstWordB = cleanB.split(' ')[0];
+    if (firstWordA.length > 5 && firstWordA === firstWordB && !GENERIC_WORDS.has(firstWordA)) {
       return true;
     }
   }
@@ -309,12 +338,13 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
   baseScore *= Math.sqrt(overlapRatio);
 
   // Sector match bonus: same-sector matches get a boost since breakout patterns
-  // are more comparable within the same sector/industry
+  // are more comparable within the same sector/industry.
+  // Apply bonus before clamping, but cap at 99 to preserve differentiation at the top
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
     baseScore *= (1 + SECTOR_MATCH_BONUS);
   }
 
-  const finalScore = Math.max(0, Math.min(100, baseScore));
+  const finalScore = Math.max(0, Math.min(99, baseScore));
   return { score: finalScore, metricScores, overlapCount, overlapRatio };
 }
 
