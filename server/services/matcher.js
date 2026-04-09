@@ -122,8 +122,12 @@ function findMatches(snapshot, universe, limit = 10) {
 
   const allStocks = Array.from(universe.values());
 
+  // Strip share-class suffixes for same-company detection
+  const baseTicker = (t) => t.replace(/\.(A|B|C)$/i, '').replace(/-(A|B|C|WS|U)$/i, '').replace(/L$/i, '');
+  const snapBase = baseTicker(snapshot.ticker);
+
   const results = allStocks
-    .filter(stock => stock.ticker !== snapshot.ticker)
+    .filter(stock => stock.ticker !== snapshot.ticker && baseTicker(stock.ticker) !== snapBase)
     .map(stock => {
       const { score, metricScores, overlapCount, overlapRatio } =
         calculateSimilarity(snapshot, stock, snapshotPopulatedCount);
