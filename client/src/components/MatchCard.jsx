@@ -87,7 +87,7 @@ export default function MatchCard({ match, snapshot, rank }) {
 
       <div className="flex justify-between items-center">
         <span className="text-xs text-slate-600">
-          {match.metricsCompared}/26 metrics compared
+          {match.metricsCompared}/27 metrics compared
         </span>
         <button className="btn-secondary" onClick={goToComparison}>
           View Comparison →

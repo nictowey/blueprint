@@ -8,6 +8,8 @@ const MATCH_METRICS = [
   'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
   // Financial Health
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  // Size
+  'marketCap',
   // Technical
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
 ];
@@ -17,7 +19,7 @@ const MATCH_METRICS = [
 // against a normal cluster of P/E 10-40.
 const LOG_TRANSFORM_METRICS = new Set([
   'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
-  'interestCoverage',
+  'interestCoverage', 'marketCap',
 ]);
 
 // Growth and profitability matter most for finding breakout candidates.
@@ -34,6 +36,8 @@ const METRIC_WEIGHTS = {
   // Financial Health
   currentRatio: 1.0, debtToEquity: 1.5, interestCoverage: 1.0,
   netDebtToEBITDA: 1.5, freeCashFlowYield: 1.5,
+  // Size
+  marketCap: 1.5,
   // Technical — lower weight
   rsi14: 0.5, pctBelowHigh: 0.5, priceVsMa50: 0.5, priceVsMa200: 0.5,
 };

@@ -106,8 +106,8 @@ describe('findMatches', () => {
     // Stock with 3 metrics nulled out
     universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, grossMargin: null, rsi14: null }));
     const results = findMatches(snapshot, universe);
-    // snapshot has all 26 metrics; SPARSE has 23 non-null; 23 are comparable
-    expect(results[0].metricsCompared).toBe(23);
+    // snapshot has all 27 metrics; SPARSE has 24 non-null; 24 are comparable
+    expect(results[0].metricsCompared).toBe(24);
   });
 });
 
@@ -131,9 +131,9 @@ describe('findMatches — scoring', () => {
     expect(results[0].matchScore).toBeGreaterThan(90);
   });
 
-  test('marketCap is not a property of MATCH_METRICS', () => {
+  test('marketCap is included in MATCH_METRICS', () => {
     const { MATCH_METRICS } = require('../services/matcher');
-    expect(MATCH_METRICS).not.toContain('marketCap');
+    expect(MATCH_METRICS).toContain('marketCap');
   });
 
   test('findMatches does not throw when marketCap is absent from stock', () => {
