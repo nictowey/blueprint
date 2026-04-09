@@ -22,7 +22,165 @@ function findPrice(historical, targetDate) {
   return entry ? entry.close : null;
 }
 
-// Build current (present-day) metrics for a match ticker using TTM endpoints
+// ========================================================================
+// Historical template — all data for the snapshot ticker at the given date
+// ========================================================================
+async function fetchTemplate(sym, date) {
+  const fromDate = new Date(date);
+  fromDate.setFullYear(fromDate.getFullYear() - 1);
+  const fromStr = fromDate.toISOString().slice(0, 10);
+
+  // Sparkline window: 18 months after snapshot date, capped at today
+  const afterDate = new Date(date);
+  afterDate.setMonth(afterDate.getMonth() + 18);
+  const sparklineEnd = afterDate.toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10)
+    ? afterDate.toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+
+  const [profileR, incomeR, metricsR, ratiosR, histR, shortR, balanceR, cashFlowR, sparklineR] =
+    await Promise.allSettled([
+      fmp.getProfile(sym, false),
+      fmp.getIncomeStatements(sym, 10, false),
+      fmp.getKeyMetricsAnnual(sym, false),
+      fmp.getRatiosAnnual(sym, false),
+      fmp.getHistoricalPrices(sym, fromStr, date, false),
+      fmp.getShortInterest(sym, false),
+      fmp.getBalanceSheet(sym, 4, false),
+      fmp.getCashFlowStatement(sym, 4, false),
+      fmp.getHistoricalPrices(sym, date, sparklineEnd, false),
+    ]);
+
+  const profile    = profileR.status  === 'fulfilled' ? profileR.value  : {};
+  const income     = incomeR.status   === 'fulfilled' ? incomeR.value   : [];
+  const metrics    = metricsR.status  === 'fulfilled' ? metricsR.value  : [];
+  const ratios     = ratiosR.status   === 'fulfilled' ? ratiosR.value   : [];
+  const historical = histR.status     === 'fulfilled' ? histR.value     : [];
+  const shortRaw   = shortR.status    === 'fulfilled' ? shortR.value    : null;
+  const balance    = balanceR.status  === 'fulfilled' ? balanceR.value  : [];
+  const cashFlow   = cashFlowR.status === 'fulfilled' ? cashFlowR.value : [];
+  const sparkRaw   = sparklineR.status === 'fulfilled' ? sparklineR.value : [];
+
+  const curIncome   = findPeriodOnOrBefore(income, date);
+  const curMetrics  = findPeriodOnOrBefore(metrics, date);
+  const curRatios   = findPeriodOnOrBefore(ratios, date);
+  const curBalance  = findPeriodOnOrBefore(balance, date);
+  const curCashFlow = findPeriodOnOrBefore(cashFlow, date);
+
+  // Revenue growth YoY
+  const priorIncome = curIncome
+    ? income.find(p => p.date !== curIncome.date && new Date(p.date) < new Date(curIncome.date))
+    : null;
+
+  let revenueGrowthYoY = null;
+  if (curIncome?.revenue != null && priorIncome?.revenue && priorIncome.revenue !== 0) {
+    revenueGrowthYoY = (curIncome.revenue - priorIncome.revenue) / Math.abs(priorIncome.revenue);
+  }
+
+  // 3-year revenue CAGR
+  const income3yrAgo = curIncome
+    ? income.filter(p => new Date(p.date) < new Date(curIncome.date))
+             .sort((a, b) => new Date(b.date) - new Date(a.date))[2] || null
+    : null;
+  let revenueGrowth3yr = null;
+  if (curIncome?.revenue != null && income3yrAgo?.revenue && income3yrAgo.revenue !== 0) {
+    revenueGrowth3yr = Math.pow(curIncome.revenue / income3yrAgo.revenue, 1 / 3) - 1;
+  }
+
+  // EPS growth YoY
+  let epsGrowthYoY = null;
+  if (curIncome?.eps != null && priorIncome?.eps && priorIncome.eps !== 0) {
+    epsGrowthYoY = (curIncome.eps - priorIncome.eps) / Math.abs(priorIncome.eps);
+  }
+
+  // Price at snapshot date and prior-year technical window
+  const price = findPrice(historical, date);
+  const pricesAsc = [...historical]
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .filter(h => new Date(h.date) <= new Date(date))
+    .map(h => h.close);
+
+  const rsi14 = computeRSI(pricesAsc.slice(-30));
+  const high52w = historical.length > 0
+    ? historical.reduce((m, h) => Math.max(m, h.close), -Infinity) : null;
+  const pctBelowHigh = price != null && high52w != null && high52w > 0
+    ? ((high52w - price) / high52w) * 100 : null;
+
+  let priceVsMa50 = null, priceVsMa200 = null;
+  if (pricesAsc.length >= 50) {
+    const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
+    if (price != null && ma50 > 0) priceVsMa50 = ((price - ma50) / ma50) * 100;
+  }
+  if (pricesAsc.length > 0) {
+    const window200 = pricesAsc.slice(-200);
+    const ma200 = window200.reduce((s, v) => s + v, 0) / window200.length;
+    if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
+  }
+
+  const rev = curIncome?.revenue;
+  const template = {
+    ticker:            sym,
+    companyName:       profile.companyName || sym,
+    sector:            profile.sector || null,
+    date,
+    price,
+    // Valuation
+    peRatio:           curRatios?.priceToEarningsRatio ?? null,
+    priceToBook:       curRatios?.priceToBookRatio ?? null,
+    priceToSales:      curRatios?.priceToSalesRatio ?? null,
+    evToEBITDA:        curMetrics?.evToEBITDA ?? null,
+    evToRevenue:       curMetrics?.evToSales ?? null,
+    pegRatio:          curRatios?.priceToEarningsGrowthRatio ?? null,
+    earningsYield:     curMetrics?.earningsYield ?? null,
+    // Profitability — calculated from income statement raw fields
+    grossMargin:       rev ? (curIncome.grossProfit / rev) : null,
+    operatingMargin:   rev ? (curIncome.operatingIncome / rev) : null,
+    netMargin:         rev ? (curIncome.netIncome / rev) : null,
+    ebitdaMargin:      rev ? (curIncome.ebitda / rev) : null,
+    returnOnEquity:    curMetrics?.returnOnEquity ?? null,
+    returnOnAssets:    curMetrics?.returnOnAssets ?? null,
+    returnOnCapital:   curMetrics?.returnOnInvestedCapital ?? null,
+    // Growth
+    revenueGrowthYoY, revenueGrowth3yr, epsGrowthYoY,
+    eps:               curIncome?.eps ?? null,
+    // Financial Health
+    currentRatio:      curRatios?.currentRatio ?? curMetrics?.currentRatio ?? null,
+    debtToEquity:      curRatios?.debtToEquityRatio ?? null,
+    interestCoverage:  curRatios?.interestCoverageRatio ?? null,
+    netDebtToEBITDA:   curMetrics?.netDebtToEBITDA ?? null,
+    freeCashFlowYield: curMetrics?.freeCashFlowYield ?? null,
+    dividendYield:     curRatios?.dividendYield ?? null,
+    totalCash:         curBalance?.cashAndCashEquivalents ?? null,
+    totalDebt:         curBalance?.totalDebt ?? null,
+    freeCashFlow:      curCashFlow?.freeCashFlow ?? null,
+    operatingCashFlow: curCashFlow?.operatingCashFlow ?? null,
+    // Technical
+    rsi14, pctBelowHigh, priceVsMa50, priceVsMa200,
+    beta:              profile?.beta ?? null,
+    avgVolume:         profile?.averageVolume ?? null,
+    // Overview
+    marketCap:         curMetrics?.marketCap ?? null,
+    shortInterestPct:  shortRaw?.shortInterestPercent ?? null,
+  };
+
+  // Post-snapshot sparkline (18 months forward)
+  const sparkline = [...sparkRaw]
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .map(h => ({ date: h.date, price: h.close }));
+
+  let sparklineGainPct = null;
+  if (sparkline.length >= 2) {
+    const start = sparkline[0].price;
+    const end = sparkline[sparkline.length - 1].price;
+    if (start > 0) sparklineGainPct = ((end - start) / start) * 100;
+  }
+
+  return { template, sparkline, sparklineGainPct };
+}
+
+// ========================================================================
+// Match current metrics — TTM-based, for present-day match ticker
+// (used only when the match ticker is NOT in the universe cache)
+// ========================================================================
 async function buildCurrentMetrics(ticker) {
   const [profile, ttmMetrics, ttmRatios, income, hist, balance, cashFlow] = await Promise.all([
     fmp.getProfile(ticker, false),
@@ -81,7 +239,7 @@ async function buildCurrentMetrics(ticker) {
     sector:            profile?.sector || null,
     date:              new Date().toISOString().slice(0, 10),
     price:             currentPrice,
-    // Valuation — from ratios-ttm
+    // Valuation
     peRatio:           ttmRatios.priceToEarningsRatioTTM ?? null,
     priceToBook:       ttmRatios.priceToBookRatioTTM ?? null,
     priceToSales:      ttmRatios.priceToSalesRatioTTM ?? null,
@@ -89,18 +247,18 @@ async function buildCurrentMetrics(ticker) {
     evToRevenue:       ttmMetrics.evToSalesTTM ?? null,
     pegRatio:          ttmRatios.priceToEarningsGrowthRatioTTM ?? null,
     earningsYield:     ttmMetrics.earningsYieldTTM ?? null,
-    // Profitability — calculated from income + ratios-ttm
-    grossMargin:       rev0 ? (income0.grossProfit / rev0) : (ttmRatios.grossProfitMarginTTM ?? null),
-    operatingMargin:   rev0 ? (income0.operatingIncome / rev0) : (ttmRatios.operatingProfitMarginTTM ?? null),
-    netMargin:         rev0 ? (income0.netIncome / rev0) : (ttmRatios.netProfitMarginTTM ?? null),
-    ebitdaMargin:      rev0 ? (income0.ebitda / rev0) : (ttmRatios.ebitdaMarginTTM ?? null),
+    // Profitability — prefer TTM ratios, fall back to annual-income-derived
+    grossMargin:       ttmRatios.grossProfitMarginTTM ?? (rev0 ? (income0.grossProfit / rev0) : null),
+    operatingMargin:   ttmRatios.operatingProfitMarginTTM ?? (rev0 ? (income0.operatingIncome / rev0) : null),
+    netMargin:         ttmRatios.netProfitMarginTTM ?? (rev0 ? (income0.netIncome / rev0) : null),
+    ebitdaMargin:      ttmRatios.ebitdaMarginTTM ?? (rev0 ? (income0.ebitda / rev0) : null),
     returnOnEquity:    ttmMetrics.returnOnEquityTTM ?? null,
     returnOnAssets:    ttmMetrics.returnOnAssetsTTM ?? null,
     returnOnCapital:   ttmMetrics.returnOnInvestedCapitalTTM ?? null,
     // Growth
     revenueGrowthYoY, revenueGrowth3yr, epsGrowthYoY,
     eps:               income0.eps ?? null,
-    // Financial Health — from ratios-ttm + key-metrics-ttm
+    // Financial Health
     currentRatio:      ttmRatios.currentRatioTTM ?? ttmMetrics.currentRatioTTM ?? null,
     debtToEquity:      ttmRatios.debtToEquityRatioTTM ?? null,
     interestCoverage:  ttmRatios.interestCoverageRatioTTM ?? null,
@@ -115,11 +273,55 @@ async function buildCurrentMetrics(ticker) {
     rsi14, pctBelowHigh, priceVsMa50, priceVsMa200,
     beta:              profile?.beta ?? null,
     avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
-    // Overview — key-metrics-ttm uses 'marketCap' not 'marketCapTTM'
+    // Overview
     marketCap:         ttmMetrics.marketCap ?? null,
     shortInterestPct:  null,
   };
 }
+
+// ========================================================================
+// Match sparkline — last 12 months, fetched independently
+// ========================================================================
+async function fetchMatchSparkline(matchSym) {
+  const from = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const to = new Date().toISOString().slice(0, 10);
+
+  try {
+    const hist = await fmp.getHistoricalPrices(matchSym, from, to, false);
+    if (!Array.isArray(hist) || hist.length === 0) {
+      console.warn(`[comparison] No match sparkline data for ${matchSym}`);
+      return { matchSparkline: [], matchSparklineGainPct: null };
+    }
+
+    const matchSparkline = [...hist]
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map(h => ({ date: h.date, price: h.close }));
+
+    let matchSparklineGainPct = null;
+    if (matchSparkline.length >= 2) {
+      const start = matchSparkline[0].price;
+      const end = matchSparkline[matchSparkline.length - 1].price;
+      if (start > 0) matchSparklineGainPct = ((end - start) / start) * 100;
+    }
+
+    return { matchSparkline, matchSparklineGainPct };
+  } catch (err) {
+    console.error(`[comparison] Match sparkline fetch failed for ${matchSym}:`, err.message);
+    return { matchSparkline: [], matchSparklineGainPct: null };
+  }
+}
+
+// ========================================================================
+// Main route — three independent parallel tracks
+// ========================================================================
+const MATCH_METRIC_KEYS = [
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
+  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+  'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200',
+];
 
 router.get('/', async (req, res) => {
   const { ticker, date, matchTicker } = req.query;
@@ -138,21 +340,8 @@ router.get('/', async (req, res) => {
     return res.json(cached.data);
   }
 
-  const afterDate = new Date(date);
-  afterDate.setMonth(afterDate.getMonth() + 18);
-  const sparklineEnd = afterDate.toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10)
-    ? afterDate.toISOString().slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
-
-  const matchSparklineFrom = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
-  const matchSparklineTo = new Date().toISOString().slice(0, 10);
-
   try {
-    const fromDate = new Date(date);
-    fromDate.setFullYear(fromDate.getFullYear() - 1);
-    const fromStr = fromDate.toISOString().slice(0, 10);
-
-    // Use cached universe entry for match ticker if available — saves 7 FMP calls
+    // Use cached universe entry for match metrics when available — saves 7 FMP calls
     const cachedMatch = getCache().get(matchSym);
     const matchMetricsPromise = cachedMatch
       ? Promise.resolve({
@@ -162,158 +351,36 @@ router.get('/', async (req, res) => {
         })
       : buildCurrentMetrics(matchSym);
 
-    const [profileData, incomeData, metricsData, ratiosData, histData, shortData,
-           sparklineData, matchData, templateBalanceData, templateCashFlowData,
-           matchSparklineData] =
-      await Promise.allSettled([
-        fmp.getProfile(sym, false),
-        fmp.getIncomeStatements(sym, 10, false),
-        fmp.getKeyMetricsAnnual(sym, false),
-        fmp.getRatiosAnnual(sym, false),
-        fmp.getHistoricalPrices(sym, fromStr, date, false),
-        fmp.getShortInterest(sym, false),
-        fmp.getHistoricalPrices(sym, date, sparklineEnd, false),
-        matchMetricsPromise,
-        fmp.getBalanceSheet(sym, 4, false),
-        fmp.getCashFlowStatement(sym, 4, false),
-        fmp.getHistoricalPrices(matchSym, matchSparklineFrom, matchSparklineTo, false),
-      ]);
+    // Three independent parallel tracks — no positional coupling
+    const [templateResult, matchMetrics, matchSparklineResult] = await Promise.all([
+      fetchTemplate(sym, date),
+      matchMetricsPromise,
+      fetchMatchSparkline(matchSym),
+    ]);
 
-    const profile         = profileData.status         === 'fulfilled' ? profileData.value         : {};
-    const income          = incomeData.status           === 'fulfilled' ? incomeData.value           : [];
-    const metrics         = metricsData.status          === 'fulfilled' ? metricsData.value          : [];
-    const ratios          = ratiosData.status           === 'fulfilled' ? ratiosData.value           : [];
-    const historical      = histData.status             === 'fulfilled' ? histData.value             : [];
-    const shortRaw        = shortData.status            === 'fulfilled' ? shortData.value            : null;
-    const sparklineRaw    = sparklineData.status        === 'fulfilled' ? sparklineData.value        : [];
-    const matchMetrics    = matchData.status            === 'fulfilled' ? matchData.value            : {};
-    const templateBalance = templateBalanceData.status  === 'fulfilled' ? templateBalanceData.value  : [];
-    const templateCashFlow= templateCashFlowData.status === 'fulfilled' ? templateCashFlowData.value : [];
-
-    const curIncome   = findPeriodOnOrBefore(income, date);
-    const curMetrics  = findPeriodOnOrBefore(metrics, date);
-    const curRatios   = findPeriodOnOrBefore(ratios, date);
-    const curBalance  = findPeriodOnOrBefore(templateBalance, date);
-    const curCashFlow = findPeriodOnOrBefore(templateCashFlow, date);
-
-    const priorIncome = curIncome
-      ? income.find(p => p.date !== curIncome.date && new Date(p.date) < new Date(curIncome.date))
-      : null;
-
-    let revenueGrowthYoY = null;
-    if (curIncome?.revenue != null && priorIncome?.revenue && priorIncome.revenue !== 0)
-      revenueGrowthYoY = (curIncome.revenue - priorIncome.revenue) / Math.abs(priorIncome.revenue);
-
-    const income3yrAgo = curIncome
-      ? income.filter(p => new Date(p.date) < new Date(curIncome.date))
-               .sort((a, b) => new Date(b.date) - new Date(a.date))[2] || null
-      : null;
-    let revenueGrowth3yr = null;
-    if (curIncome?.revenue != null && income3yrAgo?.revenue && income3yrAgo.revenue !== 0)
-      revenueGrowth3yr = Math.pow(curIncome.revenue / income3yrAgo.revenue, 1 / 3) - 1;
-
-    let epsGrowthYoY = null;
-    if (curIncome?.eps != null && priorIncome?.eps && priorIncome.eps !== 0)
-      epsGrowthYoY = (curIncome.eps - priorIncome.eps) / Math.abs(priorIncome.eps);
-
-    const price = findPrice(historical, date);
-    const pricesAsc = [...historical]
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .filter(h => new Date(h.date) <= new Date(date))
-      .map(h => h.close);
-    const rsi14 = computeRSI(pricesAsc.slice(-30));
-    const high52w = historical.length > 0
-      ? historical.reduce((m, h) => Math.max(m, h.close), -Infinity) : null;
-    const pctBelowHigh = price != null && high52w != null && high52w > 0
-      ? ((high52w - price) / high52w) * 100 : null;
-
-    let priceVsMa50 = null, priceVsMa200 = null;
-    if (pricesAsc.length >= 50) {
-      const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
-      if (price != null && ma50 > 0) priceVsMa50 = ((price - ma50) / ma50) * 100;
-    }
-    if (pricesAsc.length > 0) {
-      const window200 = pricesAsc.slice(-200);
-      const ma200 = window200.reduce((s, v) => s + v, 0) / window200.length;
-      if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
-    }
-
-    const rev = curIncome?.revenue;
-    const template = {
-      ticker: sym,
-      companyName:       profile.companyName || sym,
-      sector:            profile.sector || null,
-      date, price,
-      // Valuation — from /ratios (annual, period-matched)
-      peRatio:           curRatios?.priceToEarningsRatio ?? null,
-      priceToBook:       curRatios?.priceToBookRatio ?? null,
-      priceToSales:      curRatios?.priceToSalesRatio ?? null,
-      evToEBITDA:        curMetrics?.evToEBITDA ?? null,
-      evToRevenue:       curMetrics?.evToSales ?? null,
-      pegRatio:          curRatios?.priceToEarningsGrowthRatio ?? null,
-      earningsYield:     curMetrics?.earningsYield ?? null,
-      // Profitability — calculated from income statement
-      grossMargin:       rev ? (curIncome.grossProfit / rev) : null,
-      operatingMargin:   rev ? (curIncome.operatingIncome / rev) : null,
-      netMargin:         rev ? (curIncome.netIncome / rev) : null,
-      ebitdaMargin:      rev ? (curIncome.ebitda / rev) : null,
-      returnOnEquity:    curMetrics?.returnOnEquity ?? null,
-      returnOnAssets:    curMetrics?.returnOnAssets ?? null,
-      returnOnCapital:   curMetrics?.returnOnInvestedCapital ?? null,
-      // Growth
-      revenueGrowthYoY, revenueGrowth3yr, epsGrowthYoY,
-      eps:               curIncome?.eps ?? null,
-      // Financial Health — from /ratios
-      currentRatio:      curRatios?.currentRatio ?? curMetrics?.currentRatio ?? null,
-      debtToEquity:      curRatios?.debtToEquityRatio ?? null,
-      interestCoverage:  curRatios?.interestCoverageRatio ?? null,
-      netDebtToEBITDA:   curMetrics?.netDebtToEBITDA ?? null,
-      freeCashFlowYield: curMetrics?.freeCashFlowYield ?? null,
-      dividendYield:     curRatios?.dividendYield ?? null,
-      totalCash:         curBalance?.cashAndCashEquivalents ?? null,
-      totalDebt:         curBalance?.totalDebt ?? null,
-      freeCashFlow:      curCashFlow?.freeCashFlow ?? null,
-      operatingCashFlow: curCashFlow?.operatingCashFlow ?? null,
-      // Technical
-      rsi14, pctBelowHigh, priceVsMa50, priceVsMa200,
-      beta:              profile?.beta ?? null,
-      avgVolume:         profile?.averageVolume ?? null,
-      // Overview
-      marketCap:         curMetrics?.marketCap ?? null,
-      shortInterestPct:  shortRaw?.shortInterestPercent ?? null,
+    const result = {
+      template: templateResult.template,
+      match: matchMetrics,
+      sparkline: templateResult.sparkline,
+      sparklineGainPct: templateResult.sparklineGainPct,
+      matchSparkline: matchSparklineResult.matchSparkline,
+      matchSparklineGainPct: matchSparklineResult.matchSparklineGainPct,
     };
 
-    const sparkline = [...sparklineRaw]
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .map(h => ({ date: h.date, price: h.close }));
-
-    let sparklineGainPct = null;
-    if (sparkline.length >= 2) {
-      const start = sparkline[0].price;
-      const end = sparkline[sparkline.length - 1].price;
-      if (start > 0) sparklineGainPct = ((end - start) / start) * 100;
+    // Diagnostic: log how many match metrics are populated on each side.
+    // Helps spot cases where the snapshot has sparse data that would cause noisy matching.
+    const tPopulated = MATCH_METRIC_KEYS.filter(k => result.template[k] != null).length;
+    const mPopulated = MATCH_METRIC_KEYS.filter(k => result.match[k] != null).length;
+    console.log(`[comparison] ${sym}@${date} vs ${matchSym}: template ${tPopulated}/${MATCH_METRIC_KEYS.length}, match ${mPopulated}/${MATCH_METRIC_KEYS.length}, sparkline=${result.matchSparkline.length}pts`);
+    if (tPopulated < MATCH_METRIC_KEYS.length * 0.6) {
+      const missing = MATCH_METRIC_KEYS.filter(k => result.template[k] == null);
+      console.log(`[comparison] Template sparse — missing: ${missing.join(', ')}`);
     }
 
-    const matchSparklineRaw = matchSparklineData?.status === 'fulfilled' && Array.isArray(matchSparklineData.value)
-      ? matchSparklineData.value
-      : [];
-
-    const matchSparkline = [...matchSparklineRaw]
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .map(h => ({ date: h.date, price: h.close }));
-
-    let matchSparklineGainPct = null;
-    if (matchSparkline.length >= 2) {
-      const start = matchSparkline[0].price;
-      const end = matchSparkline[matchSparkline.length - 1].price;
-      if (start > 0) matchSparklineGainPct = ((end - start) / start) * 100;
-    }
-
-    const result = { template, match: matchMetrics, sparkline, sparklineGainPct, matchSparkline, matchSparklineGainPct };
     comparisonCache.set(cacheKey, { data: result, ts: Date.now() });
     res.json(result);
   } catch (err) {
-    console.error('[comparison] Error:', err.message);
+    console.error('[comparison] Error:', err.message, err.stack);
     res.status(500).json({ error: 'Failed to fetch comparison data' });
   }
 });
