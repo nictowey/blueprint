@@ -43,7 +43,7 @@ async function loadCacheFromRedis() {
 
 const RETRY_ON_FAIL_MS = 60 * 60 * 1000;          // 1 hour
 const INCREMENTAL_INTERVAL_MS = 10 * 60 * 1000;   // 10 minutes
-const INCREMENTAL_BATCH_SIZE = 10;                 // stocks per interval (~24h full cycle)
+const INCREMENTAL_BATCH_SIZE = 35;                 // stocks per interval (~24h full cycle for ~5000 stocks)
 
 const state = {
   cache: new Map(),
@@ -224,11 +224,10 @@ async function buildCache() {
     const screenerResults = await fmp.getScreener({
       marketCapMoreThan: 100_000_000,
       country: 'US',
-      exchange: 'NYSE,NASDAQ,AMEX',
       isEtf: false,
       isFund: false,
       isActivelyTrading: true,
-      limit: 1000,
+      limit: 5000,
     });
 
     // Only individual stocks — exclude any ETFs/funds that slip through
