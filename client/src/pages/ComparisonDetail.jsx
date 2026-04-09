@@ -96,7 +96,7 @@ export default function ComparisonDetail() {
         <div className="grid grid-cols-2 gap-6">
           {/* LEFT PANEL — Template (historical) */}
           <div className="card">
-            <div className="mb-4">
+            <div className="mb-4 min-h-[72px]">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Template · {data.template.date}</p>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-bold text-xl text-slate-100">{data.template.ticker}</span>
@@ -110,7 +110,7 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Sparkline */}
-            <div className="bg-dark-bg rounded-lg p-4 mb-6">
+            <div className="bg-dark-bg rounded-lg p-4 mb-6 h-[140px]">
               <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
             </div>
 
@@ -142,7 +142,7 @@ export default function ComparisonDetail() {
 
           {/* RIGHT PANEL — Match (current) */}
           <div className="card">
-            <div className="mb-4">
+            <div className="mb-4 min-h-[72px]">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
                 Current · {data.match.date}
               </p>
@@ -158,7 +158,7 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Match sparkline — last 12 months */}
-            <div className="bg-dark-bg rounded-lg p-4 mb-6">
+            <div className="bg-dark-bg rounded-lg p-4 mb-6 h-[140px]">
               <Sparkline
                 data={data.matchSparkline}
                 gainPct={data.matchSparklineGainPct}

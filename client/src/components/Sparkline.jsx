@@ -1,6 +1,6 @@
 export default function Sparkline({ data, gainPct, label = 'What happened after this snapshot', period = '18 months' }) {
   if (!data || data.length < 2) {
-    return <div className="h-24 flex items-center justify-center text-slate-600 text-sm">No price history</div>;
+    return <div className="h-full flex items-center justify-center text-slate-600 text-sm">No price history</div>;
   }
 
   const prices = data.map(d => d.price);
