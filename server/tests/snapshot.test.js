@@ -99,9 +99,9 @@ describe('GET /api/snapshot — TTM construction', () => {
     expect(res.body.revenueGrowthYoY).toBeCloseTo(0.5706, 2);
   });
 
-  test('valuation ratios come from most recent quarterly key-metrics/ratios', async () => {
+  test('valuation ratios come from most recent annual key-metrics/ratios', async () => {
     const res = await request(app).get('/api/snapshot?ticker=NVDA&date=2023-12-15');
-    // Most recent quarter on or before 2023-12-15 is 2023-10-29
+    // Most recent period on or before 2023-12-15
     expect(res.body.evToEBITDA).toBe(60.5);
     expect(res.body.peRatio).toBe(65.0);
     expect(res.body.priceToBook).toBe(40.0);

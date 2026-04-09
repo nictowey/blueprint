@@ -59,16 +59,22 @@ router.get('/', async (req, res) => {
   const fromStr = fromDate.toISOString().slice(0, 10);
 
   try {
-    const [profileData, incomeData, metricsData, ratiosData, histData, shortData, balanceSheetData, cashFlowData] =
+    const [profileData, incomeData, metricsData, ratiosData, histData, shortData, balanceSheetData, cashFlowData, balanceSheetAnnualData, cashFlowAnnualData] =
       await Promise.allSettled([
         fmp.getProfile(sym, false),
         fmp.getIncomeStatements(sym, 20, false, 'quarter'),
-        fmp.getKeyMetricsAnnual(sym, false, 'quarter', 20),
-        fmp.getRatiosAnnual(sym, false, 'quarter', 20),
+        // Key-metrics and ratios: quarterly endpoints require a higher FMP plan (402).
+        // Fall back to annual — still the best available for valuation/return ratios.
+        fmp.getKeyMetricsAnnual(sym, false),
+        fmp.getRatiosAnnual(sym, false),
         fmp.getHistoricalPrices(sym, fromStr, date, false),
         fmp.getShortInterest(sym, false),
         fmp.getBalanceSheet(sym, 8, false, 'quarter'),
         fmp.getCashFlowStatement(sym, 8, false, 'quarter'),
+        // Annual fallbacks for balance sheet / cash flow — quarterly only covers
+        // the most recent few quarters, which may not reach the snapshot date.
+        fmp.getBalanceSheet(sym, 4, false),
+        fmp.getCashFlowStatement(sym, 4, false),
       ]);
 
     const profile    = profileData.status    === 'fulfilled' ? profileData.value    : {};
@@ -77,8 +83,13 @@ router.get('/', async (req, res) => {
     const ratios     = ratiosData.status     === 'fulfilled' ? ratiosData.value     : [];
     const historical = histData.status       === 'fulfilled' ? histData.value       : [];
     const shortRaw   = shortData.status      === 'fulfilled' ? shortData.value      : null;
-    const balanceSheet  = balanceSheetData.status  === 'fulfilled' ? balanceSheetData.value  : [];
-    const cashFlowStmt  = cashFlowData.status      === 'fulfilled' ? cashFlowData.value      : [];
+    const balanceSheetQ = balanceSheetData.status  === 'fulfilled' ? balanceSheetData.value  : [];
+    const cashFlowStmtQ = cashFlowData.status      === 'fulfilled' ? cashFlowData.value      : [];
+    const balanceSheetA = balanceSheetAnnualData.status === 'fulfilled' ? balanceSheetAnnualData.value : [];
+    const cashFlowStmtA = cashFlowAnnualData.status    === 'fulfilled' ? cashFlowAnnualData.value    : [];
+    // Merge quarterly + annual, dedupe by date, prefer quarterly if same date
+    const balanceSheet = [...balanceSheetQ, ...balanceSheetA.filter(a => !balanceSheetQ.some(q => q.date === a.date))];
+    const cashFlowStmt = [...cashFlowStmtQ, ...cashFlowStmtA.filter(a => !cashFlowStmtQ.some(q => q.date === a.date))];
 
     // --- Quarterly periods on or before snapshot date ---
     const incomeQuarters = periodsOnOrBefore(income, date);
@@ -119,7 +130,8 @@ router.get('/', async (req, res) => {
       epsGrowthYoY = (ttm.eps - priorTtm.eps) / Math.abs(priorTtm.eps);
     }
 
-    // --- Valuation & return ratios from most recent quarterly key-metrics/ratios ---
+    // --- Valuation & return ratios from most recent annual key-metrics/ratios ---
+    // (Quarterly endpoints require a higher FMP plan; annual is the best available)
     const curMetrics = metricsQuarters[0] || null;
     const curRatios = ratiosQuarters[0] || null;
 
