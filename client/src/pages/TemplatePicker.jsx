@@ -11,13 +11,6 @@ function yesterday() {
   return d.toISOString().slice(0, 10);
 }
 
-const EXAMPLE_TEMPLATES = [
-  { ticker: 'CLS',  date: '2023-12-01', label: 'Celestica',  desc: 'Before 5x run' },
-  { ticker: 'NVDA', date: '2023-01-15', label: 'Nvidia',     desc: 'Pre-AI breakout' },
-  { ticker: 'META', date: '2023-02-01', label: 'Meta',       desc: 'Year of efficiency' },
-  { ticker: 'PLTR', date: '2023-10-01', label: 'Palantir',   desc: 'Pre-AI rally' },
-  { ticker: 'SMCI', date: '2023-06-01', label: 'Super Micro', desc: 'AI infrastructure' },
-];
 
 export default function TemplatePicker() {
   const navigate = useNavigate();
@@ -137,16 +130,6 @@ export default function TemplatePicker() {
     navigate(`/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}`, { state: { snapshot } });
   }
 
-  // Example templates: fetch date range first, then load — but since these are
-  // curated and known-valid, we can fire both in parallel for snappy UX
-  function handleExampleClick(ex) {
-    setTicker(ex.ticker);
-    setDate(ex.date);
-    setSnapshot(null);
-    setError(null);
-    fetchDateRange(ex.ticker);
-    loadSnapshot(ex.ticker, ex.date);
-  }
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-12">
@@ -238,26 +221,6 @@ export default function TemplatePicker() {
           <p className="mt-3 text-red-400 text-sm">{error}</p>
         )}
       </div>
-
-      {/* Example templates */}
-      {!snapshot && (
-        <div className="mb-8">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Try an example</p>
-          <div className="flex flex-wrap gap-2">
-            {EXAMPLE_TEMPLATES.map(ex => (
-              <button
-                key={ex.ticker}
-                className="border border-dark-border hover:border-accent/50 bg-dark-card hover:bg-dark-card/80 text-left px-4 py-2.5 rounded-lg transition-all duration-150 group"
-                onClick={() => handleExampleClick(ex)}
-              >
-                <span className="font-mono font-bold text-slate-200 text-sm group-hover:text-accent transition-colors">{ex.ticker}</span>
-                <span className="text-slate-500 text-xs ml-2">{ex.date}</span>
-                <p className="text-slate-500 text-xs mt-0.5">{ex.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Snapshot card */}
       {snapshot && (
