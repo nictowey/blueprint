@@ -13,13 +13,16 @@
 
 @layer components {
   .card {
-    @apply bg-dark-card border border-dark-border rounded-xl p-4 sm:p-6;
+    @apply bg-dark-card border border-dark-border rounded-xl;
+    padding: 1rem;           /* p-4 on mobile */
   }
   .btn-primary {
-    @apply bg-accent hover:bg-opacity-90 text-white font-semibold px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-all duration-150 cursor-pointer;
+    @apply bg-accent hover:bg-opacity-90 text-white font-semibold rounded-lg transition-all duration-150 cursor-pointer;
+    padding: 0.625rem 1.25rem;  /* py-2.5 px-5 on mobile */
   }
   .btn-secondary {
-    @apply border border-dark-border text-slate-400 hover:text-white hover:border-slate-500 px-3 sm:px-4 py-2 rounded-lg transition-all duration-150 cursor-pointer text-sm;
+    @apply border border-dark-border text-slate-400 hover:text-white hover:border-slate-500 rounded-lg transition-all duration-150 cursor-pointer text-sm;
+    padding: 0.5rem 0.75rem;    /* py-2 px-3 on mobile */
   }
   .input-field {
     @apply bg-dark-card border border-dark-border text-slate-100 rounded-lg px-4 py-2.5 outline-none
@@ -30,5 +33,18 @@
   }
   .tag-yellow {
     @apply text-xs bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-2.5 py-0.5 rounded-full;
+  }
+}
+
+/* Responsive overrides — @apply can't use sm: prefixes, so use a media query */
+@media (min-width: 640px) {
+  .card {
+    padding: 1.5rem;          /* p-6 on desktop */
+  }
+  .btn-primary {
+    padding: 0.75rem 1.5rem;  /* py-3 px-6 on desktop */
+  }
+  .btn-secondary {
+    padding: 0.5rem 1rem;     /* py-2 px-4 on desktop */
   }
 }
