@@ -1,64 +1,43 @@
-// Metrics where HIGHER is better for the investor
-const HIGHER_IS_BETTER = new Set([
-  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
-  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
-  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
-  'earningsYield', 'freeCashFlowYield',
-  'interestCoverage', 'currentRatio',
-  'eps', 'freeCashFlow', 'operatingCashFlow', 'totalCash',
-]);
-
-// Metrics where LOWER is better for the investor
-const LOWER_IS_BETTER = new Set([
-  'peRatio', 'priceToBook', 'priceToSales',
-  'evToEBITDA', 'evToRevenue', 'pegRatio',
-  'debtToEquity', 'netDebtToEBITDA', 'totalDebt',
-  'pctBelowHigh', 'beta',
-]);
-
-// Metrics where direction doesn't clearly mean better/worse —
-// color by closeness only (green = similar, red = different)
-// rsi14, priceVsMa50, priceVsMa200, marketCap, avgVolume, dividendYield
-
-const SIMILARITY_THRESHOLD = 15;  // within 15% = in line (yellow)
-const BAD_THRESHOLD = 40;         // beyond 40% = significant (red)
+/**
+ * Color-code match metrics by SIMILARITY to the template value.
+ *
+ * This is a pattern-matching tool — we care about "how close is this metric?"
+ * not "is the match stock better or worse?" Colors align with the similarity
+ * bar so users get one consistent signal per metric.
+ *
+ * Green  = very similar to template (≥75% similarity)
+ * Yellow = moderately similar (40-75%)
+ * Red    = significantly different (<40%)
+ *
+ * When a per-metric similarity score is available (from the API), use it directly.
+ * Otherwise fall back to a generic percentage-difference heuristic.
+ */
 
 /**
- * Returns a Tailwind color class for the match metric value.
- * Green = match is better than template
- * Yellow = match is roughly in line with template
- * Red = match is worse than template
+ * Primary: use the per-metric similarity score from the matcher engine.
+ * @param {number|null} similarity - 0-1 similarity score from metricScores array
+ * @returns {string} Tailwind color class
+ */
+export function getMetricColorFromScore(similarity) {
+  if (similarity == null) return 'text-slate-600';
+  const pct = similarity * 100;
+  if (pct >= 75) return 'text-green-400';
+  if (pct >= 40) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
+/**
+ * Fallback: estimate similarity from raw values when no scorer is available.
+ * Uses relative difference for a rough approximation.
  */
 export function getMetricColor(key, templateVal, matchVal) {
   if (templateVal == null || matchVal == null) return 'text-slate-600';
-  if (templateVal === 0 && matchVal === 0) return 'text-yellow-400';
+  if (templateVal === 0 && matchVal === 0) return 'text-green-400';
 
   const denom = Math.max(Math.abs(templateVal), Math.abs(matchVal), 0.01);
   const pctDiff = Math.abs(matchVal - templateVal) / denom * 100;
 
-  // For directional metrics, determine if match is better or worse
-  if (HIGHER_IS_BETTER.has(key)) {
-    if (matchVal > templateVal) {
-      // Match is better — green if meaningfully better, yellow if close
-      return pctDiff <= SIMILARITY_THRESHOLD ? 'text-yellow-400' : 'text-green-400';
-    } else {
-      // Match is worse
-      return pctDiff <= SIMILARITY_THRESHOLD ? 'text-yellow-400' : 'text-red-400';
-    }
-  }
-
-  if (LOWER_IS_BETTER.has(key)) {
-    if (matchVal < templateVal) {
-      // Match is better (lower)
-      return pctDiff <= SIMILARITY_THRESHOLD ? 'text-yellow-400' : 'text-green-400';
-    } else {
-      // Match is worse (higher)
-      return pctDiff <= SIMILARITY_THRESHOLD ? 'text-yellow-400' : 'text-red-400';
-    }
-  }
-
-  // Neutral metrics — color by similarity only
-  if (pctDiff <= SIMILARITY_THRESHOLD) return 'text-green-400';
-  if (pctDiff <= BAD_THRESHOLD) return 'text-yellow-400';
+  if (pctDiff <= 15) return 'text-green-400';
+  if (pctDiff <= 50) return 'text-yellow-400';
   return 'text-red-400';
 }

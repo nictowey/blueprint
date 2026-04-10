@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
-import { getMetricColor } from '../utils/metricColor';
+import { getMetricColorFromScore, getMetricColor } from '../utils/metricColor';
 
 const METRIC_GROUPS = [
   { label: 'Overview',         metrics: ['marketCap', 'eps', 'dividendYield'] },
@@ -322,10 +322,11 @@ export default function ComparisonDetail() {
                 {group.metrics.map(key => {
                   const leftVal = data.template[key];
                   const rightVal = data.match[key];
-                  const colorClass = getMetricColor(key, leftVal, rightVal);
                   // Find per-metric similarity from API response
                   const metricScore = data.metricScores?.find(ms => ms.metric === key);
                   const sim = metricScore ? Math.round(metricScore.similarity * 100) : null;
+                  // Color based on similarity score (consistent with similarity bar)
+                  const colorClass = metricScore ? getMetricColorFromScore(metricScore.similarity) : getMetricColor(key, leftVal, rightVal);
                   return (
                     <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0 gap-2">
                       <span className="text-xs text-slate-500 uppercase tracking-wider flex-shrink-0">{METRIC_LABELS[key]}</span>
@@ -337,7 +338,7 @@ export default function ComparisonDetail() {
                                 className="h-full rounded-full"
                                 style={{
                                   width: `${sim}%`,
-                                  backgroundColor: sim >= 80 ? '#22c55e' : sim >= 50 ? '#eab308' : '#ef4444',
+                                  backgroundColor: sim >= 75 ? '#22c55e' : sim >= 40 ? '#eab308' : '#ef4444',
                                 }}
                               />
                             </div>

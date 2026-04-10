@@ -207,29 +207,57 @@ function ratioSimilarity(snapVal, stockVal) {
 
 /**
  * Margin / percentage metrics (gross margin, ROE, etc.)
- * These are typically -1 to +1 (or -100% to +100%), use absolute difference.
- * 10 percentage points apart ≈ 90%, 30pp ≈ 70%, 50pp ≈ 50%.
- * Scale factor: 1.0 absolute difference = 0% similar.
+ * These are stored as decimals: 0.10 = 10%, 0.50 = 50%.
+ *
+ * Scale: 5pp ≈ 88%, 10pp ≈ 75%, 15pp ≈ 63%, 20pp ≈ 50%, 40pp ≈ 0%
+ * More sensitive than before — investors notice margin differences.
  */
 function marginSimilarity(snapVal, stockVal) {
   const diff = Math.abs(snapVal - stockVal);
-  return Math.max(0, 1 - diff);
+  return Math.max(0, 1 - diff / 0.40);
 }
 
 /**
  * Growth rates (revenue growth YoY, EPS growth, etc.)
  * Can swing from -1.0 (-100%) to +5.0 (+500%) or more.
- * Use dampened comparison: compress extreme values via atan scaling before comparing.
- * This prevents a 500% grower from being "infinitely far" from a 100% grower.
+ *
+ * Uses absolute percentage-point difference for moderate values (the common case),
+ * with relative comparison for extreme high-growth pairs so 100% vs 50% growers
+ * aren't penalized as harshly as 20% vs -30%.
+ *
+ * Calibration (as decimal inputs):
+ *   17% vs 10.5% → ~78%   (6.5pp diff — meaningful gap)
+ *   17% vs 15%   → ~93%   (close)
+ *   17% vs 5%    → ~60%   (significant divergence)
+ *   17% vs -5%   → ~15%   (opposite directions)
+ *   50% vs 40%   → ~70%   (both high-growth, relative comparison)
  */
 function growthSimilarity(snapVal, stockVal) {
-  // Compress to ~(-1.2, 1.2) range using atan scaling
-  const compress = (v) => Math.atan(v * 2) / (Math.PI / 2);
-  const compSnap = compress(snapVal);
-  const compStock = compress(stockVal);
-  const diff = Math.abs(compSnap - compStock);
-  // Max possible diff in compressed space is ~2.4, normalize to 0-1
-  return Math.max(0, 1 - diff / 2.0);
+  // Direction penalty: opposite signs are fundamentally different stories
+  const snapPos = snapVal > 0.02;
+  const snapNeg = snapVal < -0.02;
+  const stockPos = stockVal > 0.02;
+  const stockNeg = stockVal < -0.02;
+
+  if ((snapPos && stockNeg) || (snapNeg && stockPos)) {
+    // Opposite directions — heavy penalty, small residual based on magnitude closeness
+    const diff = Math.abs(snapVal - stockVal);
+    return Math.max(0, 0.30 - diff * 0.5);
+  }
+
+  const diff = Math.abs(snapVal - stockVal);
+
+  // For high-growth pairs (both > 30%), use relative comparison
+  // because 100% vs 50% is more "similar" than 20% vs -10%
+  if (Math.abs(snapVal) > 0.30 && Math.abs(stockVal) > 0.30) {
+    const maxAbs = Math.max(Math.abs(snapVal), Math.abs(stockVal));
+    const relDiff = diff / maxAbs;
+    return Math.max(0, 1 - relDiff * 1.5);
+  }
+
+  // Moderate values: absolute percentage-point difference
+  // Scale: 5pp ≈ 83%, 10pp ≈ 67%, 15pp ≈ 50%, 30pp ≈ 0%
+  return Math.max(0, 1 - diff / 0.30);
 }
 
 /**
