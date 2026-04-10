@@ -4,6 +4,7 @@ const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
 const { getCache } = require('../services/universe');
 const { calculateSimilarity, MATCH_METRICS } = require('../services/matcher');
+const { computeSectorStats } = require('../services/sectorStats');
 const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
 const { getProfile, DEFAULT_PROFILE, PROFILE_KEYS } = require('../services/matchProfiles');
 
@@ -487,7 +488,8 @@ router.get('/', async (req, res) => {
       const v = templateResult.template[metric];
       return (v != null && isFinite(v)) ? count + 1 : count;
     }, 0);
-    const profileOptions = { weights: profile.weights, sectorBonus: profile.sectorBonus };
+    const sectorStats = computeSectorStats(getCache());
+    const profileOptions = { weights: profile.weights, sectorBonus: profile.sectorBonus, sectorStats };
     const similarity = calculateSimilarity(templateResult.template, matchMetrics, snapshotPopulatedCount, profileOptions);
 
     // Extract top matches and differences
@@ -507,6 +509,7 @@ router.get('/', async (req, res) => {
       match: matchMetrics,
       matchScore: Math.round(similarity.score * 10) / 10,
       metricsCompared: similarity.overlapCount,
+      confidence: similarity.confidence || null,
       topMatches,
       topDifferences,
       metricScores: similarity.metricScores,

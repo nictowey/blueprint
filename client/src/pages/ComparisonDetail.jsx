@@ -195,7 +195,20 @@ export default function ComparisonDetail() {
                 <span className="text-slate-600 mx-2">vs</span>
                 <span className="font-mono font-bold text-slate-200">{data.match.ticker}</span>
               </p>
-              <p className="text-xs text-slate-500">{data.metricsCompared}/28 metrics compared</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-slate-500">{data.metricsCompared}/28 metrics compared</p>
+                {data.confidence && (
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                    data.confidence.level === 'high'
+                      ? 'border-green-500/30 bg-green-500/10 text-green-400'
+                      : data.confidence.level === 'medium'
+                        ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
+                        : 'border-red-500/30 bg-red-500/10 text-red-400'
+                  }`} title={`Confidence: ${data.confidence.score}% — Data coverage: ${data.confidence.coverageRatio}%`}>
+                    {data.confidence.level === 'high' ? 'High' : data.confidence.level === 'medium' ? 'Med' : 'Low'} confidence ({data.confidence.score}%)
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {data.topMatches?.map(key => (
                   <span key={key} className="tag-green">{METRIC_LABELS[key] || key} ✓</span>

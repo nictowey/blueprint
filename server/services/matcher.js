@@ -555,7 +555,57 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   }
 
   const finalScore = Math.max(0, Math.min(99, baseScore));
-  return { score: finalScore, metricScores, overlapCount, overlapRatio };
+
+  // --- Confidence scoring ---
+  // Measures how trustworthy/reliable the match score is
+  const confidence = computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, momSim, options.sectorStats, stock);
+
+  return { score: finalScore, metricScores, overlapCount, overlapRatio, confidence };
+}
+
+/**
+ * Compute a 0-100 confidence score for a match.
+ * Factors:
+ *   1. Data coverage (40%): what fraction of template metrics had data
+ *   2. Score consistency (30%): low variance across metrics = more confident
+ *   3. Momentum data available (15%): momentum signal adds confidence
+ *   4. Sector stats available (15%): sector-relative scoring adds confidence
+ */
+function computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, momSim, sectorStats, stock) {
+  // 1. Data coverage: 60%+ overlap is minimum; 90%+ is excellent
+  const coverageRatio = snapshotPopulatedCount > 0 ? overlapCount / snapshotPopulatedCount : 0;
+  const coverageScore = Math.min(1, Math.max(0, (coverageRatio - 0.5) / 0.5)); // 50%→0, 100%→1
+
+  // 2. Score consistency: standard deviation of per-metric similarities
+  // Low std dev = metrics agree = more confident
+  let consistencyScore = 0.5; // default if not enough data
+  if (metricScores.length >= 5) {
+    const sims = metricScores.map(m => m.similarity);
+    const mean = sims.reduce((s, v) => s + v, 0) / sims.length;
+    const variance = sims.reduce((s, v) => s + (v - mean) ** 2, 0) / sims.length;
+    const stdDev = Math.sqrt(variance);
+    // stdDev of 0 = perfect consistency (1.0), stdDev of 0.35+ = poor (0.0)
+    consistencyScore = Math.max(0, 1 - stdDev / 0.35);
+  }
+
+  // 3. Momentum data: binary (available or not)
+  const momentumScore = momSim != null ? 1.0 : 0.0;
+
+  // 4. Sector stats: does this stock's sector have sector-relative data?
+  const hasSectorStats = !!(sectorStats && stock.sector && sectorStats[stock.sector]);
+  const sectorScore = hasSectorStats ? 1.0 : 0.0;
+
+  // Weighted combination
+  const raw = coverageScore * 0.40 + consistencyScore * 0.30 + momentumScore * 0.15 + sectorScore * 0.15;
+
+  // Map to 0-100 and assign a label
+  const score = Math.round(raw * 100);
+  let level;
+  if (score >= 80) level = 'high';
+  else if (score >= 50) level = 'medium';
+  else level = 'low';
+
+  return { score, level, coverageRatio: Math.round(coverageRatio * 100), metricsAvailable: overlapCount };
 }
 
 // ---------- Match finding ----------
@@ -587,7 +637,7 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
       stock.companyName, snapshot.companyName
     ))
     .map(stock => {
-      const { score, metricScores, overlapCount, overlapRatio } =
+      const { score, metricScores, overlapCount, overlapRatio, confidence } =
         calculateSimilarity(snapshot, stock, snapshotPopulatedCount, { ...profileOptions, sectorStats });
 
       // Rank by weighted contribution (similarity × weight) so the most IMPORTANT
@@ -611,6 +661,7 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
         _overlapRatio: overlapRatio,
         matchScore: Math.round(score * 10) / 10,
         metricsCompared: overlapCount,
+        confidence,
         topMatches,
         topDifferences,
       };

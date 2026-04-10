@@ -118,9 +118,22 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
-        <span className="text-xs text-slate-600">
-          {match.metricsCompared}/28 metrics compared
-        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs text-slate-600">
+            {match.metricsCompared}/28 metrics compared
+          </span>
+          {match.confidence && (
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+              match.confidence.level === 'high'
+                ? 'border-green-500/30 bg-green-500/10 text-green-400'
+                : match.confidence.level === 'medium'
+                  ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
+                  : 'border-red-500/30 bg-red-500/10 text-red-400'
+            }`} title={`Confidence: ${match.confidence.score}% — Data coverage: ${match.confidence.coverageRatio}%`}>
+              {match.confidence.level === 'high' ? 'High' : match.confidence.level === 'medium' ? 'Med' : 'Low'} confidence
+            </span>
+          )}
+        </div>
         <button className="btn-secondary w-full sm:w-auto" onClick={goToComparison}>
           View Comparison →
         </button>

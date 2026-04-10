@@ -43,6 +43,7 @@ app.use('/api/comparison', apiLimiter, require('./routes/comparison'));
 app.use('/api/status',     require('./routes/status'));
 app.use('/api/top-pairs',  apiLimiter, require('./routes/top-pairs'));
 app.use('/api/backtest',   apiLimiter, require('./routes/backtest'));
+app.use('/api/blend',      apiLimiter, require('./routes/blend'));
 
 // Profiles endpoint — returns list of available match profiles for the UI
 const { listProfiles } = require('./services/matchProfiles');

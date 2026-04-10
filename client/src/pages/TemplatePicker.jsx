@@ -29,6 +29,11 @@ export default function TemplatePicker() {
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const dateRangeAbort = useRef(null);
 
+  // Multi-template blend mode
+  const [blendMode, setBlendMode] = useState(false);
+  const [blendTemplates, setBlendTemplates] = useState([]); // [{ticker, date, companyName}]
+  const [blendLoading, setBlendLoading] = useState(false);
+
   // Poll /api/status until the universe cache is ready (max ~2 minutes)
   const MAX_POLLS = 40; // 40 × 3s = 120s
   useEffect(() => {
@@ -134,6 +139,47 @@ export default function TemplatePicker() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function addToBlend() {
+    if (!snapshot) return;
+    if (blendTemplates.length >= 5) return;
+    // Don't add duplicates
+    if (blendTemplates.some(t => t.ticker === snapshot.ticker && t.date === snapshot.date)) return;
+    setBlendTemplates([...blendTemplates, {
+      ticker: snapshot.ticker,
+      date: snapshot.date,
+      companyName: snapshot.companyName,
+    }]);
+    // Reset for next template
+    setSnapshot(null);
+    setTicker('');
+    setDate('');
+    setDateRange(null);
+  }
+
+  function removeFromBlend(idx) {
+    setBlendTemplates(blendTemplates.filter((_, i) => i !== idx));
+  }
+
+  async function runBlend() {
+    if (blendTemplates.length < 2) return;
+    setBlendLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/blend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templates: blendTemplates }),
+      });
+      if (!res.ok) throw new Error(await httpError(res, 'Blend failed'));
+      const composite = await res.json();
+      navigate(`/matches?ticker=${encodeURIComponent(composite.ticker)}&date=${composite.date}`, { state: { snapshot: composite } });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBlendLoading(false);
     }
   }
 
@@ -261,9 +307,68 @@ export default function TemplatePicker() {
         ))}
       </div>
 
+      {/* Mode toggle */}
+      <div className="flex items-center justify-center gap-3 mb-6">
+        <button
+          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${!blendMode ? 'border-accent/50 bg-accent/10 text-accent' : 'border-dark-border text-slate-500 hover:text-slate-300'}`}
+          onClick={() => { setBlendMode(false); setBlendTemplates([]); }}
+        >
+          Single template
+        </button>
+        <button
+          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${blendMode ? 'border-accent/50 bg-accent/10 text-accent' : 'border-dark-border text-slate-500 hover:text-slate-300'}`}
+          onClick={() => { setBlendMode(true); setSnapshot(null); }}
+        >
+          Multi-template blend
+        </button>
+      </div>
+
+      {/* Blend template list */}
+      {blendMode && blendTemplates.length > 0 && (
+        <div className="card mb-4 border-accent/20">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+            Blend templates ({blendTemplates.length}/5)
+          </p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {blendTemplates.map((t, i) => (
+              <div key={`${t.ticker}-${t.date}`} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/5">
+                <span className="font-mono font-bold text-sm text-accent">{t.ticker}</span>
+                <span className="text-xs text-slate-500">{t.date}</span>
+                <button
+                  className="text-slate-600 hover:text-red-400 transition-colors ml-1"
+                  onClick={() => removeFromBlend(i)}
+                  title="Remove"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          {blendTemplates.length >= 2 && (
+            <button
+              className="btn-primary w-full text-sm py-2.5"
+              onClick={runBlend}
+              disabled={blendLoading}
+            >
+              {blendLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Blending...
+                </span>
+              ) : `Blend ${blendTemplates.length} Templates & Find Matches`}
+            </button>
+          )}
+          {blendTemplates.length < 2 && (
+            <p className="text-xs text-slate-500 text-center">Add at least 2 templates to blend</p>
+          )}
+        </div>
+      )}
+
       {/* Search area */}
       <div className="card mb-6">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Template Stock</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+          {blendMode ? `Add template ${blendTemplates.length + 1}` : 'Template Stock'}
+        </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="w-full sm:flex-1">
             <label className="block text-sm text-slate-400 mb-1.5">Ticker</label>
@@ -361,13 +466,33 @@ export default function TemplatePicker() {
       {snapshot && (
         <>
           <SnapshotCard snapshot={snapshot} />
-          <div className="mt-6">
-            <button
-              className="btn-primary w-full text-center text-sm sm:text-base py-3 sm:py-4"
-              onClick={goToMatches}
-            >
-              Find Stocks That Look Like This Today →
-            </button>
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
+            {blendMode ? (
+              <>
+                <button
+                  className="btn-primary flex-1 text-center text-sm py-3"
+                  onClick={addToBlend}
+                  disabled={blendTemplates.length >= 5 || blendTemplates.some(t => t.ticker === snapshot.ticker && t.date === snapshot.date)}
+                >
+                  {blendTemplates.some(t => t.ticker === snapshot.ticker && t.date === snapshot.date)
+                    ? 'Already added'
+                    : `Add ${snapshot.ticker} to Blend`}
+                </button>
+                <button
+                  className="btn-secondary flex-1 text-center text-sm py-3"
+                  onClick={goToMatches}
+                >
+                  Use solo instead →
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn-primary w-full text-center text-sm sm:text-base py-3 sm:py-4"
+                onClick={goToMatches}
+              >
+                Find Stocks That Look Like This Today →
+              </button>
+            )}
           </div>
         </>
       )}
