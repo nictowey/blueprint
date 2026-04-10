@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import ErrorBoundary from './components/ErrorBoundary';
+import ScrollToTop from './components/ScrollToTop';
 import TemplatePicker from './pages/TemplatePicker';
 import MatchResults from './pages/MatchResults';
 import ComparisonDetail from './pages/ComparisonDetail';
@@ -10,6 +11,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-dark-bg flex flex-col">
+        <ScrollToTop />
         <Header />
         <Routes>
           <Route path="/"           element={<TemplatePicker />} />

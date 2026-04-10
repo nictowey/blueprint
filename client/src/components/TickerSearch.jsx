@@ -5,6 +5,7 @@ export default function TickerSearch({ value, onChange, onSelect }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef(null);
+  const abortRef = useRef(null);
   const wrapperRef = useRef(null);
 
   // Close dropdown on outside click
@@ -18,24 +19,35 @@ export default function TickerSearch({ value, onChange, onSelect }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // Cancel in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+      clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   function handleChange(e) {
     const val = e.target.value.toUpperCase();
     onChange(val);
 
     clearTimeout(debounceRef.current);
+    if (abortRef.current) abortRef.current.abort();
     if (val.length < 1) { setSuggestions([]); setOpen(false); return; }
 
     debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       setLoading(true);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`, { signal: controller.signal });
         const data = await res.json();
         setSuggestions(Array.isArray(data) ? data : []);
         setOpen(true);
-      } catch {
-        setSuggestions([]);
+      } catch (err) {
+        if (err.name !== 'AbortError') setSuggestions([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }, 300);
   }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../components/TickerSearch';
 import SnapshotCard from '../components/SnapshotCard';
 import TopPairs from '../components/TopPairs';
+import { httpError } from '../utils/httpError';
 
 // Yesterday as YYYY-MM-DD (max date for picker)
 function yesterday() {
@@ -24,11 +25,15 @@ export default function TemplatePicker() {
   const [dateRange, setDateRange] = useState(null);
   const [dateRangeLoading, setDateRangeLoading] = useState(false);
   const pollRef = useRef(null);
+  const pollCountRef = useRef(0);
+  const [pollTimedOut, setPollTimedOut] = useState(false);
   const dateRangeAbort = useRef(null);
 
-  // Poll /api/status until the universe cache is ready
+  // Poll /api/status until the universe cache is ready (max ~2 minutes)
+  const MAX_POLLS = 40; // 40 × 3s = 120s
   useEffect(() => {
     async function checkStatus() {
+      pollCountRef.current += 1;
       try {
         const res = await fetch('/api/status');
         if (!res.ok) return;
@@ -41,6 +46,13 @@ export default function TemplatePicker() {
         }
       } catch {
         // server not yet reachable — keep polling
+      }
+      // Stop polling after MAX_POLLS attempts
+      if (!pollRef.current) return;
+      if (pollCountRef.current >= MAX_POLLS) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        setPollTimedOut(true);
       }
     }
 
@@ -115,8 +127,8 @@ export default function TemplatePicker() {
     setSnapshot(null);
     try {
       const res = await fetch(`/api/snapshot?ticker=${encodeURIComponent(t)}&date=${d}`);
+      if (!res.ok) throw new Error(await httpError(res, 'Failed to load snapshot'));
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load snapshot');
       setSnapshot(data);
     } catch (err) {
       setError(err.message);
@@ -134,13 +146,49 @@ export default function TemplatePicker() {
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Warm-up banner */}
-      {!serverReady && (
+      {!serverReady && !pollTimedOut && (
         <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-yellow-400 text-xs sm:text-sm">
           <span className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin shrink-0" />
           <span>
             Server warming up — {stockCount.toLocaleString()} stocks loaded so far.
             Snapshot lookups work now; match results will be ready shortly.
           </span>
+        </div>
+      )}
+      {!serverReady && pollTimedOut && (
+        <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs sm:text-sm">
+          <span>
+            Server is taking longer than expected to load.
+            Snapshot lookups may still work — match results require a fully loaded universe.
+          </span>
+          <button
+            className="ml-auto shrink-0 text-xs underline hover:text-red-300"
+            onClick={() => {
+              setPollTimedOut(false);
+              pollCountRef.current = 0;
+              pollRef.current = setInterval(async () => {
+                pollCountRef.current += 1;
+                try {
+                  const res = await fetch('/api/status');
+                  if (!res.ok) return;
+                  const data = await res.json();
+                  setServerReady(data.ready);
+                  setStockCount(data.stockCount ?? 0);
+                  if (data.ready && pollRef.current) {
+                    clearInterval(pollRef.current);
+                    pollRef.current = null;
+                  }
+                } catch {}
+                if (pollCountRef.current >= MAX_POLLS && pollRef.current) {
+                  clearInterval(pollRef.current);
+                  pollRef.current = null;
+                  setPollTimedOut(true);
+                }
+              }, 3000);
+            }}
+          >
+            Retry
+          </button>
         </div>
       )}
 

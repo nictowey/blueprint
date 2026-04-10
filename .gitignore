@@ -12,3 +12,5 @@ yarn-error.log*
 .idea/
 .vscode/
 .worktrees/
+*.timestamp-*.mjs
+.claude/

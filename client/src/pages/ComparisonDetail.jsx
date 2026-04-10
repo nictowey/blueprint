@@ -4,6 +4,7 @@ import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
 import { getMetricColorFromScore, getMetricColor } from '../utils/metricColor';
+import { httpError } from '../utils/httpError';
 
 const METRIC_GROUPS = [
   { label: 'Overview',         metrics: ['marketCap', 'eps', 'dividendYield'] },
@@ -124,8 +125,8 @@ export default function ComparisonDetail() {
     const params = new URLSearchParams({ ticker, date, matchTicker });
     if (profile && profile !== 'growth_breakout') params.set('profile', profile);
     fetch(`/api/comparison?${params}`)
-      .then(res => {
-        if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Failed'); });
+      .then(async res => {
+        if (!res.ok) throw new Error(await httpError(res, 'Comparison failed'));
         return res.json();
       })
       .then(d => { setData(d); setLoading(false); })

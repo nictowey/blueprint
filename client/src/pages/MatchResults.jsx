@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
+import { httpError } from '../utils/httpError';
 
 function scoreLabel(score) {
   if (score >= 85) return { text: 'Excellent match', color: 'text-green-400' };
@@ -157,8 +158,7 @@ export default function MatchResults() {
     if (countdownRef.current) clearInterval(countdownRef.current);
 
     if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      setError(d.error || 'Match failed');
+      setError(await httpError(res, 'Match failed'));
       setLoading(false);
       return;
     }
@@ -262,8 +262,32 @@ export default function MatchResults() {
         </div>
       )}
 
+      {/* Empty results — profile hard filters may have excluded everything */}
+      {matches && !loading && matches.length === 0 && (
+        <div className="card text-center py-10">
+          <p className="text-slate-300 text-sm font-medium mb-2">No matches found</p>
+          <p className="text-slate-500 text-xs leading-relaxed max-w-md mx-auto">
+            The <span className="text-slate-400">{profiles.find(p => p.key === activeProfile)?.name || activeProfile}</span> strategy
+            has filters that excluded all candidates. Try a different strategy profile or a different template stock.
+          </p>
+          {profiles.length > 1 && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {profiles.filter(p => p.key !== activeProfile).map(p => (
+                <button
+                  key={p.key}
+                  className="btn-secondary text-xs px-3 py-1.5"
+                  onClick={() => setActiveProfile(p.key)}
+                >
+                  Try {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Match results */}
-      {matches && !loading && (() => {
+      {matches && !loading && matches.length > 0 && (() => {
         // Derive unique sectors
         const sectors = [...new Set(matches.map(m => m.sector).filter(Boolean))].sort();
 
