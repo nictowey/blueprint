@@ -209,12 +209,36 @@ function ratioSimilarity(snapVal, stockVal) {
  * Margin / percentage metrics (gross margin, ROE, etc.)
  * These are stored as decimals: 0.10 = 10%, 0.50 = 50%.
  *
- * Scale: 5pp ≈ 88%, 10pp ≈ 75%, 15pp ≈ 63%, 20pp ≈ 50%, 40pp ≈ 0%
- * More sensitive than before — investors notice margin differences.
+ * Uses a hybrid approach: blends absolute pp difference with relative comparison.
+ * This prevents thin-margin or low-yield metrics from appearing artificially similar
+ * (e.g., 3.1% vs 0.5% FCF yield are fundamentally different even though only 2.6pp apart).
+ *
+ * For large margins (>15%): mostly absolute comparison (40pp scale)
+ *   20% vs 15% → ~87%  (close margins)
+ *   40% vs 25% → ~63%  (meaningful gap)
+ * For small margins (<10%): relative comparison dominates
+ *   4.4% vs 2.8% → ~64%  (57% relative gap matters)
+ *   3.1% vs 0.5% → ~42%  (6x difference is huge)
  */
 function marginSimilarity(snapVal, stockVal) {
   const diff = Math.abs(snapVal - stockVal);
-  return Math.max(0, 1 - diff / 0.40);
+
+  // Absolute component: 40pp scale (works well for mid-to-large margins)
+  const absSim = Math.max(0, 1 - diff / 0.40);
+
+  // Relative component: how different are they proportionally?
+  const maxAbs = Math.max(Math.abs(snapVal), Math.abs(stockVal));
+  if (maxAbs < 0.005) return absSim; // Both near zero — absolute is fine
+
+  const relDiff = diff / maxAbs;
+  const relSim = Math.max(0, 1 - relDiff);
+
+  // Blend: when values are small, lean on relative; when large, lean on absolute
+  // At 5% margin: weight is ~67% relative, 33% absolute
+  // At 20% margin: weight is ~33% relative, 67% absolute
+  // At 40%+ margin: weight is ~20% relative, 80% absolute
+  const relWeight = Math.max(0.20, Math.min(0.80, 1 - maxAbs * 3));
+  return relWeight * relSim + (1 - relWeight) * absSim;
 }
 
 /**
