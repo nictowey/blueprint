@@ -1,7 +1,14 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
+
+function scoreLabel(score) {
+  if (score >= 85) return { text: 'Excellent match', color: 'text-green-400' };
+  if (score >= 70) return { text: 'Strong match', color: 'text-green-400' };
+  if (score >= 55) return { text: 'Moderate match', color: 'text-yellow-400' };
+  return { text: 'Weak match', color: 'text-red-400' };
+}
 
 const LOADING_MESSAGES = [
   'Scanning the stock universe…',
@@ -36,6 +43,10 @@ export default function MatchResults() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [msgIdx, setMsgIdx] = useState(0);
+
+  // Filter state
+  const [sectorFilter, setSectorFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('score'); // 'score' | 'sector' | 'growth'
 
   // Warm-up retry state
   const [warming, setWarming] = useState(false);
@@ -219,18 +230,105 @@ export default function MatchResults() {
       )}
 
       {/* Match results */}
-      {matches && !loading && (
-        <>
-          <p className="text-sm text-slate-500 mb-5">
-            {matches.length} stocks matched — ranked by similarity
-          </p>
-          <div className="flex flex-col gap-4">
-            {matches.map((match, i) => (
-              <MatchCard key={match.ticker} match={match} snapshot={snapshot} rank={i + 1} />
-            ))}
-          </div>
-        </>
-      )}
+      {matches && !loading && (() => {
+        // Derive unique sectors
+        const sectors = [...new Set(matches.map(m => m.sector).filter(Boolean))].sort();
+
+        // Filter
+        const filtered = sectorFilter === 'all'
+          ? matches
+          : sectorFilter === 'same'
+            ? matches.filter(m => m.sector === snapshot.sector)
+            : matches.filter(m => m.sector === sectorFilter);
+
+        // Sort
+        const sorted = [...filtered].sort((a, b) => {
+          if (sortBy === 'growth') return (b.revenueGrowthYoY ?? -999) - (a.revenueGrowthYoY ?? -999);
+          if (sortBy === 'sector') return (a.sector || '').localeCompare(b.sector || '') || b.matchScore - a.matchScore;
+          return b.matchScore - a.matchScore;
+        });
+
+        // Top score for interpretation
+        const topScore = matches[0]?.matchScore;
+        const avgScore = matches.length > 0 ? Math.round(matches.reduce((s, m) => s + m.matchScore, 0) / matches.length) : 0;
+
+        return (
+          <>
+            {/* Score interpretation */}
+            <div className="card mb-6 border-dark-border/50">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-accent text-sm">i</span>
+                </div>
+                <div className="text-sm">
+                  <p className="text-slate-300">
+                    Found <span className="font-semibold text-slate-100">{matches.length} matches</span> —
+                    top score is <span className={`font-semibold ${scoreLabel(topScore).color}`}>{Math.round(topScore)}</span>
+                    {topScore >= 75
+                      ? '. These stocks share very similar financial profiles to the template.'
+                      : topScore >= 55
+                        ? '. Decent similarity — review individual metrics for areas of divergence.'
+                        : '. Moderate similarity — the template profile may be uncommon in today\'s market.'}
+                  </p>
+                  <p className="text-slate-500 text-xs mt-1">
+                    Avg score: {avgScore} · Scores above 70 indicate strong similarity across valuation, growth, profitability, and technicals.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters row */}
+            <div className="flex flex-wrap items-center gap-3 mb-5">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Sector</label>
+                <select
+                  className="input-field text-sm py-1.5 px-3 w-auto"
+                  value={sectorFilter}
+                  onChange={e => setSectorFilter(e.target.value)}
+                >
+                  <option value="all">All sectors ({matches.length})</option>
+                  {snapshot.sector && (
+                    <option value="same">Same sector — {snapshot.sector} ({matches.filter(m => m.sector === snapshot.sector).length})</option>
+                  )}
+                  {sectors.map(s => (
+                    <option key={s} value={s}>{s} ({matches.filter(m => m.sector === s).length})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <label className="text-xs text-slate-500 uppercase tracking-wider">Sort</label>
+                <select
+                  className="input-field text-sm py-1.5 px-3 w-auto"
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                >
+                  <option value="score">Similarity Score</option>
+                  <option value="growth">Revenue Growth</option>
+                  <option value="sector">Sector</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Results count */}
+            <p className="text-sm text-slate-500 mb-4">
+              Showing {sorted.length} of {matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
+            </p>
+
+            {sorted.length === 0 ? (
+              <div className="card text-center py-8 text-slate-500 text-sm">
+                No matches in this sector. Try "All sectors" to see all results.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {sorted.map((match, i) => (
+                  <MatchCard key={match.ticker} match={match} snapshot={snapshot} rank={i + 1} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </main>
   );
 }

@@ -16,6 +16,66 @@ const METRIC_GROUPS = [
 
 const WATCHLIST_KEY = 'blueprint_watchlist';
 
+function getInsight(data) {
+  if (!data) return null;
+  const s = data.matchScore;
+  const tpl = data.template;
+  const mtch = data.match;
+
+  // Score tier description
+  let tier;
+  if (s >= 85) tier = { label: 'Excellent Match', color: 'text-green-400', borderColor: 'border-green-500/20', bgColor: 'bg-green-500/5', desc: 'These two stocks share remarkably similar financial profiles. The current stock mirrors the template across nearly all key metrics.' };
+  else if (s >= 70) tier = { label: 'Strong Match', color: 'text-green-400', borderColor: 'border-green-500/20', bgColor: 'bg-green-500/5', desc: 'A strong resemblance. Most valuation, profitability, and growth metrics align well, though a few areas diverge.' };
+  else if (s >= 55) tier = { label: 'Moderate Match', color: 'text-yellow-400', borderColor: 'border-yellow-500/20', bgColor: 'bg-yellow-500/5', desc: 'A partial match. Some key metrics align, but there are notable differences in certain areas worth investigating.' };
+  else tier = { label: 'Weak Match', color: 'text-red-400', borderColor: 'border-red-500/20', bgColor: 'bg-red-500/5', desc: 'Limited similarity. These stocks share some characteristics but differ substantially across multiple dimensions.' };
+
+  // Build specific observations
+  const observations = [];
+
+  // Growth comparison
+  if (tpl.revenueGrowthYoY != null && mtch.revenueGrowthYoY != null) {
+    const tGrowth = (tpl.revenueGrowthYoY * 100).toFixed(0);
+    const mGrowth = (mtch.revenueGrowthYoY * 100).toFixed(0);
+    if (Math.abs(tpl.revenueGrowthYoY - mtch.revenueGrowthYoY) < 0.1) {
+      observations.push(`Both show similar revenue growth (~${mGrowth}% YoY)`);
+    } else if (mtch.revenueGrowthYoY > tpl.revenueGrowthYoY) {
+      observations.push(`Match is growing faster (${mGrowth}% vs ${tGrowth}% revenue YoY)`);
+    } else {
+      observations.push(`Template had higher revenue growth (${tGrowth}% vs ${mGrowth}% YoY)`);
+    }
+  }
+
+  // Valuation comparison
+  if (tpl.peRatio != null && mtch.peRatio != null) {
+    if (Math.abs(tpl.peRatio - mtch.peRatio) / Math.max(tpl.peRatio, 1) < 0.2) {
+      observations.push(`Valuations are aligned (P/E ~${mtch.peRatio.toFixed(0)}x)`);
+    } else if (mtch.peRatio < tpl.peRatio) {
+      observations.push(`Match trades at a lower P/E (${mtch.peRatio.toFixed(1)}x vs ${tpl.peRatio.toFixed(1)}x)`);
+    } else {
+      observations.push(`Match trades at a higher P/E (${mtch.peRatio.toFixed(1)}x vs ${tpl.peRatio.toFixed(1)}x)`);
+    }
+  }
+
+  // Margin comparison
+  if (tpl.operatingMargin != null && mtch.operatingMargin != null) {
+    const diff = Math.abs(tpl.operatingMargin - mtch.operatingMargin);
+    if (diff < 0.05) {
+      observations.push(`Operating margins closely aligned (~${(mtch.operatingMargin * 100).toFixed(0)}%)`);
+    }
+  }
+
+  // Sector note
+  if (tpl.sector && mtch.sector) {
+    if (tpl.sector === mtch.sector) {
+      observations.push(`Both in the ${mtch.sector} sector`);
+    } else {
+      observations.push(`Different sectors: ${tpl.sector} vs ${mtch.sector}`);
+    }
+  }
+
+  return { tier, observations };
+}
+
 function getWatchlist() {
   try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); } catch { return []; }
 }
@@ -141,6 +201,35 @@ export default function ComparisonDetail() {
             </div>
           </div>
         )}
+
+        {/* Investor insight */}
+        {(() => {
+          const insight = getInsight(data);
+          if (!insight) return null;
+          const { tier, observations } = insight;
+          return (
+            <div className={`card mb-6 ${tier.borderColor} ${tier.bgColor}`}>
+              <div className="flex items-start gap-3">
+                <div className={`text-lg font-bold ${tier.color} shrink-0`}>
+                  {data.matchScore >= 70 ? '✦' : data.matchScore >= 55 ? '◆' : '○'}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-200 mb-1">
+                    <span className={tier.color}>{tier.label}</span>
+                    <span className="text-slate-500 font-normal ml-2">— {tier.desc}</span>
+                  </p>
+                  {observations.length > 0 && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                      {observations.map((obs, i) => (
+                        <span key={i} className="text-xs text-slate-400">• {obs}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* LEFT PANEL — Template (historical) */}
