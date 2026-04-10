@@ -3,6 +3,7 @@ const router = express.Router();
 const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
 const { getCache } = require('../services/universe');
+const { calculateSimilarity, MATCH_METRICS } = require('../services/matcher');
 
 // Template side is historical/immutable; match side updates every ~10 min with
 // the incremental refresh cycle — use matching TTL.
@@ -392,11 +393,12 @@ async function fetchMatchSparkline(matchSym) {
 // Main route — three independent parallel tracks
 // ========================================================================
 const MATCH_METRIC_KEYS = [
-  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio', 'earningsYield',
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
   'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
   'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
   'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
   'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  'marketCap',
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta',
 ];
 
@@ -435,9 +437,33 @@ router.get('/', async (req, res) => {
       fetchMatchSparkline(matchSym),
     ]);
 
+    // Compute match score between template and match using the core similarity engine
+    const snapshotPopulatedCount = MATCH_METRICS.reduce((count, metric) => {
+      const v = templateResult.template[metric];
+      return (v != null && isFinite(v)) ? count + 1 : count;
+    }, 0);
+    const similarity = calculateSimilarity(templateResult.template, matchMetrics, snapshotPopulatedCount);
+
+    // Extract top matches and differences
+    const rankedByContribution = [...similarity.metricScores]
+      .sort((a, b) => (b.similarity * b.weight) - (a.similarity * a.weight));
+    const topMatches = rankedByContribution.slice(0, 3).map(m => m.metric);
+    const topMatchSet = new Set(topMatches);
+    const rankedByMiss = [...similarity.metricScores]
+      .sort((a, b) => ((1 - b.similarity) * b.weight) - ((1 - a.similarity) * a.weight));
+    const topDifferences = rankedByMiss
+      .filter(m => !topMatchSet.has(m.metric))
+      .slice(0, 3)
+      .map(m => m.metric);
+
     const result = {
       template: templateResult.template,
       match: matchMetrics,
+      matchScore: Math.round(similarity.score * 10) / 10,
+      metricsCompared: similarity.overlapCount,
+      topMatches,
+      topDifferences,
+      metricScores: similarity.metricScores,
       sparkline: templateResult.sparkline,
       sparklineGainPct: templateResult.sparklineGainPct,
       matchSparkline: matchSparklineResult.matchSparkline,

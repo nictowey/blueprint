@@ -456,4 +456,4 @@ function findMatches(snapshot, universe, limit = 10) {
   return results;
 }
 
-module.exports = { findMatches, MATCH_METRICS, isSameCompany, baseTicker };
+module.exports = { findMatches, calculateSimilarity, MATCH_METRICS, isSameCompany, baseTicker };

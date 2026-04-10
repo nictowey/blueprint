@@ -93,6 +93,44 @@ export default function ComparisonDetail() {
       )}
 
       {data && !loading && (
+        <>
+        {/* Match score header */}
+        {data.matchScore != null && (
+          <div className="card mb-6 flex flex-col sm:flex-row items-center gap-4 sm:gap-8">
+            <div className="relative w-20 h-20 shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#1e293b" strokeWidth="5" />
+                <circle
+                  cx="40" cy="40" r="34" fill="none"
+                  stroke={data.matchScore >= 70 ? '#22c55e' : data.matchScore >= 50 ? '#eab308' : '#ef4444'}
+                  strokeWidth="5" strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 34}
+                  strokeDashoffset={2 * Math.PI * 34 * (1 - data.matchScore / 100)}
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-slate-100">
+                {Math.round(data.matchScore)}
+              </span>
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <p className="text-sm text-slate-400 mb-1">
+                <span className="font-mono font-bold text-slate-200">{data.template.ticker}</span>
+                <span className="text-slate-600 mx-2">vs</span>
+                <span className="font-mono font-bold text-slate-200">{data.match.ticker}</span>
+              </p>
+              <p className="text-xs text-slate-500">{data.metricsCompared}/26 metrics compared</p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {data.topMatches?.map(key => (
+                  <span key={key} className="tag-green">{METRIC_LABELS[key] || key} ✓</span>
+                ))}
+                {data.topDifferences?.map(key => (
+                  <span key={key} className="tag-yellow">{METRIC_LABELS[key] || key} ~</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-6">
           {/* LEFT PANEL — Template (historical) */}
           <div className="card">
@@ -175,7 +213,7 @@ export default function ComparisonDetail() {
               </span>
             </div>
 
-            {/* Metrics with color coding */}
+            {/* Metrics with color coding and similarity bars */}
             {METRIC_GROUPS.map(group => (
               <div key={group.label}>
                 <div className="text-xs text-slate-500 uppercase tracking-widest pt-4 pb-1 font-medium border-b border-dark-border/50">
@@ -185,12 +223,31 @@ export default function ComparisonDetail() {
                   const leftVal = data.template[key];
                   const rightVal = data.match[key];
                   const colorClass = getMetricColor(key, leftVal, rightVal);
+                  // Find per-metric similarity from API response
+                  const metricScore = data.metricScores?.find(ms => ms.metric === key);
+                  const sim = metricScore ? Math.round(metricScore.similarity * 100) : null;
                   return (
-                    <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0">
-                      <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>
-                      <span className={`text-sm font-semibold ${colorClass}`}>
-                        {formatMetric(key, rightVal)}
-                      </span>
+                    <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0 gap-2">
+                      <span className="text-xs text-slate-500 uppercase tracking-wider flex-shrink-0">{METRIC_LABELS[key]}</span>
+                      <div className="flex items-center gap-2">
+                        {sim != null && (
+                          <div className="w-12 flex items-center gap-1" title={`${sim}% similar`}>
+                            <div className="w-8 h-1.5 bg-dark-bg rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${sim}%`,
+                                  backgroundColor: sim >= 80 ? '#22c55e' : sim >= 50 ? '#eab308' : '#ef4444',
+                                }}
+                              />
+                            </div>
+                            <span className="text-[9px] text-slate-600 w-6 text-right">{sim}</span>
+                          </div>
+                        )}
+                        <span className={`text-sm font-semibold ${colorClass}`}>
+                          {formatMetric(key, rightVal)}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
@@ -198,6 +255,7 @@ export default function ComparisonDetail() {
             ))}
           </div>
         </div>
+        </>
       )}
     </main>
   );
