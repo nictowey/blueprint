@@ -73,6 +73,10 @@ export function formatMetric(key, value) {
     case 'avgVolume':
       return formatVolume(value);
 
+    // Relative volume (ratio)
+    case 'relativeVolume':
+      return `${value.toFixed(2)}x`;
+
     default:
       return String(value);
   }
@@ -136,6 +140,7 @@ export const METRIC_LABELS = {
   priceVsMa200:      'vs 200-Day MA',
   beta:              'Beta',
   avgVolume:         'Avg Volume',
+  relativeVolume:    'Rel. Volume',
   // Misc
   shortInterestPct:  'Short Interest %',
 };

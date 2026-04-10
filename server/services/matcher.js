@@ -12,9 +12,12 @@ const MATCH_METRICS = [
   'marketCap',
   // Technical
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta',
+  // Volume
+  'relativeVolume',
 ];
 
 const { getProfile, DEFAULT_PROFILE } = require('./matchProfiles');
+const { computeSectorStats, sectorZScore } = require('./sectorStats');
 
 // Default weights — used when no profile is specified (growth_breakout)
 const DEFAULT_METRIC_WEIGHTS = {
@@ -50,6 +53,7 @@ const DEFAULT_METRIC_WEIGHTS = {
   evToRevenue: 1.0,
   currentRatio: 1.0,
   interestCoverage: 1.0,
+  relativeVolume: 1.5,
 };
 
 // Kept for backward-compat — existing code that references METRIC_WEIGHTS directly
@@ -344,6 +348,17 @@ function debtToEquitySimilarity(snapVal, stockVal) {
 
 // ---------- Master similarity dispatcher ----------
 
+/**
+ * Relative volume: log-scale comparison.
+ * 0.5x vs 1.0x ≈ 70%, 1.0x vs 2.0x ≈ 70%, 0.5x vs 3.0x ≈ 22%
+ * Two stocks with similarly elevated/depressed volume are in similar trading regimes.
+ */
+function relativeVolumeSimilarity(snapVal, stockVal) {
+  if (snapVal <= 0 || stockVal <= 0) return null;
+  const logDiff = Math.abs(Math.log2(snapVal) - Math.log2(stockVal));
+  return Math.max(0, 1 - logDiff / 2.5);
+}
+
 function metricSimilarity(metric, snapVal, stockVal) {
   if (snapVal == null || stockVal == null || !isFinite(snapVal) || !isFinite(stockVal)) {
     return null;
@@ -351,6 +366,7 @@ function metricSimilarity(metric, snapVal, stockVal) {
 
   if (metric === 'marketCap') return marketCapSimilarity(snapVal, stockVal);
   if (metric === 'beta') return betaSimilarity(snapVal, stockVal);
+  if (metric === 'relativeVolume') return relativeVolumeSimilarity(snapVal, stockVal);
   if (metric === 'debtToEquity') return debtToEquitySimilarity(snapVal, stockVal);
   if (metric === 'netDebtToEBITDA') return debtToEquitySimilarity(snapVal, stockVal);
   if (RATIO_METRICS.has(metric)) return ratioSimilarity(snapVal, stockVal);
@@ -363,6 +379,69 @@ function metricSimilarity(metric, snapVal, stockVal) {
   const denominator = Math.max(Math.abs(snapVal), Math.abs(stockVal), EPSILON);
   const diff = Math.abs(snapVal - stockVal) / denominator;
   return Math.max(0, 1 - diff);
+}
+
+// ---------- Sector-relative similarity ----------
+
+/**
+ * Compare two stocks' sector-relative positions.
+ * If both stocks sit at the same distance from their sector median (in IQR units),
+ * they have similar "sector-relative profiles" even if raw values differ.
+ *
+ * E.g., a tech stock with P/E 2 IQR above tech median and an industrial stock
+ * P/E 2 IQR above industrial median are "similarly positioned" within their sectors.
+ *
+ * Returns null if sector data unavailable for either stock.
+ */
+function sectorRelativeSimilarity(metric, snapVal, stockVal, snapSectorStats, stockSectorStats) {
+  const snapZ = sectorZScore(snapVal, snapSectorStats, metric);
+  const stockZ = sectorZScore(stockVal, stockSectorStats, metric);
+
+  if (snapZ == null || stockZ == null) return null;
+
+  // Compare z-scores: difference of 0 = identical positioning, 2+ = very different
+  const zDiff = Math.abs(snapZ - stockZ);
+  return Math.max(0, 1 - zDiff / 3); // 3 IQR difference = 0% similarity
+}
+
+// ---------- Momentum composite ----------
+
+/**
+ * Compute a momentum similarity based on price trajectory.
+ * Uses recentCloses (30 days) to derive short-term and medium-term momentum.
+ * Two stocks with similar rate-of-change profiles are more likely to be
+ * in the same phase of their price cycle.
+ */
+function momentumSimilarity(snapCloses, stockCloses) {
+  if (!snapCloses || snapCloses.length < 20 || !stockCloses || stockCloses.length < 20) {
+    return null;
+  }
+
+  // 1-week rate of change (last 5 vs 5 before)
+  function roc(closes, lookback) {
+    const end = closes[closes.length - 1];
+    const start = closes[Math.max(0, closes.length - 1 - lookback)];
+    if (!start || start === 0) return null;
+    return (end - start) / start;
+  }
+
+  const snapRoc5 = roc(snapCloses, 5);
+  const snapRoc20 = roc(snapCloses, 20);
+  const stockRoc5 = roc(stockCloses, 5);
+  const stockRoc20 = roc(stockCloses, 20);
+
+  if (snapRoc5 == null || stockRoc5 == null || snapRoc20 == null || stockRoc20 == null) return null;
+
+  // Compare short-term momentum (5-day ROC)
+  const shortDiff = Math.abs(snapRoc5 - stockRoc5);
+  const shortSim = Math.max(0, 1 - shortDiff / 0.15); // 15% ROC diff = 0%
+
+  // Compare medium-term momentum (20-day ROC)
+  const medDiff = Math.abs(snapRoc20 - stockRoc20);
+  const medSim = Math.max(0, 1 - medDiff / 0.25); // 25% ROC diff = 0%
+
+  // Blend: medium-term gets more weight (more meaningful for breakout patterns)
+  return shortSim * 0.35 + medSim * 0.65;
 }
 
 // ---------- Growth quality check ----------
@@ -413,6 +492,11 @@ function growthQualityPenalty(snapshot, stock) {
 function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = {}) {
   const weights = options.weights || METRIC_WEIGHTS;
   const sectorBonus = options.sectorBonus != null ? options.sectorBonus : SECTOR_MATCH_BONUS;
+  const sectorStats = options.sectorStats || null;
+
+  // Get sector-specific stats for each stock (may be different sectors)
+  const snapSectorStats = sectorStats?.[snapshot.sector] || null;
+  const stockSectorStats = sectorStats?.[stock.sector] || null;
 
   let score = 0;
   let totalWeight = 0;
@@ -421,9 +505,20 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
 
   for (const metric of MATCH_METRICS) {
     const weight = weights[metric] ?? 1.0;
-    const similarity = metricSimilarity(metric, snapshot[metric], stock[metric]);
+    const rawSim = metricSimilarity(metric, snapshot[metric], stock[metric]);
 
-    if (similarity === null) continue;
+    if (rawSim === null) continue;
+
+    // Blend raw similarity with sector-relative similarity (if available)
+    let similarity = rawSim;
+    if (snapSectorStats && stockSectorStats) {
+      const sectorSim = sectorRelativeSimilarity(metric, snapshot[metric], stock[metric], snapSectorStats, stockSectorStats);
+      if (sectorSim != null) {
+        // 70% raw + 30% sector-relative: raw comparison is still primary,
+        // sector context refines it. Cross-sector matches benefit most.
+        similarity = rawSim * 0.70 + sectorSim * 0.30;
+      }
+    }
 
     overlapCount++;
     score += similarity * weight;
@@ -436,6 +531,13 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   }
 
   let baseScore = (score / totalWeight) * 100;
+
+  // Momentum composite: add as a bonus/penalty (up to ±3 points)
+  const momSim = momentumSimilarity(snapshot.recentCloses, stock.recentCloses);
+  if (momSim != null) {
+    // momSim ranges 0-1; center at 0.5, so ±0.5 maps to ±3 points
+    baseScore += (momSim - 0.5) * 6;
+  }
 
   // Overlap penalty: penalize matches with sparse data coverage
   const overlapRatio = snapshotPopulatedCount > 0
@@ -474,6 +576,9 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
 
   if (snapshotPopulatedCount < 4) return [];
 
+  // Compute sector stats from universe for sector-relative scoring
+  const sectorStats = computeSectorStats(universe);
+
   const allStocks = Array.from(universe.values());
 
   const results = allStocks
@@ -483,7 +588,7 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
     ))
     .map(stock => {
       const { score, metricScores, overlapCount, overlapRatio } =
-        calculateSimilarity(snapshot, stock, snapshotPopulatedCount, profileOptions);
+        calculateSimilarity(snapshot, stock, snapshotPopulatedCount, { ...profileOptions, sectorStats });
 
       // Rank by weighted contribution (similarity × weight) so the most IMPORTANT
       // matching metrics surface, not just the ones with highest raw similarity.

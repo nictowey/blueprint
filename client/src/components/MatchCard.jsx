@@ -119,7 +119,7 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
 
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
         <span className="text-xs text-slate-600">
-          {match.metricsCompared}/27 metrics compared
+          {match.metricsCompared}/28 metrics compared
         </span>
         <button className="btn-secondary w-full sm:w-auto" onClick={goToComparison}>
           View Comparison →

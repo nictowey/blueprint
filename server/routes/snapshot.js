@@ -183,6 +183,15 @@ router.get('/', async (req, res) => {
       if (price != null && ma200 > 0) priceVsMa200 = ((price - ma200) / ma200) * 100;
     }
 
+    // Volume profile: relative volume (5-day avg vs 50-day avg)
+    let relativeVolume = null;
+    const volumes = histFiltered.map(h => h.volume).filter(v => v != null && v > 0);
+    if (volumes.length >= 50) {
+      const vol50 = volumes.slice(-50).reduce((s, v) => s + v, 0) / 50;
+      const vol5 = volumes.slice(-5).reduce((s, v) => s + v, 0) / Math.min(5, volumes.slice(-5).length);
+      if (vol50 > 0) relativeVolume = vol5 / vol50;
+    }
+
     // --- Computed valuation, return, and financial health ratios ---
     const sharesOut = ttm?.sharesOut ?? null;
     const equity = curBalance?.totalStockholdersEquity ?? null;
@@ -272,6 +281,7 @@ router.get('/', async (req, res) => {
       priceVsMa200,
       beta:              profile?.beta ?? null,
       avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
+      relativeVolume:    relativeVolume,
       // Overview
       marketCap:         computedMarketCap ?? null,
       shortInterestPct:  shortRaw?.shortInterestPercent ?? null,

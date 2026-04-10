@@ -214,6 +214,16 @@ async function enrichStock(entry) {
 
     // Store last 30 daily closes for mini sparklines in match cards
     entry.recentCloses = closes.slice(-30);
+
+    // Volume profile: relative volume (recent 5-day avg vs 50-day avg)
+    const volumes = oldestFirst.map(d => d.volume).filter(v => v != null && v > 0);
+    if (volumes.length >= 50) {
+      const vol50 = volumes.slice(-50).reduce((s, v) => s + v, 0) / 50;
+      const vol5 = volumes.slice(-5).reduce((s, v) => s + v, 0) / Math.min(5, volumes.slice(-5).length);
+      if (vol50 > 0) {
+        entry.relativeVolume = vol5 / vol50; // 1.0 = normal, 2.0 = 2x average
+      }
+    }
   }
 
   // --- Computed ratios (same formulas as snapshot.js) ---
