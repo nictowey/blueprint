@@ -16,7 +16,7 @@ const METRIC_GROUPS = [
   { label: 'Technical',        metrics: ['rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta', 'avgVolume'] },
 ];
 
-const WATCHLIST_KEY = 'blueprint_watchlist';
+import { addToWatchlist as saveToWatchlist, isOnWatchlist } from '../utils/watchlist';
 
 function getInsight(data) {
   if (!data) return null;
@@ -78,17 +78,6 @@ function getInsight(data) {
   return { tier, observations };
 }
 
-function getWatchlist() {
-  try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); } catch { return []; }
-}
-
-function saveToWatchlist(ticker, companyName) {
-  const list = getWatchlist();
-  if (list.find(item => item.ticker === ticker)) return; // already saved
-  list.push({ ticker, companyName, addedAt: new Date().toISOString() });
-  localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list));
-}
-
 export default function ComparisonDetail() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -103,7 +92,7 @@ export default function ComparisonDetail() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [watchlisted, setWatchlisted] = useState(false);
+  const [watchlisted, setWatchlisted] = useState(() => matchTicker ? isOnWatchlist(matchTicker) : false);
 
   useEffect(() => {
     if (!ticker || !date || !matchTicker) navigate('/', { replace: true });
@@ -134,9 +123,17 @@ export default function ComparisonDetail() {
       .catch(err => { setError(err.message); setLoading(false); });
   }, [ticker, date, matchTicker]);
 
-  function addToWatchlist() {
+  function handleAddToWatchlist() {
     if (!data?.match) return;
-    saveToWatchlist(data.match.ticker, data.match.companyName);
+    saveToWatchlist({
+      ticker: data.match.ticker,
+      companyName: data.match.companyName,
+      sector: data.match.sector,
+      matchScore: data.matchScore,
+      templateTicker: ticker,
+      templateDate: date,
+      price: data.match.price,
+    });
     setWatchlisted(true);
   }
 
@@ -150,7 +147,7 @@ export default function ComparisonDetail() {
         {data && (
           <button
             className={`btn-secondary ${watchlisted ? 'text-green-400 border-green-500/30' : ''}`}
-            onClick={addToWatchlist}
+            onClick={handleAddToWatchlist}
             disabled={watchlisted}
           >
             {watchlisted ? '✓ Added to Watchlist' : 'Add to Watchlist'}

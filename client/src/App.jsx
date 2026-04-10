@@ -6,6 +6,7 @@ import TemplatePicker from './pages/TemplatePicker';
 import MatchResults from './pages/MatchResults';
 import ComparisonDetail from './pages/ComparisonDetail';
 import BacktestResults from './pages/BacktestResults';
+import WatchlistPage from './pages/Watchlist';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/matches"    element={<MatchResults />} />
           <Route path="/comparison" element={<ComparisonDetail />} />
           <Route path="/backtest"   element={<BacktestResults />} />
+          <Route path="/watchlist"  element={<WatchlistPage />} />
           <Route path="*"           element={<NotFound />} />
         </Routes>
         <footer className="border-t border-dark-border py-4 sm:py-6 mt-auto">
