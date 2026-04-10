@@ -1,239 +1,381 @@
 const express = require('express');
 const router = express.Router();
 const { getCache, isReady } = require('../services/universe');
-const { findMatches, MATCH_METRICS } = require('../services/matcher');
-const fetch = require('node-fetch');
 
 // ---------------------------------------------------------------------------
-// Curated breakout templates — verified multi-hundred-percent breakouts.
-// Each entry captures the ticker + a pre-breakout date when the stock's
-// fundamental/technical profile was set up for the move.
+// Breakout Screener — scores every stock on how well its current
+// fundamentals and technicals match what investors look for in
+// pre-breakout setups. No comparison to other companies; this is
+// a standalone signal-based scoring system.
+//
+// Each signal is scored 0-1 and weighted. The final breakout score
+// is a weighted average normalized to 0-100.
 // ---------------------------------------------------------------------------
-const BREAKOUT_TEMPLATES = [
-  {
-    ticker: 'CLS',
-    date: '2023-12-01',
-    label: 'Celestica',
-    description: 'AI infrastructure / EMS breakout',
-  },
-  {
-    ticker: 'NVDA',
-    date: '2023-01-15',
-    label: 'NVIDIA',
-    description: 'AI compute supercycle',
-  },
-  {
-    ticker: 'SMCI',
-    date: '2023-06-01',
-    label: 'Super Micro',
-    description: 'AI server infrastructure',
-  },
-  {
-    ticker: 'META',
-    date: '2022-11-01',
-    label: 'Meta Platforms',
-    description: 'Efficiency pivot turnaround',
-  },
-  {
-    ticker: 'APP',
-    date: '2024-03-01',
-    label: 'AppLovin',
-    description: 'AI-powered ad-tech breakout',
-  },
-  {
-    ticker: 'VST',
-    date: '2024-01-15',
-    label: 'Vistra Energy',
-    description: 'AI data center energy play',
-  },
-  {
-    ticker: 'PLTR',
-    date: '2023-05-01',
-    label: 'Palantir',
-    description: 'AI + government contract breakout',
-  },
-];
 
-// ---------------------------------------------------------------------------
-// Template snapshot cache — fetch each template's historical snapshot once,
-// keep for 7 days. These are static historical profiles that rarely change
-// (only if FMP backfills data).
-// ---------------------------------------------------------------------------
-const templateSnapshotCache = new Map();
-const TEMPLATE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+// ---------- Signal scoring functions ----------
+// Each returns { score: 0-1, signal: string label, value: display value }
 
 /**
- * Fetch a historical snapshot for a template by hitting our own snapshot
- * endpoint logic internally. We import the snapshot route's computation
- * rather than making an HTTP call to ourselves.
+ * Revenue Growth YoY — The #1 breakout signal.
+ * >30% = strong, >15% = good, >5% = moderate, <0 = weak
  */
-async function fetchTemplateSnapshot(ticker, date) {
-  const cacheKey = `${ticker}:${date}`;
-  const cached = templateSnapshotCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < TEMPLATE_CACHE_TTL) {
-    return cached.data;
+function scoreRevenueGrowth(stock) {
+  const v = stock.revenueGrowthYoY;
+  if (v == null || !isFinite(v)) return null;
+  const pct = v * 100;
+  let score;
+  if (pct >= 40) score = 1.0;
+  else if (pct >= 25) score = 0.85 + (pct - 25) / 15 * 0.15;
+  else if (pct >= 15) score = 0.65 + (pct - 15) / 10 * 0.20;
+  else if (pct >= 5) score = 0.35 + (pct - 5) / 10 * 0.30;
+  else if (pct >= 0) score = 0.15 + (pct / 5) * 0.20;
+  else score = Math.max(0, 0.15 + pct / 50 * 0.15); // negative growth
+  return { score, signal: 'Revenue Growth', value: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` };
+}
+
+/**
+ * EPS Growth YoY — Earnings acceleration confirms operating leverage.
+ * >50% = excellent, >20% = strong, >0 = positive
+ */
+function scoreEpsGrowth(stock) {
+  const v = stock.epsGrowthYoY;
+  if (v == null || !isFinite(v)) return null;
+  const pct = v * 100;
+  let score;
+  if (pct >= 60) score = 1.0;
+  else if (pct >= 30) score = 0.75 + (pct - 30) / 30 * 0.25;
+  else if (pct >= 15) score = 0.55 + (pct - 15) / 15 * 0.20;
+  else if (pct >= 0) score = 0.25 + (pct / 15) * 0.30;
+  else score = Math.max(0, 0.20 + pct / 100 * 0.20);
+  return { score, signal: 'EPS Growth', value: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` };
+}
+
+/**
+ * Revenue 3yr CAGR — Sustained growth track record (not a one-quarter wonder).
+ */
+function scoreRevenueGrowth3yr(stock) {
+  const v = stock.revenueGrowth3yr;
+  if (v == null || !isFinite(v)) return null;
+  const pct = v * 100;
+  let score;
+  if (pct >= 25) score = 1.0;
+  else if (pct >= 15) score = 0.75 + (pct - 15) / 10 * 0.25;
+  else if (pct >= 8) score = 0.50 + (pct - 8) / 7 * 0.25;
+  else if (pct >= 0) score = 0.20 + (pct / 8) * 0.30;
+  else score = Math.max(0, 0.10);
+  return { score, signal: '3yr Rev CAGR', value: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%` };
+}
+
+/**
+ * PEG Ratio — Growth relative to valuation. <1 = undervalued grower, 1-2 = fair, >3 = expensive.
+ * Only meaningful when P/E and growth are both positive.
+ */
+function scorePEG(stock) {
+  const v = stock.pegRatio;
+  if (v == null || !isFinite(v) || v <= 0) return null;
+  let score;
+  if (v <= 0.5) score = 1.0;
+  else if (v <= 1.0) score = 0.80 + (1.0 - v) / 0.5 * 0.20;
+  else if (v <= 1.5) score = 0.60 + (1.5 - v) / 0.5 * 0.20;
+  else if (v <= 2.5) score = 0.30 + (2.5 - v) / 1.0 * 0.30;
+  else if (v <= 4.0) score = 0.10 + (4.0 - v) / 1.5 * 0.20;
+  else score = 0.05;
+  return { score, signal: 'PEG Ratio', value: v.toFixed(2) };
+}
+
+/**
+ * Operating Margin — Business quality and operating leverage.
+ * >20% = strong, >10% = healthy, <0 = unprofitable
+ */
+function scoreOperatingMargin(stock) {
+  const v = stock.operatingMargin;
+  if (v == null || !isFinite(v)) return null;
+  const pct = v * 100;
+  let score;
+  if (pct >= 25) score = 1.0;
+  else if (pct >= 15) score = 0.75 + (pct - 15) / 10 * 0.25;
+  else if (pct >= 8) score = 0.50 + (pct - 8) / 7 * 0.25;
+  else if (pct >= 0) score = 0.20 + (pct / 8) * 0.30;
+  else score = Math.max(0, 0.10 + pct / 30 * 0.10);
+  return { score, signal: 'Op Margin', value: `${pct.toFixed(1)}%` };
+}
+
+/**
+ * ROE — Capital efficiency. >20% = excellent, >12% = good.
+ */
+function scoreROE(stock) {
+  const v = stock.returnOnEquity;
+  if (v == null || !isFinite(v)) return null;
+  const pct = v * 100;
+  let score;
+  if (pct >= 25) score = 1.0;
+  else if (pct >= 15) score = 0.70 + (pct - 15) / 10 * 0.30;
+  else if (pct >= 8) score = 0.40 + (pct - 8) / 7 * 0.30;
+  else if (pct >= 0) score = 0.15 + (pct / 8) * 0.25;
+  else score = 0.05;
+  return { score, signal: 'ROE', value: `${pct.toFixed(1)}%` };
+}
+
+/**
+ * FCF Yield — Real cash generation. >5% = great, >2% = healthy.
+ */
+function scoreFCFYield(stock) {
+  const v = stock.freeCashFlowYield;
+  if (v == null || !isFinite(v)) return null;
+  const pct = v * 100;
+  let score;
+  if (pct >= 8) score = 1.0;
+  else if (pct >= 5) score = 0.75 + (pct - 5) / 3 * 0.25;
+  else if (pct >= 2) score = 0.50 + (pct - 2) / 3 * 0.25;
+  else if (pct >= 0) score = 0.20 + (pct / 2) * 0.30;
+  else score = Math.max(0, 0.05);
+  return { score, signal: 'FCF Yield', value: `${pct.toFixed(1)}%` };
+}
+
+/**
+ * RSI(14) — Momentum. 50-70 = strong momentum, not overbought.
+ * Breakout setups tend to be in the 55-75 zone.
+ */
+function scoreRSI(stock) {
+  const v = stock.rsi14;
+  if (v == null || !isFinite(v)) return null;
+  let score;
+  if (v >= 55 && v <= 70) score = 1.0;        // sweet spot
+  else if (v >= 50 && v < 55) score = 0.80;   // building momentum
+  else if (v > 70 && v <= 75) score = 0.70;   // hot but manageable
+  else if (v >= 40 && v < 50) score = 0.50;   // neutral
+  else if (v > 75 && v <= 80) score = 0.40;   // overbought risk
+  else if (v > 80) score = 0.20;              // extended
+  else if (v >= 30 && v < 40) score = 0.30;   // weak
+  else score = 0.10;                           // oversold
+  return { score, signal: 'RSI', value: v.toFixed(0) };
+}
+
+/**
+ * % Below 52w High — Consolidating near highs = breakout setup.
+ * 0-5% below = right at high, 5-15% = healthy pullback, >30% = broken trend
+ */
+function scorePctBelowHigh(stock) {
+  const v = stock.pctBelowHigh;
+  if (v == null || !isFinite(v)) return null;
+  let score;
+  if (v <= 5) score = 1.0;           // at or near highs
+  else if (v <= 10) score = 0.85;    // minor pullback
+  else if (v <= 15) score = 0.65;    // healthy consolidation
+  else if (v <= 25) score = 0.40;    // correction territory
+  else if (v <= 40) score = 0.15;    // significant damage
+  else score = 0.05;                 // broken
+  return { score, signal: 'Near 52w High', value: `${v.toFixed(1)}% below` };
+}
+
+/**
+ * Price vs 200MA — Institutional trend. Above = uptrend.
+ * 0-15% above = confirmed trend, >30% = extended
+ */
+function scorePriceVsMa200(stock) {
+  const v = stock.priceVsMa200;
+  if (v == null || !isFinite(v)) return null;
+  let score;
+  if (v >= 5 && v <= 20) score = 1.0;         // healthy uptrend
+  else if (v > 20 && v <= 35) score = 0.75;   // strong but extended
+  else if (v >= 0 && v < 5) score = 0.65;     // just above — potential inflection
+  else if (v > 35 && v <= 50) score = 0.50;   // very extended
+  else if (v > 50) score = 0.25;              // parabolic
+  else if (v >= -10 && v < 0) score = 0.35;   // slightly below — watch
+  else score = 0.10;                           // deeply below
+  return { score, signal: 'vs 200MA', value: `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` };
+}
+
+/**
+ * Price vs 50MA — Short-term momentum confirmation.
+ */
+function scorePriceVsMa50(stock) {
+  const v = stock.priceVsMa50;
+  if (v == null || !isFinite(v)) return null;
+  let score;
+  if (v >= 2 && v <= 10) score = 1.0;
+  else if (v > 10 && v <= 20) score = 0.75;
+  else if (v >= 0 && v < 2) score = 0.60;
+  else if (v > 20) score = 0.40;
+  else if (v >= -5 && v < 0) score = 0.35;
+  else score = 0.10;
+  return { score, signal: 'vs 50MA', value: `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` };
+}
+
+/**
+ * Debt/Equity — Financial health. <0.5 = conservative, >2 = leveraged.
+ */
+function scoreDebtToEquity(stock) {
+  const v = stock.debtToEquity;
+  if (v == null || !isFinite(v)) return null;
+  let score;
+  if (v < 0) score = 0.10;             // negative equity
+  else if (v <= 0.3) score = 1.0;      // very conservative
+  else if (v <= 0.7) score = 0.80;
+  else if (v <= 1.0) score = 0.60;
+  else if (v <= 1.5) score = 0.40;
+  else if (v <= 2.5) score = 0.20;
+  else score = 0.10;
+  return { score, signal: 'Debt/Equity', value: v.toFixed(2) };
+}
+
+// ---------- Master breakout scoring ----------
+
+const SIGNALS = [
+  // Growth (heaviest weight — this is what drives breakouts)
+  { fn: scoreRevenueGrowth,    weight: 4.0, category: 'growth' },
+  { fn: scoreEpsGrowth,        weight: 3.5, category: 'growth' },
+  { fn: scoreRevenueGrowth3yr, weight: 2.0, category: 'growth' },
+
+  // Valuation vs Growth (is the growth priced in yet?)
+  { fn: scorePEG,              weight: 3.0, category: 'valuation' },
+
+  // Profitability & Quality (business economics)
+  { fn: scoreOperatingMargin,  weight: 2.5, category: 'quality' },
+  { fn: scoreROE,              weight: 2.0, category: 'quality' },
+  { fn: scoreFCFYield,         weight: 2.0, category: 'quality' },
+
+  // Technical Setup (momentum & position)
+  { fn: scoreRSI,              weight: 2.5, category: 'technical' },
+  { fn: scorePctBelowHigh,     weight: 3.0, category: 'technical' },
+  { fn: scorePriceVsMa200,     weight: 2.5, category: 'technical' },
+  { fn: scorePriceVsMa50,      weight: 1.5, category: 'technical' },
+
+  // Financial Health (risk guardrails)
+  { fn: scoreDebtToEquity,     weight: 1.5, category: 'health' },
+];
+
+const MIN_SIGNALS_REQUIRED = 7; // Need at least 7 of 12 signals to score
+
+function scoreStock(stock) {
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+  const signalResults = [];
+
+  for (const { fn, weight, category } of SIGNALS) {
+    const result = fn(stock);
+    if (!result) continue;
+
+    totalWeightedScore += result.score * weight;
+    totalWeight += weight;
+    signalResults.push({
+      ...result,
+      weight,
+      category,
+      contribution: result.score * weight,
+    });
   }
 
-  // Use the internal snapshot route by making a local request
-  // We build the URL relative to the server's own address
-  const port = process.env.PORT || 10000;
-  const url = `http://127.0.0.1:${port}/api/snapshot?ticker=${ticker}&date=${date}`;
+  if (signalResults.length < MIN_SIGNALS_REQUIRED) return null;
 
-  try {
-    const res = await fetch(url, { timeout: 30000 });
-    if (!res.ok) {
-      console.error(`[top-pairs] Failed to fetch snapshot for ${ticker}@${date}: ${res.status}`);
-      return null;
-    }
-    const data = await res.json();
-    templateSnapshotCache.set(cacheKey, { data, ts: Date.now() });
-    return data;
-  } catch (err) {
-    console.error(`[top-pairs] Error fetching snapshot for ${ticker}@${date}:`, err.message);
-    return null;
-  }
+  // Normalize to 0-100
+  const rawScore = (totalWeightedScore / totalWeight) * 100;
+
+  // Bonus: reward stocks that score well across multiple categories
+  const categories = new Set(signalResults.filter(s => s.score >= 0.6).map(s => s.category));
+  const diversityBonus = categories.size >= 4 ? 3 : categories.size >= 3 ? 1.5 : 0;
+
+  const finalScore = Math.min(99, Math.max(0, rawScore + diversityBonus));
+
+  // Sort signals by weighted contribution for display
+  signalResults.sort((a, b) => b.contribution - a.contribution);
+
+  return {
+    breakoutScore: Math.round(finalScore * 10) / 10,
+    signalCount: signalResults.length,
+    topSignals: signalResults.slice(0, 5), // top 5 strongest signals
+    weakSignals: signalResults.filter(s => s.score < 0.3).slice(0, 3), // key weaknesses
+    categoryScores: {
+      growth: avgCategory(signalResults, 'growth'),
+      valuation: avgCategory(signalResults, 'valuation'),
+      quality: avgCategory(signalResults, 'quality'),
+      technical: avgCategory(signalResults, 'technical'),
+      health: avgCategory(signalResults, 'health'),
+    },
+  };
+}
+
+function avgCategory(signals, category) {
+  const catSignals = signals.filter(s => s.category === category);
+  if (catSignals.length === 0) return null;
+  const avg = catSignals.reduce((s, r) => s + r.score, 0) / catSignals.length;
+  return Math.round(avg * 100);
 }
 
 // ---------------------------------------------------------------------------
-// Top candidates computation
+// Computation & caching
 // ---------------------------------------------------------------------------
 let cachedResult = null;
 let lastComputed = 0;
 let computing = false;
-const CACHE_TTL = 30 * 60 * 1000; // recompute every 30 min
-const BATCH_SIZE = 5;
+const CACHE_TTL = 30 * 60 * 1000;
+const BATCH_SIZE = 50; // Process 50 stocks per tick (simple scoring, not N² comparison)
 
-/**
- * For each curated breakout template, find current stocks that most closely
- * match its pre-breakout profile. Return the top candidates across all
- * templates, deduplicated by candidate ticker.
- */
-async function computeBreakoutCandidates(limit = 20) {
-  const cache = getCache();
-  if (cache.size < 10) return [];
+function computeBreakoutCandidatesAsync(limit = 20) {
+  return new Promise((resolve) => {
+    const cache = getCache();
+    if (cache.size < 10) return resolve([]);
 
-  // Step 1: Fetch all template snapshots in parallel
-  console.log(`[top-pairs] Fetching ${BREAKOUT_TEMPLATES.length} template snapshots...`);
-  const snapshotResults = await Promise.all(
-    BREAKOUT_TEMPLATES.map(t => fetchTemplateSnapshot(t.ticker, t.date))
-  );
+    const stocks = Array.from(cache.values());
+    const scored = [];
+    let idx = 0;
 
-  // Build array of valid template snapshots with their metadata
-  const templates = [];
-  for (let i = 0; i < BREAKOUT_TEMPLATES.length; i++) {
-    const snapshot = snapshotResults[i];
-    if (!snapshot) {
-      console.warn(`[top-pairs] Skipping template ${BREAKOUT_TEMPLATES[i].ticker} — no snapshot data`);
-      continue;
+    function processBatch() {
+      const end = Math.min(idx + BATCH_SIZE, stocks.length);
+
+      for (; idx < end; idx++) {
+        const stock = stocks[idx];
+        const result = scoreStock(stock);
+        if (!result) continue;
+
+        scored.push({
+          candidate: {
+            ticker: stock.ticker,
+            companyName: stock.companyName,
+            sector: stock.sector,
+            price: stock.price,
+            marketCap: stock.marketCap,
+          },
+          breakoutScore: result.breakoutScore,
+          signalCount: result.signalCount,
+          topSignals: result.topSignals,
+          weakSignals: result.weakSignals,
+          categoryScores: result.categoryScores,
+        });
+      }
+
+      if (idx < stocks.length) {
+        setImmediate(processBatch);
+      } else {
+        scored.sort((a, b) => b.breakoutScore - a.breakoutScore);
+        resolve(scored.slice(0, limit));
+      }
     }
-    templates.push({
-      ...BREAKOUT_TEMPLATES[i],
-      snapshot,
-    });
-  }
 
-  if (templates.length === 0) {
-    console.error('[top-pairs] No valid template snapshots — cannot compute candidates');
-    return [];
-  }
-
-  console.log(`[top-pairs] Running ${templates.length} templates against ${cache.size} stocks...`);
-
-  // Step 2: For each template, find the best matches in the current universe
-  const allCandidates = [];
-
-  for (const template of templates) {
-    // findMatches expects a snapshot object and the universe cache map
-    const matches = findMatches(template.snapshot, cache, 10);
-
-    for (const match of matches) {
-      allCandidates.push({
-        candidate: {
-          ticker: match.ticker,
-          companyName: match.companyName,
-          sector: match.sector,
-          price: match.price,
-          marketCap: match.marketCap,
-        },
-        template: {
-          ticker: template.ticker,
-          label: template.label,
-          date: template.date,
-          description: template.description,
-        },
-        matchScore: match.matchScore,
-        metricsCompared: match.metricsCompared,
-        topMatches: match.topMatches,
-        topDifferences: match.topDifferences,
-      });
-    }
-  }
-
-  // Step 3: Deduplicate by candidate ticker — keep the highest-scoring entry
-  const bestByCandidate = new Map();
-  for (const entry of allCandidates) {
-    const key = entry.candidate.ticker;
-    const existing = bestByCandidate.get(key);
-    if (!existing || entry.matchScore > existing.matchScore) {
-      // Also collect all templates this candidate matched
-      const allTemplates = existing?.allTemplates || [];
-      allTemplates.push({
-        ticker: entry.template.ticker,
-        label: entry.template.label,
-        score: entry.matchScore,
-      });
-      bestByCandidate.set(key, { ...entry, allTemplates });
-    } else {
-      // Still track that this candidate matched another template
-      existing.allTemplates = existing.allTemplates || [];
-      existing.allTemplates.push({
-        ticker: entry.template.ticker,
-        label: entry.template.label,
-        score: entry.matchScore,
-      });
-    }
-  }
-
-  // Step 4: Sort by best match score, return top N
-  const results = Array.from(bestByCandidate.values())
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, limit)
-    .map(entry => ({
-      candidate: entry.candidate,
-      template: entry.template,  // best-matching template
-      matchScore: entry.matchScore,
-      metricsCompared: entry.metricsCompared,
-      topMatches: entry.topMatches,
-      topDifferences: entry.topDifferences,
-      templateMatchCount: entry.allTemplates?.length || 1,  // how many templates matched
-    }));
-
-  return results;
+    processBatch();
+  });
 }
 
-// Background pre-computation
 async function triggerBackgroundCompute() {
   if (computing) return;
   computing = true;
   try {
-    console.log('[top-pairs] Starting breakout candidate computation...');
+    console.log('[top-pairs] Starting breakout candidate scoring...');
     const start = Date.now();
-    cachedResult = await computeBreakoutCandidates(20);
+    cachedResult = await computeBreakoutCandidatesAsync(20);
     lastComputed = Date.now();
-    console.log(`[top-pairs] Computed ${cachedResult.length} breakout candidates in ${Date.now() - start}ms`);
+    console.log(`[top-pairs] Scored ${cachedResult.length} breakout candidates in ${Date.now() - start}ms`);
   } catch (err) {
-    console.error('[top-pairs] Background computation failed:', err.message);
+    console.error('[top-pairs] Breakout scoring failed:', err.message);
   } finally {
     computing = false;
   }
 }
 
-// Poll for universe readiness and trigger pre-computation
 let bootPollRef = setInterval(() => {
   if (isReady() && !cachedResult && !computing) {
     clearInterval(bootPollRef);
-    // Wait a short delay after universe is ready to avoid competing with initial cache build
-    setTimeout(triggerBackgroundCompute, 5000);
+    triggerBackgroundCompute();
   }
 }, 5000);
 
@@ -253,7 +395,7 @@ router.get('/', (req, res) => {
   if (!computing) {
     triggerBackgroundCompute();
   }
-  return res.status(202).json({ computing: true, message: 'Scanning for breakout candidates, check back shortly.' });
+  return res.status(202).json({ computing: true, message: 'Scoring breakout candidates, check back shortly.' });
 });
 
 module.exports = router;
