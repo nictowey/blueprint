@@ -45,6 +45,7 @@
 }
 
 @layer components {
+  /* ───────── Base card ───────── */
   .card {
     @apply bg-dark-card border border-dark-border rounded-xl transition-all duration-200;
     padding: 1rem;
@@ -58,12 +59,58 @@
     box-shadow: 0 0 30px -10px rgba(201, 168, 76, 0.04);
   }
 
+  /* ───────── Hero search card ───────── */
+  .hero-search-card {
+    @apply rounded-2xl border transition-all duration-300;
+    background: linear-gradient(145deg, #111118 0%, #0e0e14 100%);
+    border-color: #1c1c2e;
+    padding: 1.25rem;
+    box-shadow:
+      0 0 0 1px rgba(201, 168, 76, 0.04),
+      0 4px 30px -8px rgba(0, 0, 0, 0.5),
+      0 0 60px -20px rgba(201, 168, 76, 0.04);
+  }
+  .hero-search-card:focus-within {
+    border-color: rgba(201, 168, 76, 0.2);
+    box-shadow:
+      0 0 0 1px rgba(201, 168, 76, 0.08),
+      0 4px 30px -8px rgba(0, 0, 0, 0.5),
+      0 0 80px -20px rgba(201, 168, 76, 0.08);
+  }
+
+  /* ───────── Hero stat badge ───────── */
+  .hero-stat {
+    @apply inline-flex items-center gap-1;
+  }
+  .hero-stat-value {
+    @apply text-sm font-mono font-bold text-accent;
+  }
+  .hero-stat-label {
+    @apply text-[10px] text-warm-muted;
+  }
+
+  /* ───────── Famous breakout card ───────── */
+  .breakout-card {
+    @apply rounded-xl border border-dark-border/60 bg-dark-surface transition-all duration-200 text-center cursor-pointer;
+    padding: 0.75rem 0.5rem;
+  }
+  .breakout-card:hover {
+    border-color: rgba(201, 168, 76, 0.25);
+    background: rgba(201, 168, 76, 0.03);
+    box-shadow: 0 0 20px -8px rgba(201, 168, 76, 0.1);
+    transform: translateY(-1px);
+  }
+
+  /* ───────── Buttons ───────── */
   .btn-primary {
     @apply bg-accent hover:bg-accent-light text-dark-bg font-semibold rounded-lg transition-all duration-200 cursor-pointer;
     padding: 0.625rem 1.25rem;
   }
   .btn-primary:active {
     transform: scale(0.98);
+  }
+  .btn-primary:disabled {
+    @apply opacity-40 cursor-not-allowed;
   }
 
   .btn-secondary {
@@ -74,6 +121,7 @@
     background: rgba(255, 255, 255, 0.02);
   }
 
+  /* ───────── Input ───────── */
   .input-field {
     @apply bg-dark-surface border border-dark-border text-warm-white rounded-lg px-4 py-2.5 outline-none
            focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all duration-200 w-full;
@@ -83,6 +131,7 @@
     color: #3a3a48;
   }
 
+  /* ───────── Tags ───────── */
   .tag-green {
     @apply text-xs border text-emerald-400 px-2.5 py-0.5 rounded-full;
     background: rgba(16, 185, 129, 0.08);
@@ -101,18 +150,17 @@
     border-color: rgba(201, 168, 76, 0.2);
   }
 
-  /* Section heading with editorial serif */
+  /* ───────── Typography ───────── */
   .section-label {
     @apply text-xs font-medium uppercase tracking-[0.15em] text-warm-muted;
   }
 
-  /* Gold divider line */
+  /* ───────── Decorative ───────── */
   .divider-gold {
     @apply h-px w-full;
     background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.15), transparent);
   }
 
-  /* Glow effect for score rings */
   .glow-gold {
     filter: drop-shadow(0 0 6px rgba(201, 168, 76, 0.2));
   }
@@ -130,6 +178,9 @@
 @media (min-width: 640px) {
   .card, .card-hover {
     padding: 1.5rem;
+  }
+  .hero-search-card {
+    padding: 1.75rem;
   }
   .btn-primary {
     padding: 0.75rem 1.5rem;
