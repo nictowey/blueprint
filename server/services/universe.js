@@ -186,7 +186,9 @@ async function enrichStock(entry) {
 
     rsi14 = computeRSI(closes.slice(-30));
 
-    const high52w = Math.max(...historical.map(d => d.close).filter(c => c != null));
+    // Use only the last 252 trading days (~1 year) for 52-week high
+    const closes52w = closes.slice(-252);
+    const high52w = closes52w.length > 0 ? Math.max(...closes52w) : null;
     const currentPrice = historical[0].close;
 
     if (high52w > 0 && currentPrice != null) {

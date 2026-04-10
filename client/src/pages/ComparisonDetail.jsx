@@ -96,6 +96,7 @@ export default function ComparisonDetail() {
   const ticker = state?.snapshot?.ticker || searchParams.get('ticker');
   const date = state?.snapshot?.date || searchParams.get('date');
   const matchTicker = state?.matchTicker || searchParams.get('match');
+  const profile = state?.profile || searchParams.get('profile') || 'growth_breakout';
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,14 +113,16 @@ export default function ComparisonDetail() {
     const currentT = searchParams.get('ticker');
     const currentD = searchParams.get('date');
     const currentM = searchParams.get('match');
+    const profileParam = profile && profile !== 'growth_breakout' ? `&profile=${profile}` : '';
     if (currentT !== ticker || currentD !== date || currentM !== matchTicker) {
-      navigate(`/comparison?ticker=${encodeURIComponent(ticker)}&date=${date}&match=${encodeURIComponent(matchTicker)}`, { replace: true, state });
+      navigate(`/comparison?ticker=${encodeURIComponent(ticker)}&date=${date}&match=${encodeURIComponent(matchTicker)}${profileParam}`, { replace: true, state });
     }
   }, [ticker, date, matchTicker]);
 
   useEffect(() => {
     if (!ticker || !date || !matchTicker) return;
     const params = new URLSearchParams({ ticker, date, matchTicker });
+    if (profile && profile !== 'growth_breakout') params.set('profile', profile);
     fetch(`/api/comparison?${params}`)
       .then(res => {
         if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Failed'); });

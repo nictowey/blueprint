@@ -5,6 +5,7 @@ const { computeRSI } = require('../services/rsi');
 const { getCache } = require('../services/universe');
 const { calculateSimilarity, MATCH_METRICS } = require('../services/matcher');
 const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
+const { getProfile, DEFAULT_PROFILE } = require('../services/matchProfiles');
 
 // Template side is historical/immutable; match side updates every ~10 min with
 // the incremental refresh cycle — use matching TTL.
@@ -177,8 +178,9 @@ async function fetchTemplate(sym, date) {
     .map(h => h.close);
 
   const rsi14 = computeRSI(pricesAsc.slice(-30));
-  const high52w = historical.length > 0
-    ? historical.reduce((m, h) => Math.max(m, h.close), -Infinity) : null;
+  // 52-week high: use only the last 252 trading days (~1 year)
+  const prices52w = pricesAsc.slice(-252);
+  const high52w = prices52w.length > 0 ? Math.max(...prices52w) : null;
   const pctBelowHigh = price != null && high52w != null && high52w > 0
     ? ((high52w - price) / high52w) * 100 : null;
 
@@ -334,7 +336,9 @@ async function buildCurrentMetrics(ticker) {
 
   const pricesAsc = [...hist].reverse().map(h => h.close);
   const currentPrice = hist[0]?.close ?? null;
-  const high52w = hist.length > 0 ? hist.reduce((m, h) => Math.max(m, h.close), -Infinity) : null;
+  // 52-week high: use only the last 252 trading days (~1 year)
+  const prices52w = pricesAsc.slice(-252);
+  const high52w = prices52w.length > 0 ? Math.max(...prices52w) : null;
   const pctBelowHigh = currentPrice != null && high52w > 0
     ? ((high52w - currentPrice) / high52w) * 100 : null;
   const rsi14 = computeRSI(pricesAsc.slice(-30));
@@ -443,7 +447,7 @@ const MATCH_METRIC_KEYS = [
 ];
 
 router.get('/', async (req, res) => {
-  const { ticker, date, matchTicker } = req.query;
+  const { ticker, date, matchTicker, profile: profileKey } = req.query;
   if (!ticker || !date || !matchTicker)
     return res.status(400).json({ error: 'ticker, date, and matchTicker are required' });
   if (!/^[A-Z0-9.]{1,10}$/i.test(ticker) || !/^[A-Z0-9.]{1,10}$/i.test(matchTicker))
@@ -453,7 +457,10 @@ router.get('/', async (req, res) => {
 
   const sym = ticker.toUpperCase();
   const matchSym = matchTicker.toUpperCase();
-  const cacheKey = `${sym}:${date}:${matchSym}`;
+  const activeProfile = profileKey || DEFAULT_PROFILE;
+  const profile = getProfile(activeProfile);
+  // Include profile in cache key so different strategies produce distinct results
+  const cacheKey = `${sym}:${date}:${matchSym}:${activeProfile}`;
   const cached = comparisonCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < COMPARISON_CACHE_TTL) {
     return res.json(cached.data);
@@ -482,7 +489,8 @@ router.get('/', async (req, res) => {
       const v = templateResult.template[metric];
       return (v != null && isFinite(v)) ? count + 1 : count;
     }, 0);
-    const similarity = calculateSimilarity(templateResult.template, matchMetrics, snapshotPopulatedCount);
+    const profileOptions = { weights: profile.weights, sectorBonus: profile.sectorBonus };
+    const similarity = calculateSimilarity(templateResult.template, matchMetrics, snapshotPopulatedCount, profileOptions);
 
     // Extract top matches and differences
     const rankedByContribution = [...similarity.metricScores]

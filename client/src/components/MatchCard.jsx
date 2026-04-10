@@ -10,12 +10,13 @@ const KEY_STATS = [
 
 const CIRCUMFERENCE = 150.8; // 2π × r=24
 
-export default function MatchCard({ match, snapshot, rank }) {
+export default function MatchCard({ match, snapshot, rank, profile }) {
   const navigate = useNavigate();
   const offset = CIRCUMFERENCE * (1 - match.matchScore / 100);
 
   function goToComparison() {
-    navigate(`/comparison?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}&match=${encodeURIComponent(match.ticker)}`, { state: { snapshot, matchTicker: match.ticker } });
+    const profileParam = profile && profile !== 'growth_breakout' ? `&profile=${profile}` : '';
+    navigate(`/comparison?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}&match=${encodeURIComponent(match.ticker)}${profileParam}`, { state: { snapshot, matchTicker: match.ticker, profile } });
   }
 
   return (

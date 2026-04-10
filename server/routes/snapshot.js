@@ -115,6 +115,12 @@ router.get('/', async (req, res) => {
     const ttm = ttmIncomeQ.length >= 4 ? sumQuarters(ttmIncomeQ) : null;
     const priorTtm = priorTtmIncomeQ.length >= 4 ? sumQuarters(priorTtmIncomeQ) : null;
 
+    // Data freshness: the most recent quarter-end date included in the TTM window.
+    // This tells the user what financial period the snapshot is actually based on,
+    // since quarterly filings lag by 45-60 days after the quarter ends.
+    const mostRecentQuarterDate = ttmIncomeQ[0]?.date ?? null;
+    const ttmQuarterCount = ttmIncomeQ.length;
+
     // --- Margins from TTM ---
     const grossMargin     = ttm && ttm.revenue ? ttm.grossProfit / ttm.revenue : null;
     const operatingMargin = ttm && ttm.revenue ? ttm.operatingIncome / ttm.revenue : null;
@@ -147,14 +153,20 @@ router.get('/', async (req, res) => {
     // --- Price ---
     const price = findPrice(historical, date);
 
-    // --- Technical indicators (unchanged — price-based) ---
-    const pricesAsc = [...historical]
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+    // --- Technical indicators (price-based) ---
+    // Filter historical to only include prices on or before the snapshot date,
+    // then sort ascending for moving average and RSI calculations.
+    const histFiltered = [...historical]
       .filter(h => new Date(h.date) <= new Date(date))
-      .map(h => h.close);
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    const pricesAsc = histFiltered.map(h => h.close);
     const rsi14 = computeRSI(pricesAsc.slice(-30));
 
-    const high52w = historical.length > 0 ? Math.max(...historical.map(h => h.close)) : null;
+    // 52-week high: use only the last 252 trading days (≈1 year) before the
+    // snapshot date. Previously this used the entire historical array, which
+    // could include prices from before the 52-week window if FMP returned extra data.
+    const prices52w = pricesAsc.slice(-252);
+    const high52w = prices52w.length > 0 ? Math.max(...prices52w) : null;
     const pctBelowHigh =
       price != null && high52w != null && high52w > 0
         ? ((high52w - price) / high52w) * 100
@@ -264,6 +276,9 @@ router.get('/', async (req, res) => {
       // Overview
       marketCap:         computedMarketCap ?? null,
       shortInterestPct:  shortRaw?.shortInterestPercent ?? null,
+      // Data freshness metadata
+      dataAsOf:          mostRecentQuarterDate,
+      ttmQuarters:       ttmQuarterCount,
     };
     snapshotCache.set(cacheKey, { data: result, ts: Date.now() });
     res.json(result);

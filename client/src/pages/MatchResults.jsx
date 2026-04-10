@@ -169,10 +169,16 @@ export default function MatchResults() {
   }, [snapshot, activeProfile]);
 
   useEffect(() => {
+    // Clear any in-flight retry timers BEFORE starting new fetch
+    // (prevents stale timers from previous profile/snapshot firing concurrently)
+    if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
+
     // Reset state when profile changes so we get fresh results
     setLoading(true);
     setMatches(null);
     setError(null);
+    setWarming(false);
     retriesLeft.current = MAX_RETRIES;
     fetchMatches();
     return () => {
@@ -207,6 +213,12 @@ export default function MatchResults() {
               <span className="text-slate-400 text-xs sm:text-sm">{snapshot.date}</span>
             </div>
             <p className="text-sm text-slate-400">{snapshot.companyName}</p>
+            {snapshot.dataAsOf && snapshot.dataAsOf !== snapshot.date && (
+              <p className="text-xs text-yellow-500/80 mt-1">
+                Financials as of {snapshot.dataAsOf}
+                {snapshot.ttmQuarters < 4 ? ` (${snapshot.ttmQuarters}/4 quarters available)` : ''}
+              </p>
+            )}
           </div>
           <div className="flex gap-4 sm:gap-6">
             {[
@@ -366,7 +378,7 @@ export default function MatchResults() {
             ) : (
               <div className="flex flex-col gap-4">
                 {sorted.map((match, i) => (
-                  <MatchCard key={match.ticker} match={match} snapshot={snapshot} rank={i + 1} />
+                  <MatchCard key={match.ticker} match={match} snapshot={snapshot} rank={i + 1} profile={activeProfile} />
                 ))}
               </div>
             )}

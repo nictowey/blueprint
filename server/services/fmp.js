@@ -6,6 +6,7 @@ const BASE = 'https://financialmodelingprep.com/stable';
 // 220ms = ~272 calls/min — slightly above old 240, safely under 300
 const RATE_LIMIT_MS = 220;
 const MAX_RETRIES = 3;
+const REQUEST_TIMEOUT_MS = 15000; // 15s timeout per FMP request
 
 function key() {
   if (!process.env.FMP_API_KEY) throw new Error('FMP_API_KEY not set');
@@ -27,7 +28,10 @@ async function fmpGet(path, params = {}, throttle = true) {
     }
 
     try {
-      const res = await fetch(url.toString());
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      const res = await fetch(url.toString(), { signal: controller.signal });
+      clearTimeout(timeout);
 
       if (res.status === 429) {
         const waitTime = 8000 + (retries * 3000);

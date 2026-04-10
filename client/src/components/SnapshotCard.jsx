@@ -36,6 +36,12 @@ export default function SnapshotCard({ snapshot }) {
         <div className="sm:text-right">
           <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Snapshot Date</p>
           <p className="text-sm font-medium text-slate-300">{snapshot.date}</p>
+          {snapshot.dataAsOf && snapshot.dataAsOf !== snapshot.date && (
+            <p className="text-[10px] sm:text-xs text-yellow-500/80 mt-1">
+              Financials as of {snapshot.dataAsOf}
+              {snapshot.ttmQuarters < 4 ? ` (${snapshot.ttmQuarters}/4 quarters)` : ''}
+            </p>
+          )}
         </div>
       </div>
 
