@@ -128,7 +128,7 @@ export default function TemplatePicker() {
           </div>
           <button
             className="btn-primary whitespace-nowrap"
-            onClick={loadSnapshot}
+            onClick={() => loadSnapshot()}
             disabled={loading}
           >
             {loading ? (
