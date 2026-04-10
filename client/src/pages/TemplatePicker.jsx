@@ -193,13 +193,72 @@ export default function TemplatePicker() {
       )}
 
       {/* Hero */}
-      <div className="text-center mb-8 sm:mb-12">
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-100 mb-3">
-          Find the next <span className="text-accent">10x</span>
+      <div className="text-center mb-10 sm:mb-14">
+        <div className="inline-block mb-4 px-3 py-1 rounded-full border border-accent/30 bg-accent/5 text-accent text-xs font-medium tracking-wide">
+          28 metrics · 5 strategies · {stockCount > 0 ? `${stockCount.toLocaleString()} stocks` : '5,000+ stocks'}
+        </div>
+        <h1 className="text-3xl sm:text-5xl font-bold text-slate-100 mb-4 leading-tight">
+          Find stocks that look like<br />
+          <span className="text-accent">yesterday's biggest winners</span>
         </h1>
-        <p className="text-slate-400 text-base sm:text-lg">
-          Pick a stock and a date. See what its profile looked like. Find stocks that look the same today.
+        <p className="text-slate-400 text-base sm:text-lg max-w-xl mx-auto leading-relaxed">
+          Blueprint matches today's stocks against historical breakout profiles using valuation,
+          growth, profitability, and momentum data — then backtests the results.
         </p>
+      </div>
+
+      {/* How it works */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        {[
+          {
+            step: '1',
+            title: 'Pick a winner',
+            desc: 'Choose a stock that broke out and the date before it ran. Blueprint captures its full financial profile.',
+            icon: (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#60a5fa" strokeWidth="1.5"/><path d="M10 6v4l3 2" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            ),
+          },
+          {
+            step: '2',
+            title: 'Find matches',
+            desc: 'Blueprint scans thousands of stocks to find the ones that most closely resemble your template today.',
+            icon: (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5" stroke="#a78bfa" strokeWidth="1.5"/><path d="M12.5 12.5L17 17" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            ),
+          },
+          {
+            step: '3',
+            title: 'Validate & track',
+            desc: 'Backtest how past matches performed, compare metrics side by side, and add the best to your watchlist.',
+            icon: (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 14l4-4 3 3 7-9" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            ),
+          },
+        ].map(item => (
+          <div key={item.step} className="card text-center py-5 px-4">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              {item.icon}
+              <span className="text-xs text-slate-600 font-bold">{item.step}</span>
+            </div>
+            <p className="text-sm font-semibold text-slate-200 mb-1">{item.title}</p>
+            <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Feature highlights */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+        {[
+          { label: 'Sector-relative scoring', desc: 'Compares within sectors' },
+          { label: 'Momentum matching', desc: 'Price trajectory alignment' },
+          { label: 'Forward backtesting', desc: '1m to 12m returns vs SPY' },
+          { label: 'CSV export & sharing', desc: 'Share any analysis' },
+        ].map(f => (
+          <div key={f.label} className="rounded-lg border border-dark-border/50 bg-dark-card/30 px-3 py-3 text-center">
+            <p className="text-xs font-semibold text-slate-300 mb-0.5">{f.label}</p>
+            <p className="text-[10px] text-slate-600">{f.desc}</p>
+          </div>
+        ))}
       </div>
 
       {/* Search area */}
@@ -267,6 +326,36 @@ export default function TemplatePicker() {
           <p className="mt-3 text-red-400 text-sm">{error}</p>
         )}
       </div>
+
+      {/* Quick start suggestions — only show when no ticker entered */}
+      {!ticker && !snapshot && (
+        <div className="mb-6">
+          <p className="text-xs text-slate-600 uppercase tracking-wider mb-3 text-center">Try a famous breakout</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {[
+              { ticker: 'CLS', date: '2023-12-01', label: 'Celestica', desc: 'Dec 2023' },
+              { ticker: 'NVDA', date: '2023-01-03', label: 'NVIDIA', desc: 'Jan 2023' },
+              { ticker: 'SMCI', date: '2023-06-01', label: 'Super Micro', desc: 'Jun 2023' },
+              { ticker: 'PLTR', date: '2023-05-01', label: 'Palantir', desc: 'May 2023' },
+              { ticker: 'META', date: '2023-02-01', label: 'Meta', desc: 'Feb 2023' },
+              { ticker: 'AVGO', date: '2023-06-01', label: 'Broadcom', desc: 'Jun 2023' },
+            ].map(s => (
+              <button
+                key={s.ticker}
+                className="px-3 py-2 rounded-lg border border-dark-border/50 hover:border-accent/40 bg-dark-card/30 hover:bg-accent/5 transition-all text-left group"
+                onClick={() => {
+                  handleTickerChange(s.ticker);
+                  setDate(s.date);
+                  loadSnapshot(s.ticker, s.date);
+                }}
+              >
+                <span className="font-mono font-bold text-sm text-slate-200 group-hover:text-accent transition-colors">{s.ticker}</span>
+                <span className="block text-[10px] text-slate-600">{s.label} · {s.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Snapshot card */}
       {snapshot && (
