@@ -28,7 +28,10 @@ export default function TemplatePicker() {
   const [error, setError] = useState(null);
   const [serverReady, setServerReady] = useState(true);
   const [stockCount, setStockCount] = useState(0);
+  const [dateRange, setDateRange] = useState(null);
+  const [dateRangeLoading, setDateRangeLoading] = useState(false);
   const pollRef = useRef(null);
+  const dateRangeAbort = useRef(null);
 
   // Poll /api/status until the universe cache is ready
   useEffect(() => {
@@ -54,6 +57,48 @@ export default function TemplatePicker() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  // Fetch date range when ticker changes
+  async function fetchDateRange(sym) {
+    if (!sym || sym.trim().length === 0) {
+      setDateRange(null);
+      return;
+    }
+    // Cancel previous in-flight request
+    if (dateRangeAbort.current) dateRangeAbort.current.abort();
+    const controller = new AbortController();
+    dateRangeAbort.current = controller;
+    setDateRangeLoading(true);
+    try {
+      const res = await fetch(`/api/snapshot/date-range?ticker=${encodeURIComponent(sym)}`, { signal: controller.signal });
+      if (!res.ok) throw new Error('Failed to fetch date range');
+      const data = await res.json();
+      setDateRange(data);
+      // If current date is before earliest valid date, clear it
+      if (date && data.earliestDate && date < data.earliestDate) {
+        setDate('');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setDateRange(null);
+      }
+    } finally {
+      setDateRangeLoading(false);
+    }
+  }
+
+  // Wrap setTicker to also trigger date range lookup
+  function handleTickerChange(val) {
+    setTicker(val);
+    setSnapshot(null);
+    setError(null);
+    // Debounce: only fetch date range if looks like a valid ticker (1-10 alphanumeric chars)
+    if (/^[A-Za-z0-9.]{1,10}$/.test(val)) {
+      fetchDateRange(val);
+    } else {
+      setDateRange(null);
+    }
+  }
 
   async function loadSnapshot(overrideTicker, overrideDate) {
     const t = overrideTicker || ticker;
@@ -111,8 +156,8 @@ export default function TemplatePicker() {
             <label className="block text-sm text-slate-400 mb-1.5">Ticker</label>
             <TickerSearch
               value={ticker}
-              onChange={setTicker}
-              onSelect={setTicker}
+              onChange={handleTickerChange}
+              onSelect={handleTickerChange}
             />
           </div>
           <div>
@@ -121,10 +166,22 @@ export default function TemplatePicker() {
               type="date"
               className="input-field w-40"
               value={date}
-              min="2010-01-01"
+              min={dateRange?.earliestDate || '2000-01-01'}
               max={yesterday()}
               onChange={e => setDate(e.target.value)}
             />
+            {dateRangeLoading && (
+              <p className="text-xs text-slate-500 mt-1">Checking available dates…</p>
+            )}
+            {dateRange && !dateRangeLoading && dateRange.earliestDate && (
+              <p className="text-xs text-slate-500 mt-1">
+                Data from {dateRange.earliestDate}
+                {dateRange.message && <span className="text-yellow-500/80"> — {dateRange.message}</span>}
+              </p>
+            )}
+            {dateRange && !dateRangeLoading && !dateRange.earliestDate && (
+              <p className="text-xs text-red-400/80 mt-1">No financial data found for {ticker.toUpperCase()}</p>
+            )}
           </div>
           <button
             className="btn-primary whitespace-nowrap"
@@ -153,7 +210,7 @@ export default function TemplatePicker() {
               <button
                 key={ex.ticker}
                 className="border border-dark-border hover:border-accent/50 bg-dark-card hover:bg-dark-card/80 text-left px-4 py-2.5 rounded-lg transition-all duration-150 group"
-                onClick={() => { setTicker(ex.ticker); setDate(ex.date); loadSnapshot(ex.ticker, ex.date); }}
+                onClick={() => { handleTickerChange(ex.ticker); setDate(ex.date); loadSnapshot(ex.ticker, ex.date); }}
               >
                 <span className="font-mono font-bold text-slate-200 text-sm group-hover:text-accent transition-colors">{ex.ticker}</span>
                 <span className="text-slate-500 text-xs ml-2">{ex.date}</span>

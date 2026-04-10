@@ -93,16 +93,24 @@ async function fetchTemplate(sym, date) {
     ? afterDate.toISOString().slice(0, 10)
     : new Date().toISOString().slice(0, 10);
 
+  // Dynamic limits — same logic as snapshot.js to reach older dates
+  const now = new Date();
+  const snapDate = new Date(date);
+  const yearsBack = Math.max(0, (now.getTime() - snapDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  const incomeLimit = Math.max(20, Math.ceil((yearsBack + 4) * 4) + 4);
+  const balanceCashLimit = Math.max(8, Math.ceil((yearsBack + 1) * 4) + 4);
+  const annualLimit = Math.max(4, Math.ceil(yearsBack + 4) + 1);
+
   const [profileR, incomeR, histR, shortR, balanceSheetR, cashFlowR, balanceSheetAnnualR, cashFlowAnnualR, sparklineR] =
     await Promise.allSettled([
       fmp.getProfile(sym, false),
-      fmp.getIncomeStatements(sym, 20, false, 'quarter'),
+      fmp.getIncomeStatements(sym, incomeLimit, false, 'quarter'),
       fmp.getHistoricalPrices(sym, fromStr, date, false),
       fmp.getShortInterest(sym, false),
-      fmp.getBalanceSheet(sym, 8, false, 'quarter'),
-      fmp.getCashFlowStatement(sym, 8, false, 'quarter'),
-      fmp.getBalanceSheet(sym, 4, false),
-      fmp.getCashFlowStatement(sym, 4, false),
+      fmp.getBalanceSheet(sym, balanceCashLimit, false, 'quarter'),
+      fmp.getCashFlowStatement(sym, balanceCashLimit, false, 'quarter'),
+      fmp.getBalanceSheet(sym, annualLimit, false),
+      fmp.getCashFlowStatement(sym, annualLimit, false),
       fmp.getHistoricalPrices(sym, date, sparklineEnd, false),
     ]);
 
