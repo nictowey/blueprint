@@ -1,17 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 
 export default function TickerSearch({ value, onChange, onSelect }) {
-  const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
-
-  // Sync internal query when parent value changes (e.g. example template click)
-  useEffect(() => {
-    if (value != null && value !== query) setQuery(value);
-  }, [value]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -26,7 +20,6 @@ export default function TickerSearch({ value, onChange, onSelect }) {
 
   function handleChange(e) {
     const val = e.target.value.toUpperCase();
-    setQuery(val);
     onChange(val);
 
     clearTimeout(debounceRef.current);
@@ -48,7 +41,6 @@ export default function TickerSearch({ value, onChange, onSelect }) {
   }
 
   function handleSelect(item) {
-    setQuery(item.symbol);
     onChange(item.symbol);
     onSelect(item.symbol);
     setOpen(false);
@@ -62,7 +54,7 @@ export default function TickerSearch({ value, onChange, onSelect }) {
           type="text"
           className="input-field pr-10 uppercase tracking-widest font-mono"
           placeholder="NVDA"
-          value={query}
+          value={value || ''}
           onChange={handleChange}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
         />
