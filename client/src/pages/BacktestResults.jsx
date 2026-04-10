@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { httpError } from '../utils/httpError';
+import ReturnBarChart from '../components/ReturnBarChart';
 
 const PERIODS = ['1m', '3m', '6m', '12m'];
 const PERIOD_LABELS = { '1m': '1 Month', '3m': '3 Months', '6m': '6 Months', '12m': '12 Months' };
@@ -82,6 +83,7 @@ export default function BacktestResults() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [chartPeriod, setChartPeriod] = useState('3m');
 
   useEffect(() => {
     if (!ticker || !date) { navigate('/', { replace: true }); return; }
@@ -170,6 +172,29 @@ export default function BacktestResults() {
             benchmark={benchmark}
           />
         ))}
+      </div>
+
+      {/* Return visualization */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-xs text-slate-500 uppercase tracking-wider">Return distribution</span>
+          <div className="flex gap-1">
+            {PERIODS.map(p => (
+              <button
+                key={p}
+                className={`text-xs px-2.5 py-1 rounded ${chartPeriod === p ? 'bg-accent/20 text-accent' : 'text-slate-500 hover:text-slate-300'}`}
+                onClick={() => setChartPeriod(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ReturnBarChart
+          results={results}
+          period={chartPeriod}
+          benchmarkReturn={benchmark?.returns?.[chartPeriod]?.returnPct}
+        />
       </div>
 
       {/* Results table */}

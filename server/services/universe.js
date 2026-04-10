@@ -211,6 +211,9 @@ async function enrichStock(entry) {
     }
 
     entry.price = currentPrice ?? entry.price;
+
+    // Store last 30 daily closes for mini sparklines in match cards
+    entry.recentCloses = closes.slice(-30);
   }
 
   // --- Computed ratios (same formulas as snapshot.js) ---

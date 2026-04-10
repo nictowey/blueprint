@@ -5,6 +5,7 @@ import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
 import { getMetricColorFromScore, getMetricColor } from '../utils/metricColor';
 import { httpError } from '../utils/httpError';
+import PriceOverlayChart from '../components/PriceOverlayChart';
 
 const METRIC_GROUPS = [
   { label: 'Overview',         metrics: ['marketCap', 'eps', 'dividendYield'] },
@@ -234,6 +235,20 @@ export default function ComparisonDetail() {
             </div>
           );
         })()}
+
+        {/* Price overlay chart */}
+        {data?.sparkline?.length > 1 && data?.matchSparkline?.length > 1 && (
+          <div className="card mb-6 bg-dark-bg">
+            <PriceOverlayChart
+              templateData={data.sparkline}
+              matchData={data.matchSparkline}
+              templateTicker={data.template.ticker}
+              matchTicker={data.match.ticker}
+              templateLabel={`${data.template.ticker} (post-snapshot)`}
+              matchLabel={`${data.match.ticker} (last 12mo)`}
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* LEFT PANEL — Template (historical) */}

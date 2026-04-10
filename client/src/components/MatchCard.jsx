@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
+import MiniSparkline from './MiniSparkline';
 
 const KEY_STATS = [
   { key: 'peRatio', label: 'P/E' },
@@ -37,6 +38,9 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
             <span className="text-sm text-slate-300 font-medium">
               {formatMetric('price', match.price)}
             </span>
+            {match.recentCloses?.length > 2 && (
+              <MiniSparkline prices={match.recentCloses} width={64} height={22} />
+            )}
           </div>
         </div>
 
