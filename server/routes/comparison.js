@@ -5,7 +5,7 @@ const { computeRSI } = require('../services/rsi');
 const { getCache } = require('../services/universe');
 const { calculateSimilarity, MATCH_METRICS } = require('../services/matcher');
 const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
-const { getProfile, DEFAULT_PROFILE } = require('../services/matchProfiles');
+const { getProfile, DEFAULT_PROFILE, PROFILE_KEYS } = require('../services/matchProfiles');
 
 // Template side is historical/immutable; match side updates every ~10 min with
 // the incremental refresh cycle — use matching TTL.
@@ -457,7 +457,7 @@ router.get('/', async (req, res) => {
 
   const sym = ticker.toUpperCase();
   const matchSym = matchTicker.toUpperCase();
-  const activeProfile = profileKey || DEFAULT_PROFILE;
+  const activeProfile = profileKey && PROFILE_KEYS.includes(profileKey) ? profileKey : DEFAULT_PROFILE;
   const profile = getProfile(activeProfile);
   // Include profile in cache key so different strategies produce distinct results
   const cacheKey = `${sym}:${date}:${matchSym}:${activeProfile}`;

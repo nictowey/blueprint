@@ -6,8 +6,11 @@ router.get('/', async (req, res) => {
   const { q } = req.query;
   if (!q || q.trim().length < 1) return res.json([]);
 
+  // Prevent excessively long queries from being forwarded to FMP
+  const query = q.trim().slice(0, 20);
+
   try {
-    const results = await fmp.searchTickers(q.trim());
+    const results = await fmp.searchTickers(query);
     const filtered = results
       .filter(r => r.exchange === 'NASDAQ' || r.exchange === 'NYSE')
       .slice(0, 10)

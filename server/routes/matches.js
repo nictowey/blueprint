@@ -3,20 +3,27 @@ const router = express.Router();
 const { getCache, isReady } = require('../services/universe');
 const { findMatches, MATCH_METRICS } = require('../services/matcher');
 const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
-const { getProfile, applyHardFilters, DEFAULT_PROFILE } = require('../services/matchProfiles');
+const { getProfile, applyHardFilters, DEFAULT_PROFILE, PROFILE_KEYS } = require('../services/matchProfiles');
 
 router.get('/', async (req, res) => {
   const { ticker, date, sector, profile: profileKey } = req.query;
   if (!ticker || !date)
     return res.status(400).json({ error: 'ticker and date are required' });
+  if (!/^[A-Z0-9.]{1,10}$/i.test(ticker))
+    return res.status(400).json({ error: 'invalid ticker format' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime()))
+    return res.status(400).json({ error: 'invalid date format, expected YYYY-MM-DD' });
+  if (sector && sector.length > 50)
+    return res.status(400).json({ error: 'invalid sector value' });
 
   if (!isReady())
     return res.status(503).json({ error: 'Stock universe cache is still loading. Please try again in a moment.' });
 
   const sym = ticker.toUpperCase();
 
-  // Resolve the match profile (defaults to growth_breakout)
-  const profile = getProfile(profileKey || DEFAULT_PROFILE);
+  // Validate and resolve the match profile (defaults to growth_breakout)
+  const resolvedProfileKey = profileKey && PROFILE_KEYS.includes(profileKey) ? profileKey : DEFAULT_PROFILE;
+  const profile = getProfile(resolvedProfileKey);
 
   // Prefer snapshot cache (full-precision values) over URL params (truncated).
   const snapCacheKey = `${sym}:${date}`;
