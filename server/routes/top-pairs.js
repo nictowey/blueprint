@@ -7,74 +7,88 @@ let cachedResult = null;
 let lastComputed = 0;
 let computing = false;
 const CACHE_TTL = 30 * 60 * 1000; // recompute every 30 min
+const BATCH_SIZE = 50; // Process 50 stocks per event loop tick
 
-function computeTopPairs(limit = 20) {
-  const cache = getCache();
-  if (cache.size < 10) return [];
+/**
+ * Chunked top-pairs computation — processes BATCH_SIZE stocks per tick
+ * so the event loop stays responsive for snapshot/match requests.
+ */
+function computeTopPairsAsync(limit = 20) {
+  return new Promise((resolve) => {
+    const cache = getCache();
+    if (cache.size < 10) return resolve([]);
 
-  const stocks = Array.from(cache.values());
+    const stocks = Array.from(cache.values());
+    const seen = new Set();
+    const pairs = [];
+    let idx = 0;
 
-  // For each stock, find its best matches (grab a few to skip same-company pairs)
-  const seen = new Set();
-  const pairs = [];
+    function processBatch() {
+      const end = Math.min(idx + BATCH_SIZE, stocks.length);
 
-  for (const stock of stocks) {
-    const matches = findMatches(stock, cache, 5);
+      for (; idx < end; idx++) {
+        const stock = stocks[idx];
+        const matches = findMatches(stock, cache, 5);
 
-    for (const match of matches) {
-      // Skip same-company share classes (uses improved detection from matcher)
-      if (isSameCompany(stock.ticker, match.ticker, stock.companyName, match.companyName)) continue;
+        for (const match of matches) {
+          if (isSameCompany(stock.ticker, match.ticker, stock.companyName, match.companyName)) continue;
 
-      // Dedupe: A↔B same as B↔A
-      const pairKey = [stock.ticker, match.ticker].sort().join(':');
-      if (seen.has(pairKey)) continue;
-      seen.add(pairKey);
+          const pairKey = [stock.ticker, match.ticker].sort().join(':');
+          if (seen.has(pairKey)) continue;
+          seen.add(pairKey);
 
-      pairs.push({
-        stockA: {
-          ticker: stock.ticker,
-          companyName: stock.companyName,
-          sector: stock.sector,
-          price: stock.price,
-          marketCap: stock.marketCap,
-        },
-        stockB: {
-          ticker: match.ticker,
-          companyName: match.companyName,
-          sector: match.sector,
-          price: match.price,
-          marketCap: match.marketCap,
-        },
-        matchScore: match.matchScore,
-        metricsCompared: match.metricsCompared,
-        topMatches: match.topMatches,
-      });
-      break; // only take the first non-same-company match per stock
+          pairs.push({
+            stockA: {
+              ticker: stock.ticker,
+              companyName: stock.companyName,
+              sector: stock.sector,
+              price: stock.price,
+              marketCap: stock.marketCap,
+            },
+            stockB: {
+              ticker: match.ticker,
+              companyName: match.companyName,
+              sector: match.sector,
+              price: match.price,
+              marketCap: match.marketCap,
+            },
+            matchScore: match.matchScore,
+            metricsCompared: match.metricsCompared,
+            topMatches: match.topMatches,
+          });
+          break;
+        }
+      }
+
+      if (idx < stocks.length) {
+        // Yield to event loop, then continue
+        setImmediate(processBatch);
+      } else {
+        // Done — sort and return top results
+        pairs.sort((a, b) => b.matchScore - a.matchScore);
+        resolve(pairs.slice(0, limit));
+      }
     }
-  }
 
-  pairs.sort((a, b) => b.matchScore - a.matchScore);
-  return pairs.slice(0, limit);
+    processBatch();
+  });
 }
 
 // Background pre-computation — run after universe is ready
-function triggerBackgroundCompute() {
+async function triggerBackgroundCompute() {
   if (computing) return;
   computing = true;
-  // Use setImmediate to avoid blocking the event loop during startup
-  setImmediate(() => {
-    try {
-      console.log('[top-pairs] Starting background computation...');
-      const start = Date.now();
-      cachedResult = computeTopPairs(20);
-      lastComputed = Date.now();
-      console.log(`[top-pairs] Computed ${cachedResult.length} pairs in ${Date.now() - start}ms`);
-    } catch (err) {
-      console.error('[top-pairs] Background computation failed:', err.message);
-    } finally {
-      computing = false;
-    }
-  });
+  try {
+    console.log('[top-pairs] Starting background computation...');
+    const start = Date.now();
+    cachedResult = await computeTopPairsAsync(20);
+    lastComputed = Date.now();
+    console.log(`[top-pairs] Computed ${cachedResult.length} pairs in ${Date.now() - start}ms`);
+  } catch (err) {
+    console.error('[top-pairs] Background computation failed:', err.message);
+  } finally {
+    computing = false;
+  }
 }
 
 // Poll for universe readiness and trigger pre-computation
