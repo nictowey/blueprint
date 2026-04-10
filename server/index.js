@@ -15,6 +15,10 @@ app.use('/api/comparison', require('./routes/comparison'));
 app.use('/api/status',     require('./routes/status'));
 app.use('/api/top-pairs',  require('./routes/top-pairs'));
 
+// Profiles endpoint — returns list of available match profiles for the UI
+const { listProfiles } = require('./services/matchProfiles');
+app.get('/api/profiles', (_req, res) => res.json(listProfiles()));
+
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
   app.get('*', (_req, res) =>

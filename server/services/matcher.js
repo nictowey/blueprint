@@ -14,47 +14,46 @@ const MATCH_METRICS = [
   'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta',
 ];
 
-const METRIC_WEIGHTS = {
+const { getProfile, DEFAULT_PROFILE } = require('./matchProfiles');
+
+// Default weights — used when no profile is specified (growth_breakout)
+const DEFAULT_METRIC_WEIGHTS = {
   // --- Tier 1: Core breakout signals (3.0) ---
-  // These define whether the company is in a similar growth/valuation phase
-  revenueGrowthYoY: 3.0,   // accelerating revenue = #1 breakout signal
-  epsGrowthYoY: 3.0,       // earnings acceleration = operating leverage confirmation
-  pegRatio: 3.0,           // growth relative to valuation = "is growth priced in yet?"
-  operatingMargin: 3.0,    // margin profile defines business economics & operating leverage
-
+  revenueGrowthYoY: 3.0,
+  epsGrowthYoY: 3.0,
+  pegRatio: 3.0,
+  operatingMargin: 3.0,
   // --- Tier 2: Valuation & momentum setup (2.5) ---
-  // Confirms the stock is in a similar valuation and technical position
-  peRatio: 2.5,            // how market prices earnings
-  evToEBITDA: 2.5,         // enterprise valuation (debt-aware)
-  pctBelowHigh: 2.5,       // near high = breakout candidate, far below = distressed
-  priceVsMa200: 2.5,       // institutional trend direction — key breakout indicator
-  marketCap: 2.5,          // size tier defines growth runway & institutional interest
-
+  peRatio: 2.5,
+  evToEBITDA: 2.5,
+  pctBelowHigh: 2.5,
+  priceVsMa200: 2.5,
+  marketCap: 2.5,
   // --- Tier 3: Quality & risk confirmation (2.0) ---
-  // Confirms the company has similar financial quality and risk profile
-  returnOnEquity: 2.0,     // capital efficiency (lowered: can be inflated by buybacks/leverage)
-  revenueGrowth3yr: 2.0,   // sustained growth track record — not just one good year
-  freeCashFlowYield: 2.0,  // real cash generation — separates quality from hype
-  returnOnCapital: 2.0,    // invested capital efficiency — true business quality
-  priceVsMa50: 2.0,        // short-term momentum — is the stock in an active move?
-
+  returnOnEquity: 2.0,
+  revenueGrowth3yr: 2.0,
+  freeCashFlowYield: 2.0,
+  returnOnCapital: 2.0,
+  priceVsMa50: 2.0,
   // --- Tier 4: Risk guardrails (1.5) ---
-  debtToEquity: 1.5,       // leverage risk — overleveraged companies fail differently
-  netDebtToEBITDA: 1.5,    // balance sheet health vs earnings
-  rsi14: 1.5,              // momentum state — overbought/oversold context matters
-  grossMargin: 1.5,        // business model indicator — high vs low margin
-
+  debtToEquity: 1.5,
+  netDebtToEBITDA: 1.5,
+  rsi14: 1.5,
+  grossMargin: 1.5,
   // --- Tier 5: Supporting context (1.0) ---
-  beta: 1.0,               // volatility profile — less actionable for breakout screening
-  netMargin: 1.0,          // net margin (operating margin already captured above)
-  ebitdaMargin: 1.0,       // EBITDA margin (operating margin already captured)
-  returnOnAssets: 1.0,     // asset efficiency (ROE/ROC already captured)
-  priceToBook: 1.0,        // book value relevance varies by sector
-  priceToSales: 1.0,       // revenue multiple
-  evToRevenue: 1.0,        // enterprise revenue multiple
-  currentRatio: 1.0,       // liquidity — important but not a breakout signal
-  interestCoverage: 1.0,   // debt service ability
+  beta: 1.0,
+  netMargin: 1.0,
+  ebitdaMargin: 1.0,
+  returnOnAssets: 1.0,
+  priceToBook: 1.0,
+  priceToSales: 1.0,
+  evToRevenue: 1.0,
+  currentRatio: 1.0,
+  interestCoverage: 1.0,
 };
+
+// Kept for backward-compat — existing code that references METRIC_WEIGHTS directly
+const METRIC_WEIGHTS = DEFAULT_METRIC_WEIGHTS;
 
 // ---------- Metric classification for specialized similarity functions ----------
 
@@ -411,14 +410,17 @@ function growthQualityPenalty(snapshot, stock) {
 
 // ---------- Core similarity scoring ----------
 
-function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
+function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = {}) {
+  const weights = options.weights || METRIC_WEIGHTS;
+  const sectorBonus = options.sectorBonus != null ? options.sectorBonus : SECTOR_MATCH_BONUS;
+
   let score = 0;
   let totalWeight = 0;
   let overlapCount = 0;
   const metricScores = [];
 
   for (const metric of MATCH_METRICS) {
-    const weight = METRIC_WEIGHTS[metric] ?? 1.0;
+    const weight = weights[metric] ?? 1.0;
     const similarity = metricSimilarity(metric, snapshot[metric], stock[metric]);
 
     if (similarity === null) continue;
@@ -447,7 +449,7 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
   // Sector match bonus: same-sector matches get a boost since breakout patterns
   // are more comparable within the same sector/industry.
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
-    baseScore *= (1 + SECTOR_MATCH_BONUS);
+    baseScore *= (1 + sectorBonus);
   }
 
   const finalScore = Math.max(0, Math.min(99, baseScore));
@@ -456,7 +458,13 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount) {
 
 // ---------- Match finding ----------
 
-function findMatches(snapshot, universe, limit = 10) {
+/**
+ * @param {object}  snapshot  — template stock metrics
+ * @param {Map}     universe  — stock universe (after any pre-filtering)
+ * @param {number}  limit     — max results (default 10)
+ * @param {object}  [profileOptions] — { weights, sectorBonus } from a match profile
+ */
+function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
   if (!snapshot || universe.size === 0) return [];
 
   const snapshotPopulatedCount = MATCH_METRICS.reduce((count, metric) => {
@@ -467,7 +475,6 @@ function findMatches(snapshot, universe, limit = 10) {
   if (snapshotPopulatedCount < 4) return [];
 
   const allStocks = Array.from(universe.values());
-  const snapBase = baseTicker(snapshot.ticker);
 
   const results = allStocks
     .filter(stock => !isSameCompany(
@@ -476,17 +483,15 @@ function findMatches(snapshot, universe, limit = 10) {
     ))
     .map(stock => {
       const { score, metricScores, overlapCount, overlapRatio } =
-        calculateSimilarity(snapshot, stock, snapshotPopulatedCount);
+        calculateSimilarity(snapshot, stock, snapshotPopulatedCount, profileOptions);
 
       // Rank by weighted contribution (similarity × weight) so the most IMPORTANT
       // matching metrics surface, not just the ones with highest raw similarity.
-      // This means investors see "revenueGrowthYoY, pegRatio" instead of "returnOnAssets, netMargin"
       const rankedByContribution = [...metricScores]
         .sort((a, b) => (b.similarity * b.weight) - (a.similarity * a.weight));
       const topMatches = rankedByContribution.slice(0, 3).map(m => m.metric);
 
       // For differences, rank by weighted MISS (how much score was lost on this metric)
-      // Sort DESCENDING so the biggest misses come first
       const topMatchSet = new Set(topMatches);
       const rankedByMiss = [...metricScores]
         .sort((a, b) => ((1 - b.similarity) * b.weight) - ((1 - a.similarity) * a.weight));

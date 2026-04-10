@@ -29,6 +29,7 @@ const MATCH_METRICS = [
 
 const MAX_RETRIES = 12;
 const RETRY_INTERVAL_MS = 5000;
+const DEFAULT_PROFILE = 'growth_breakout';
 
 export default function MatchResults() {
   const { state } = useLocation();
@@ -48,6 +49,10 @@ export default function MatchResults() {
   const [sectorFilter, setSectorFilter] = useState('all');
   const [sortBy, setSortBy] = useState('score'); // 'score' | 'sector' | 'growth'
 
+  // Match profile state
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfile, setActiveProfile] = useState(searchParams.get('profile') || DEFAULT_PROFILE);
+
   // Warm-up retry state
   const [warming, setWarming] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);
@@ -55,6 +60,14 @@ export default function MatchResults() {
   const retryRef = useRef(null);
   const countdownRef = useRef(null);
   const retriesLeft = useRef(MAX_RETRIES);
+
+  // Fetch available profiles on mount
+  useEffect(() => {
+    fetch('/api/profiles')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setProfiles(data))
+      .catch(() => {});
+  }, []);
 
   // If no snapshot from navigate state, try to load from URL params
   useEffect(() => {
@@ -73,15 +86,13 @@ export default function MatchResults() {
       .catch(() => { navigate('/', { replace: true }); });
   }, [snapshot, searchParams, navigate]);
 
-  // Update URL params when snapshot is available (for shareable links)
+  // Update URL params when snapshot or profile changes (for shareable links)
   useEffect(() => {
     if (!snapshot) return;
-    const currentTicker = searchParams.get('ticker');
-    const currentDate = searchParams.get('date');
-    if (currentTicker !== snapshot.ticker || currentDate !== snapshot.date) {
-      navigate(`/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}`, { replace: true, state: { snapshot } });
-    }
-  }, [snapshot]);
+    const profileParam = activeProfile !== DEFAULT_PROFILE ? `&profile=${activeProfile}` : '';
+    const newUrl = `/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}${profileParam}`;
+    navigate(newUrl, { replace: true, state: { snapshot } });
+  }, [snapshot, activeProfile]);
 
   // Rotate loading messages
   useEffect(() => {
@@ -96,6 +107,9 @@ export default function MatchResults() {
     if (!snapshot) return;
 
     const params = new URLSearchParams({ ticker: snapshot.ticker, date: snapshot.date });
+    if (activeProfile && activeProfile !== DEFAULT_PROFILE) {
+      params.set('profile', activeProfile);
+    }
     for (const metric of MATCH_METRICS) {
       if (snapshot[metric] != null) params.set(metric, snapshot[metric]);
     }
@@ -152,9 +166,14 @@ export default function MatchResults() {
     const data = await res.json();
     setMatches(data);
     setLoading(false);
-  }, [snapshot]);
+  }, [snapshot, activeProfile]);
 
   useEffect(() => {
+    // Reset state when profile changes so we get fresh results
+    setLoading(true);
+    setMatches(null);
+    setError(null);
+    retriesLeft.current = MAX_RETRIES;
     fetchMatches();
     return () => {
       if (retryRef.current) clearTimeout(retryRef.current);
@@ -278,6 +297,29 @@ export default function MatchResults() {
                 </div>
               </div>
             </div>
+
+            {/* Match profile selector */}
+            {profiles.length > 0 && (
+              <div className="card mb-5 border-dark-border/50">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-500 uppercase tracking-wider shrink-0">Strategy</label>
+                    <select
+                      className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
+                      value={activeProfile}
+                      onChange={e => setActiveProfile(e.target.value)}
+                    >
+                      {profiles.map(p => (
+                        <option key={p.key} value={p.key}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-slate-500 sm:ml-2 leading-relaxed">
+                    {profiles.find(p => p.key === activeProfile)?.description || ''}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Filters row */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-5">

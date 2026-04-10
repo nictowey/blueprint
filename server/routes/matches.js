@@ -3,9 +3,10 @@ const router = express.Router();
 const { getCache, isReady } = require('../services/universe');
 const { findMatches, MATCH_METRICS } = require('../services/matcher');
 const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
+const { getProfile, applyHardFilters, DEFAULT_PROFILE } = require('../services/matchProfiles');
 
 router.get('/', async (req, res) => {
-  const { ticker, date, sector } = req.query;
+  const { ticker, date, sector, profile: profileKey } = req.query;
   if (!ticker || !date)
     return res.status(400).json({ error: 'ticker and date are required' });
 
@@ -14,9 +15,10 @@ router.get('/', async (req, res) => {
 
   const sym = ticker.toUpperCase();
 
+  // Resolve the match profile (defaults to growth_breakout)
+  const profile = getProfile(profileKey || DEFAULT_PROFILE);
+
   // Prefer snapshot cache (full-precision values) over URL params (truncated).
-  // This ensures the matches endpoint uses the same data as the comparison
-  // endpoint, eliminating score discrepancies when the user clicks through.
   const snapCacheKey = `${sym}:${date}`;
   const snapCached = snapshotCache.get(snapCacheKey);
   let snapshot;
@@ -25,8 +27,6 @@ router.get('/', async (req, res) => {
     for (const metric of MATCH_METRICS) {
       snapshot[metric] = snapCached.data[metric] ?? null;
     }
-    // Include sector and companyName so calculateSimilarity can apply
-    // sector bonus and isSameCompany check — matching comparison endpoint behavior
     snapshot.sector = snapCached.data.sector ?? null;
     snapshot.companyName = snapCached.data.companyName ?? sym;
   } else {
@@ -36,7 +36,6 @@ router.get('/', async (req, res) => {
       const val = req.query[metric];
       snapshot[metric] = val !== undefined && val !== '' ? parseFloat(val) : null;
     }
-    // Pass sector/companyName from query params if available
     snapshot.sector = req.query.sector || null;
     snapshot.companyName = req.query.companyName || sym;
   }
@@ -53,7 +52,15 @@ router.get('/', async (req, res) => {
       universe = filtered;
     }
 
-    const matches = findMatches(snapshot, universe);
+    // Apply profile hard filters (e.g., value_inflection requires P/E > 0 and <= 35)
+    universe = applyHardFilters(universe, profile.hardFilters);
+
+    const profileOptions = {
+      weights: profile.weights,
+      sectorBonus: profile.sectorBonus,
+    };
+
+    const matches = findMatches(snapshot, universe, 10, profileOptions);
     res.json(matches);
   } catch (err) {
     console.error('[matches] Error:', err.message);
