@@ -25,6 +25,10 @@ router.get('/', async (req, res) => {
     for (const metric of MATCH_METRICS) {
       snapshot[metric] = snapCached.data[metric] ?? null;
     }
+    // Include sector and companyName so calculateSimilarity can apply
+    // sector bonus and isSameCompany check — matching comparison endpoint behavior
+    snapshot.sector = snapCached.data.sector ?? null;
+    snapshot.companyName = snapCached.data.companyName ?? sym;
   } else {
     // Fallback: parse from URL query params (first visit before snapshot is cached)
     snapshot = { ticker: sym };
@@ -32,6 +36,9 @@ router.get('/', async (req, res) => {
       const val = req.query[metric];
       snapshot[metric] = val !== undefined && val !== '' ? parseFloat(val) : null;
     }
+    // Pass sector/companyName from query params if available
+    snapshot.sector = req.query.sector || null;
+    snapshot.companyName = req.query.companyName || sym;
   }
 
   try {
