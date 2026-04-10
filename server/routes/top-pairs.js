@@ -434,13 +434,22 @@ function computeBreakoutCandidatesAsync(limit = 20) {
   });
 }
 
+const COMPUTE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minute max for screening
+
 async function triggerBackgroundCompute() {
   if (computing) return;
   computing = true;
   try {
     console.log('[top-pairs] Starting breakout screening (v3 accuracy)...');
     const start = Date.now();
-    cachedResult = await computeBreakoutCandidatesAsync(20);
+
+    // Race against a timeout to prevent indefinite hangs
+    const computePromise = computeBreakoutCandidatesAsync(20);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Screening timed out after 5 minutes')), COMPUTE_TIMEOUT_MS)
+    );
+
+    cachedResult = await Promise.race([computePromise, timeoutPromise]);
     lastComputed = Date.now();
     if (cachedResult.length > 0) {
       const scores = cachedResult.map(c => c.breakoutScore);

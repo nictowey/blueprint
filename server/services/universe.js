@@ -61,8 +61,8 @@ async function loadCacheFromRedis() {
 }
 
 const RETRY_ON_FAIL_MS = 60 * 60 * 1000;          // 1 hour
-const INCREMENTAL_INTERVAL_MS = 10 * 60 * 1000;   // 10 minutes
-const INCREMENTAL_BATCH_SIZE = 35;                 // stocks per interval (~24h full cycle for ~5000 stocks)
+const INCREMENTAL_INTERVAL_MS = 5 * 60 * 1000;    // 5 minutes (was 10)
+const INCREMENTAL_BATCH_SIZE = 60;                 // stocks per interval (~7h full cycle for ~5000 stocks, was 35)
 
 const state = {
   cache: new Map(),
@@ -124,13 +124,18 @@ async function enrichStock(entry) {
   const from = fromDate.toISOString().slice(0, 10);
   const to = toDate.toISOString().slice(0, 10);
 
-  // 5 sequential calls (down from 7 — dropped TTM endpoints)
-  // All ratios computed from raw quarterly data, same formulas as snapshot.js
-  const incomeData    = await fmp.getIncomeStatements(symbol, 16, true, 'quarter');
-  const balanceData   = await fmp.getBalanceSheet(symbol, 1, true, 'quarter');
-  const cashFlowData  = await fmp.getCashFlowStatement(symbol, 4, true, 'quarter');
-  const historical    = await fmp.getHistoricalPrices(symbol, from, to);
-  const profileData   = await fmp.getProfile(symbol);
+  // Sequential calls with per-call resilience — if individual calls fail,
+  // we still use whatever data we got instead of skipping the entire stock.
+  // Calls are sequential to respect FMP rate limits (220ms delay per call).
+  async function safeFmpCall(fn) {
+    try { return await fn(); } catch { return null; }
+  }
+
+  const incomeData   = await safeFmpCall(() => fmp.getIncomeStatements(symbol, 16, true, 'quarter')) || [];
+  const balanceData  = await safeFmpCall(() => fmp.getBalanceSheet(symbol, 1, true, 'quarter')) || [];
+  const cashFlowData = await safeFmpCall(() => fmp.getCashFlowStatement(symbol, 4, true, 'quarter')) || [];
+  const historical   = await safeFmpCall(() => fmp.getHistoricalPrices(symbol, from, to)) || [];
+  const profileData  = await safeFmpCall(() => fmp.getProfile(symbol)) || {};
 
   // --- TTM from 4 most recent quarters (same as snapshot.js) ---
   const ttmQ = incomeData.slice(0, 4);
@@ -200,9 +205,8 @@ async function enrichStock(entry) {
       if (currentPrice != null && ma50 > 0) priceVsMa50 = ((currentPrice - ma50) / ma50) * 100;
     }
 
-    if (closes.length > 0) {
-      const window200 = closes.slice(-200);
-      const ma200 = window200.reduce((s, v) => s + v, 0) / window200.length;
+    if (closes.length >= 200) {
+      const ma200 = closes.slice(-200).reduce((s, v) => s + v, 0) / 200;
       if (currentPrice != null && ma200 > 0) priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
     }
 
