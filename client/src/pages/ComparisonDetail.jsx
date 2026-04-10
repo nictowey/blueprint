@@ -131,7 +131,7 @@ export default function ComparisonDetail() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* LEFT PANEL — Template (historical) */}
           <div className="card">
             <div className="mb-4 min-h-[72px]">
