@@ -78,17 +78,23 @@ export default function MatchCard({ match, snapshot, rank }) {
         </div>
       </div>
 
-      {/* Key stats row */}
+      {/* Key stats row — match value with template reference */}
       <div className="flex gap-4 mb-3 py-2 px-1">
         {KEY_STATS.map(({ key, label }) => (
           <div key={key} className="text-center">
             <p className="text-[10px] text-slate-600 uppercase tracking-wider">{label}</p>
             <p className="text-xs font-semibold text-slate-300">{formatMetric(key, match[key])}</p>
+            {snapshot?.[key] != null && (
+              <p className="text-[9px] text-slate-600">vs {formatMetric(key, snapshot[key])}</p>
+            )}
           </div>
         ))}
         <div className="text-center">
           <p className="text-[10px] text-slate-600 uppercase tracking-wider">Mkt Cap</p>
           <p className="text-xs font-semibold text-slate-300">{formatMetric('marketCap', match.marketCap)}</p>
+          {snapshot?.marketCap != null && (
+            <p className="text-[9px] text-slate-600">vs {formatMetric('marketCap', snapshot.marketCap)}</p>
+          )}
         </div>
       </div>
 
@@ -108,7 +114,7 @@ export default function MatchCard({ match, snapshot, rank }) {
 
       <div className="flex justify-between items-center">
         <span className="text-xs text-slate-600">
-          {match.metricsCompared}/26 metrics compared
+          {match.metricsCompared}/27 metrics compared
         </span>
         <button className="btn-secondary" onClick={goToComparison}>
           View Comparison →

@@ -118,7 +118,7 @@ export default function ComparisonDetail() {
                 <span className="text-slate-600 mx-2">vs</span>
                 <span className="font-mono font-bold text-slate-200">{data.match.ticker}</span>
               </p>
-              <p className="text-xs text-slate-500">{data.metricsCompared}/26 metrics compared</p>
+              <p className="text-xs text-slate-500">{data.metricsCompared}/27 metrics compared</p>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {data.topMatches?.map(key => (
                   <span key={key} className="tag-green">{METRIC_LABELS[key] || key} ✓</span>
