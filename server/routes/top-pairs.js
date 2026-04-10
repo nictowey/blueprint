@@ -7,11 +7,15 @@ let cachedResult = null;
 let lastComputed = 0;
 let computing = false;
 const CACHE_TTL = 30 * 60 * 1000; // recompute every 30 min
-const BATCH_SIZE = 50; // Process 50 stocks per event loop tick
+const BATCH_SIZE = 5; // Process 5 stocks per event loop tick (each does ~3500 comparisons)
 
 /**
  * Chunked top-pairs computation — processes BATCH_SIZE stocks per tick
  * so the event loop stays responsive for snapshot/match requests.
+ *
+ * Each stock triggers findMatches() which scans the full universe (~3500 stocks).
+ * At BATCH_SIZE=5, each tick does ~17,500 comparisons then yields.
+ * This keeps individual API requests responsive (<100ms) during computation.
  */
 function computeTopPairsAsync(limit = 20) {
   return new Promise((resolve) => {
@@ -61,7 +65,7 @@ function computeTopPairsAsync(limit = 20) {
       }
 
       if (idx < stocks.length) {
-        // Yield to event loop, then continue
+        // Yield to event loop so API requests can be served
         setImmediate(processBatch);
       } else {
         // Done — sort and return top results
