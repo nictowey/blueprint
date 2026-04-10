@@ -8,6 +8,11 @@ export default function TickerSearch({ value, onChange, onSelect }) {
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
 
+  // Sync internal query when parent value changes (e.g. example template click)
+  useEffect(() => {
+    if (value != null && value !== query) setQuery(value);
+  }, [value]);
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e) {
