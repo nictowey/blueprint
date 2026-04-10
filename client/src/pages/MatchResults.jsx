@@ -334,6 +334,29 @@ export default function MatchResults() {
               </div>
             </div>
 
+            {/* Backtest button — only when date is > 1 month ago */}
+            {(() => {
+              const oneMonthAgo = new Date();
+              oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+              const snapshotDate = new Date(snapshot.date);
+              if (snapshotDate <= oneMonthAgo) {
+                const backtestParams = new URLSearchParams({
+                  ticker: snapshot.ticker,
+                  date: snapshot.date,
+                });
+                if (activeProfile !== DEFAULT_PROFILE) backtestParams.set('profile', activeProfile);
+                return (
+                  <button
+                    className="btn-secondary w-full mb-5 text-sm py-2.5 flex items-center justify-center gap-2"
+                    onClick={() => navigate(`/backtest?${backtestParams}`)}
+                  >
+                    <span>📊</span> Backtest — See how these matches actually performed
+                  </button>
+                );
+              }
+              return null;
+            })()}
+
             {/* Match profile selector */}
             {profiles.length > 0 && (
               <div className="card mb-5 border-dark-border/50">
