@@ -69,15 +69,13 @@ export default function TemplatePicker() {
     const controller = new AbortController();
     dateRangeAbort.current = controller;
     setDateRangeLoading(true);
+    setDateRange(null);
+    setDate('');
     try {
       const res = await fetch(`/api/snapshot/date-range?ticker=${encodeURIComponent(sym)}`, { signal: controller.signal });
       if (!res.ok) throw new Error('Failed to fetch date range');
       const data = await res.json();
       setDateRange(data);
-      // If current date is before earliest valid date, clear it
-      if (date && data.earliestDate && date < data.earliestDate) {
-        setDate('');
-      }
     } catch (err) {
       if (err.name !== 'AbortError') {
         setDateRange(null);
@@ -92,13 +90,27 @@ export default function TemplatePicker() {
     setTicker(val);
     setSnapshot(null);
     setError(null);
-    // Debounce: only fetch date range if looks like a valid ticker (1-10 alphanumeric chars)
+    // Only fetch date range if looks like a valid ticker (1-10 alphanumeric chars)
     if (/^[A-Za-z0-9.]{1,10}$/.test(val)) {
       fetchDateRange(val);
     } else {
       setDateRange(null);
+      setDate('');
     }
   }
+
+  // Whether the date picker should be enabled
+  const datePickerReady = !!(dateRange && dateRange.earliestDate && !dateRangeLoading);
+  const hasValidTicker = /^[A-Za-z0-9.]{1,10}$/.test(ticker);
+
+  // Whether the selected date is within the valid range
+  function isDateValid(d) {
+    if (!d || !dateRange?.earliestDate) return false;
+    return d >= dateRange.earliestDate && d <= yesterday();
+  }
+
+  // Whether the Load Snapshot button should be enabled
+  const canLoadSnapshot = !loading && hasValidTicker && date && isDateValid(date);
 
   async function loadSnapshot(overrideTicker, overrideDate) {
     const t = overrideTicker || ticker;
@@ -123,6 +135,17 @@ export default function TemplatePicker() {
   function goToMatches() {
     if (!snapshot) return;
     navigate(`/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}`, { state: { snapshot } });
+  }
+
+  // Example templates: fetch date range first, then load — but since these are
+  // curated and known-valid, we can fire both in parallel for snappy UX
+  function handleExampleClick(ex) {
+    setTicker(ex.ticker);
+    setDate(ex.date);
+    setSnapshot(null);
+    setError(null);
+    fetchDateRange(ex.ticker);
+    loadSnapshot(ex.ticker, ex.date);
   }
 
   return (
@@ -164,19 +187,34 @@ export default function TemplatePicker() {
             <label className="block text-sm text-slate-400 mb-1.5">Snapshot Date</label>
             <input
               type="date"
-              className="input-field w-40"
+              className={`input-field w-40 ${!datePickerReady ? 'opacity-40 cursor-not-allowed' : ''}`}
               value={date}
-              min={dateRange?.earliestDate || '2000-01-01'}
+              min={dateRange?.earliestDate || ''}
               max={yesterday()}
-              onChange={e => setDate(e.target.value)}
+              disabled={!datePickerReady}
+              onChange={e => {
+                const val = e.target.value;
+                // Double-check: reject dates outside the valid range even if
+                // the browser's native picker let them through
+                if (dateRange?.earliestDate && val < dateRange.earliestDate) return;
+                setDate(val);
+              }}
             />
             {dateRangeLoading && (
-              <p className="text-xs text-slate-500 mt-1">Checking available dates…</p>
+              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                <span className="w-3 h-3 border border-slate-500/50 border-t-slate-400 rounded-full animate-spin" />
+                Checking data availability…
+              </p>
+            )}
+            {!dateRangeLoading && hasValidTicker && !dateRange && !dateRangeLoading && ticker.length > 0 && (
+              <p className="text-xs text-slate-500 mt-1">Enter a ticker to see available dates</p>
             )}
             {dateRange && !dateRangeLoading && dateRange.earliestDate && (
               <p className="text-xs text-slate-500 mt-1">
-                Data from {dateRange.earliestDate}
-                {dateRange.message && <span className="text-yellow-500/80"> — {dateRange.message}</span>}
+                Available: <span className="text-slate-400">{dateRange.earliestDate}</span> — <span className="text-slate-400">today</span>
+                {!dateRange.hasFullData && dateRange.message && (
+                  <span className="block text-yellow-500/80 mt-0.5">{dateRange.message}</span>
+                )}
               </p>
             )}
             {dateRange && !dateRangeLoading && !dateRange.earliestDate && (
@@ -186,7 +224,7 @@ export default function TemplatePicker() {
           <button
             className="btn-primary whitespace-nowrap"
             onClick={() => loadSnapshot()}
-            disabled={loading}
+            disabled={!canLoadSnapshot}
           >
             {loading ? (
               <span className="flex items-center gap-2">
@@ -210,7 +248,7 @@ export default function TemplatePicker() {
               <button
                 key={ex.ticker}
                 className="border border-dark-border hover:border-accent/50 bg-dark-card hover:bg-dark-card/80 text-left px-4 py-2.5 rounded-lg transition-all duration-150 group"
-                onClick={() => { handleTickerChange(ex.ticker); setDate(ex.date); loadSnapshot(ex.ticker, ex.date); }}
+                onClick={() => handleExampleClick(ex)}
               >
                 <span className="font-mono font-bold text-slate-200 text-sm group-hover:text-accent transition-colors">{ex.ticker}</span>
                 <span className="text-slate-500 text-xs ml-2">{ex.date}</span>
