@@ -260,3 +260,5 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.snapshotCache = snapshotCache;
+module.exports.SNAPSHOT_CACHE_TTL = SNAPSHOT_CACHE_TTL;

@@ -15,40 +15,45 @@ const MATCH_METRICS = [
 ];
 
 const METRIC_WEIGHTS = {
-  // --- Tier 1: Defines the opportunity (3.0) ---
-  revenueGrowthYoY: 3.0,   // accelerating revenue = #1 signal
-  epsGrowthYoY: 3.0,       // earnings acceleration = operating leverage
-  pegRatio: 3.0,           // growth relative to valuation = value of growth
-  operatingMargin: 3.0,    // margin profile defines business economics
-  returnOnEquity: 3.0,     // capital efficiency = competitive moat
+  // --- Tier 1: Core breakout signals (3.0) ---
+  // These define whether the company is in a similar growth/valuation phase
+  revenueGrowthYoY: 3.0,   // accelerating revenue = #1 breakout signal
+  epsGrowthYoY: 3.0,       // earnings acceleration = operating leverage confirmation
+  pegRatio: 3.0,           // growth relative to valuation = "is growth priced in yet?"
+  operatingMargin: 3.0,    // margin profile defines business economics & operating leverage
 
-  // --- Tier 2: Confirms the setup (2.0-2.5) ---
+  // --- Tier 2: Valuation & momentum setup (2.5) ---
+  // Confirms the stock is in a similar valuation and technical position
   peRatio: 2.5,            // how market prices earnings
-  evToEBITDA: 2.5,         // enterprise valuation
-  priceVsMa200: 2.5,       // institutional trend direction
-  pctBelowHigh: 2.5,       // near high = breakout, far below = distressed
-  marketCap: 2.5,          // size tier defines growth runway
-  revenueGrowth3yr: 2.0,   // sustained growth track record
+  evToEBITDA: 2.5,         // enterprise valuation (debt-aware)
+  pctBelowHigh: 2.5,       // near high = breakout candidate, far below = distressed
+  priceVsMa200: 2.5,       // institutional trend direction — key breakout indicator
+  marketCap: 2.5,          // size tier defines growth runway & institutional interest
 
-  // --- Tier 3: Risk check (1.5) ---
-  debtToEquity: 1.5,       // leverage risk
-  freeCashFlowYield: 1.5,  // real cash generation
-  netDebtToEBITDA: 1.5,    // balance sheet health
-  beta: 1.5,               // volatility/risk profile
-  returnOnCapital: 1.5,    // invested capital efficiency
-  priceVsMa50: 1.5,        // short-term momentum
+  // --- Tier 3: Quality & risk confirmation (2.0) ---
+  // Confirms the company has similar financial quality and risk profile
+  returnOnEquity: 2.0,     // capital efficiency (lowered: can be inflated by buybacks/leverage)
+  revenueGrowth3yr: 2.0,   // sustained growth track record — not just one good year
+  freeCashFlowYield: 2.0,  // real cash generation — separates quality from hype
+  returnOnCapital: 2.0,    // invested capital efficiency — true business quality
+  priceVsMa50: 2.0,        // short-term momentum — is the stock in an active move?
 
-  // --- Tier 4: Supporting context (1.0) ---
-  grossMargin: 1.0,
-  netMargin: 1.0,
-  ebitdaMargin: 1.0,
-  returnOnAssets: 1.0,
-  priceToBook: 1.0,
-  priceToSales: 1.0,
-  evToRevenue: 1.0,
-  currentRatio: 1.0,
-  interestCoverage: 1.0,
-  rsi14: 1.0,
+  // --- Tier 4: Risk guardrails (1.5) ---
+  debtToEquity: 1.5,       // leverage risk — overleveraged companies fail differently
+  netDebtToEBITDA: 1.5,    // balance sheet health vs earnings
+  rsi14: 1.5,              // momentum state — overbought/oversold context matters
+  grossMargin: 1.5,        // business model indicator — high vs low margin
+
+  // --- Tier 5: Supporting context (1.0) ---
+  beta: 1.0,               // volatility profile — less actionable for breakout screening
+  netMargin: 1.0,          // net margin (operating margin already captured above)
+  ebitdaMargin: 1.0,       // EBITDA margin (operating margin already captured)
+  returnOnAssets: 1.0,     // asset efficiency (ROE/ROC already captured)
+  priceToBook: 1.0,        // book value relevance varies by sector
+  priceToSales: 1.0,       // revenue multiple
+  evToRevenue: 1.0,        // enterprise revenue multiple
+  currentRatio: 1.0,       // liquidity — important but not a breakout signal
+  interestCoverage: 1.0,   // debt service ability
 };
 
 // ---------- Metric classification for specialized similarity functions ----------

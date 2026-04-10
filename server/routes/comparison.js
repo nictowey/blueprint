@@ -4,6 +4,7 @@ const fmp = require('../services/fmp');
 const { computeRSI } = require('../services/rsi');
 const { getCache } = require('../services/universe');
 const { calculateSimilarity, MATCH_METRICS } = require('../services/matcher');
+const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
 
 // Template side is historical/immutable; match side updates every ~10 min with
 // the incremental refresh cycle — use matching TTL.
@@ -50,6 +51,37 @@ function periodsOnOrBefore(periods, targetDate) {
 }
 
 async function fetchTemplate(sym, date) {
+  // --- Reuse snapshot cache so match list and comparison detail produce identical scores ---
+  const snapCacheKey = `${sym}:${date}`;
+  const snapCached = snapshotCache.get(snapCacheKey);
+  if (snapCached && Date.now() - snapCached.ts < SNAPSHOT_CACHE_TTL) {
+    // Snapshot endpoint already computed this — reuse it for the template,
+    // but we still need the sparkline which isn't part of the snapshot.
+    const afterDate = new Date(date);
+    afterDate.setMonth(afterDate.getMonth() + 18);
+    const sparklineEnd = afterDate.toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10)
+      ? afterDate.toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+    let sparkline = [];
+    let sparklineGainPct = null;
+    try {
+      const sparkRaw = await fmp.getHistoricalPrices(sym, date, sparklineEnd, false);
+      sparkline = [...sparkRaw]
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .map(h => ({ date: h.date, price: h.close }));
+      if (sparkline.length >= 2) {
+        const start = sparkline[0].price;
+        const end = sparkline[sparkline.length - 1].price;
+        if (start > 0) sparklineGainPct = ((end - start) / start) * 100;
+      }
+    } catch (err) {
+      console.error(`[comparison] Sparkline fetch failed for ${sym}:`, err.message);
+    }
+    return { template: snapCached.data, sparkline, sparklineGainPct };
+  }
+
+  // --- No snapshot cache hit — full FMP fetch (fallback) ---
   const fromDate = new Date(date);
   fromDate.setFullYear(fromDate.getFullYear() - 1);
   const fromStr = fromDate.toISOString().slice(0, 10);

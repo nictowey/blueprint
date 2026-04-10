@@ -301,6 +301,8 @@ async function buildCache() {
       { marketCapMoreThan: 2_000_000_000, marketCapLowerThan: 10_000_000_000 },        // mid cap ($2B–$10B)
       { marketCapMoreThan: 500_000_000,   marketCapLowerThan: 2_000_000_000 },         // small cap ($500M–$2B)
       { marketCapMoreThan: 100_000_000,   marketCapLowerThan: 500_000_000 },           // micro cap ($100M–$500M)
+      { marketCapMoreThan: 50_000_000,    marketCapLowerThan: 100_000_000 },           // nano cap ($50M–$100M)
+      { marketCapMoreThan: 10_000_000,    marketCapLowerThan: 50_000_000 },            // nano cap ($10M–$50M)
     ];
 
     const allResults = [];
