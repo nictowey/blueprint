@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getWatchlist, removeFromWatchlist, clearWatchlist } from '../utils/watchlist';
+import { toCSV, downloadCSV } from '../utils/export';
 import MiniSparkline from '../components/MiniSparkline';
 
 function timeSince(dateStr) {
@@ -97,6 +98,29 @@ export default function WatchlistPage() {
           {items.length > 0 && (
             <button
               className="btn-secondary text-xs"
+              onClick={() => {
+                const columns = [
+                  { key: 'ticker', label: 'Ticker' },
+                  { key: 'companyName', label: 'Company' },
+                  { key: 'sector', label: 'Sector' },
+                  { key: 'matchScore', label: 'Match Score' },
+                  { key: 'templateTicker', label: 'Template Ticker' },
+                  { key: 'templateDate', label: 'Template Date' },
+                  { key: 'priceAtAdd', label: 'Price When Added', format: r => r.priceAtAdd?.toFixed(2) },
+                  { key: 'currentPrice', label: 'Current Price', format: r => liveData[r.ticker]?.price?.toFixed(2) },
+                  { key: 'gainPct', label: 'Gain %', format: r => { const g = gainSinceAdd(r); return g != null ? g.toFixed(1) : ''; } },
+                  { key: 'addedAt', label: 'Added Date', format: r => r.addedAt?.slice(0, 10) },
+                ];
+                const csv = toCSV(items, columns);
+                downloadCSV(csv, `blueprint-watchlist-${new Date().toISOString().slice(0, 10)}.csv`);
+              }}
+            >
+              Export CSV
+            </button>
+          )}
+          {items.length > 0 && (
+            <button
+              className="btn-secondary text-xs"
               onClick={fetchLiveData}
               disabled={loadingLive}
             >
@@ -105,7 +129,7 @@ export default function WatchlistPage() {
                   <span className="w-3 h-3 border border-slate-500/50 border-t-slate-400 rounded-full animate-spin" />
                   Refreshing…
                 </span>
-              ) : 'Refresh prices'}
+              ) : 'Refresh'}
             </button>
           )}
           {items.length > 0 && !confirmClear && (

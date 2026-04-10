@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { httpError } from '../utils/httpError';
+import { toCSV, downloadCSV } from '../utils/export';
+import ShareBar from '../components/ShareBar';
 import ReturnBarChart from '../components/ReturnBarChart';
 
 const PERIODS = ['1m', '3m', '6m', '12m'];
@@ -150,7 +152,27 @@ export default function BacktestResults() {
             How did the top {results.length} matches perform after the snapshot date?
           </p>
         </div>
-        <button className="btn-secondary shrink-0" onClick={() => navigate(-1)}>← Back</button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ShareBar
+            onExportCSV={() => {
+              const columns = [
+                { key: 'ticker', label: 'Ticker' },
+                { key: 'companyName', label: 'Company' },
+                { key: 'sector', label: 'Sector' },
+                { key: 'matchScore', label: 'Match Score' },
+                { key: 'startPrice', label: 'Start Price', format: r => r.startPrice?.toFixed(2) },
+                { key: '1m', label: '1M Return %', format: r => r.returns?.['1m']?.returnPct?.toFixed(1) },
+                { key: '3m', label: '3M Return %', format: r => r.returns?.['3m']?.returnPct?.toFixed(1) },
+                { key: '6m', label: '6M Return %', format: r => r.returns?.['6m']?.returnPct?.toFixed(1) },
+                { key: '12m', label: '12M Return %', format: r => r.returns?.['12m']?.returnPct?.toFixed(1) },
+              ];
+              const csv = toCSV(results, columns);
+              downloadCSV(csv, `blueprint-backtest-${ticker}-${date}.csv`);
+            }}
+            exportLabel="Export backtest"
+          />
+          <button className="btn-secondary text-xs" onClick={() => navigate(-1)}>← Back</button>
+        </div>
       </div>
 
       {/* Disclaimer */}

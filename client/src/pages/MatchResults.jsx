@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
 import { httpError } from '../utils/httpError';
+import { toCSV, downloadCSV } from '../utils/export';
+import ShareBar from '../components/ShareBar';
 
 function scoreLabel(score) {
   if (score >= 85) return { text: 'Excellent match', color: 'text-green-400' };
@@ -413,10 +415,32 @@ export default function MatchResults() {
               </div>
             </div>
 
-            {/* Results count */}
-            <p className="text-sm text-slate-500 mb-4">
-              Showing {sorted.length} of {matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
-            </p>
+            {/* Results count + share/export */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+              <p className="text-sm text-slate-500">
+                Showing {sorted.length} of {matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
+              </p>
+              <ShareBar
+                onExportCSV={() => {
+                  const columns = [
+                    { key: 'ticker', label: 'Ticker' },
+                    { key: 'companyName', label: 'Company' },
+                    { key: 'sector', label: 'Sector' },
+                    { key: 'matchScore', label: 'Match Score' },
+                    { key: 'price', label: 'Price', format: r => r.price?.toFixed(2) },
+                    { key: 'peRatio', label: 'P/E', format: r => r.peRatio?.toFixed(1) },
+                    { key: 'revenueGrowthYoY', label: 'Rev Growth YoY', format: r => r.revenueGrowthYoY != null ? (r.revenueGrowthYoY * 100).toFixed(1) + '%' : '' },
+                    { key: 'operatingMargin', label: 'Op Margin', format: r => r.operatingMargin != null ? (r.operatingMargin * 100).toFixed(1) + '%' : '' },
+                    { key: 'returnOnEquity', label: 'ROE', format: r => r.returnOnEquity != null ? (r.returnOnEquity * 100).toFixed(1) + '%' : '' },
+                    { key: 'marketCap', label: 'Market Cap', format: r => r.marketCap?.toLocaleString() },
+                    { key: 'metricsCompared', label: 'Metrics Compared' },
+                  ];
+                  const csv = toCSV(sorted, columns);
+                  downloadCSV(csv, `blueprint-matches-${snapshot.ticker}-${snapshot.date}.csv`);
+                }}
+                exportLabel="Export matches"
+              />
+            </div>
 
             {sorted.length === 0 ? (
               <div className="card text-center py-8 text-slate-500 text-sm">

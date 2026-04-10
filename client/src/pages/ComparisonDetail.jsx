@@ -6,6 +6,7 @@ import { formatMetric, METRIC_LABELS } from '../utils/format';
 import { getMetricColorFromScore, getMetricColor } from '../utils/metricColor';
 import { httpError } from '../utils/httpError';
 import PriceOverlayChart from '../components/PriceOverlayChart';
+import ShareBar from '../components/ShareBar';
 
 const METRIC_GROUPS = [
   { label: 'Overview',         metrics: ['marketCap', 'eps', 'dividendYield'] },
@@ -144,15 +145,18 @@ export default function ComparisonDetail() {
       {/* Nav */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-6 sm:mb-8">
         <button className="btn-secondary" onClick={() => navigate(-1)}>← Back to Results</button>
-        {data && (
-          <button
-            className={`btn-secondary ${watchlisted ? 'text-green-400 border-green-500/30' : ''}`}
-            onClick={handleAddToWatchlist}
-            disabled={watchlisted}
+        <div className="flex items-center gap-2 flex-wrap">
+          <ShareBar />
+          {data && (
+            <button
+              className={`btn-secondary text-xs ${watchlisted ? 'text-green-400 border-green-500/30' : ''}`}
+              onClick={handleAddToWatchlist}
+              disabled={watchlisted}
           >
-            {watchlisted ? '✓ Added to Watchlist' : 'Add to Watchlist'}
-          </button>
-        )}
+              {watchlisted ? '✓ Watchlisted' : '+ Watchlist'}
+            </button>
+          )}
+        </div>
       </div>
 
       {loading && (
