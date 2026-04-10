@@ -77,7 +77,7 @@ export default function TemplatePicker() {
 
   function goToMatches() {
     if (!snapshot) return;
-    navigate('/matches', { state: { snapshot } });
+    navigate(`/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}`, { state: { snapshot } });
   }
 
   return (

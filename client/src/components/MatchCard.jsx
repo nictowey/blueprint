@@ -15,7 +15,7 @@ export default function MatchCard({ match, snapshot, rank }) {
   const offset = CIRCUMFERENCE * (1 - match.matchScore / 100);
 
   function goToComparison() {
-    navigate('/comparison', { state: { snapshot, matchTicker: match.ticker } });
+    navigate(`/comparison?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}&match=${encodeURIComponent(match.ticker)}`, { state: { snapshot, matchTicker: match.ticker } });
   }
 
   return (

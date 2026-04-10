@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
 
@@ -26,7 +26,11 @@ const RETRY_INTERVAL_MS = 5000;
 export default function MatchResults() {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const snapshot = state?.snapshot;
+  const [searchParams] = useSearchParams();
+
+  // Support both navigate state and URL query params for shareable links
+  const [snapshot, setSnapshot] = useState(state?.snapshot || null);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
 
   const [matches, setMatches] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,10 +45,32 @@ export default function MatchResults() {
   const countdownRef = useRef(null);
   const retriesLeft = useRef(MAX_RETRIES);
 
-  // Redirect if no snapshot in state
+  // If no snapshot from navigate state, try to load from URL params
   useEffect(() => {
-    if (!snapshot) navigate('/', { replace: true });
-  }, [snapshot, navigate]);
+    if (snapshot) return;
+    const ticker = searchParams.get('ticker');
+    const date = searchParams.get('date');
+    if (!ticker || !date) { navigate('/', { replace: true }); return; }
+
+    setSnapshotLoading(true);
+    fetch(`/api/snapshot?ticker=${encodeURIComponent(ticker)}&date=${date}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load snapshot');
+        return res.json();
+      })
+      .then(data => { setSnapshot(data); setSnapshotLoading(false); })
+      .catch(() => { navigate('/', { replace: true }); });
+  }, [snapshot, searchParams, navigate]);
+
+  // Update URL params when snapshot is available (for shareable links)
+  useEffect(() => {
+    if (!snapshot) return;
+    const currentTicker = searchParams.get('ticker');
+    const currentDate = searchParams.get('date');
+    if (currentTicker !== snapshot.ticker || currentDate !== snapshot.date) {
+      navigate(`/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}`, { replace: true, state: { snapshot } });
+    }
+  }, [snapshot]);
 
   // Rotate loading messages
   useEffect(() => {
@@ -125,7 +151,19 @@ export default function MatchResults() {
     };
   }, [fetchMatches]);
 
-  if (!snapshot) return null;
+  if (!snapshot) {
+    if (snapshotLoading) {
+      return (
+        <main className="max-w-3xl mx-auto px-6 py-10">
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
+            <p className="text-slate-400 text-sm">Loading snapshot…</p>
+          </div>
+        </main>
+      );
+    }
+    return null;
+  }
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-10">

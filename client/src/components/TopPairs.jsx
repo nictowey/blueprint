@@ -92,12 +92,15 @@ export default function TopPairs() {
           <div
             key={i}
             className="card flex items-center gap-4 py-3 px-4 cursor-pointer hover:border-accent/40 transition-colors"
-            onClick={() => navigate('/comparison', {
-              state: {
-                snapshot: { ...pair.stockA, date: new Date().toISOString().slice(0, 10) },
-                matchTicker: pair.stockB.ticker,
-              },
-            })}
+            onClick={() => {
+              const today = new Date().toISOString().slice(0, 10);
+              navigate(`/comparison?ticker=${encodeURIComponent(pair.stockA.ticker)}&date=${today}&match=${encodeURIComponent(pair.stockB.ticker)}`, {
+                state: {
+                  snapshot: { ...pair.stockA, date: today },
+                  matchTicker: pair.stockB.ticker,
+                },
+              });
+            }}
           >
             <ScoreRing score={pair.matchScore} />
             <div className="flex-1 min-w-0">

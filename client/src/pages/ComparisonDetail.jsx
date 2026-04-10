@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
@@ -30,8 +30,12 @@ function saveToWatchlist(ticker, companyName) {
 export default function ComparisonDetail() {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const snapshot = state?.snapshot;
-  const matchTicker = state?.matchTicker;
+  const [searchParams] = useSearchParams();
+
+  // Support both navigate state and URL query params
+  const ticker = state?.snapshot?.ticker || searchParams.get('ticker');
+  const date = state?.snapshot?.date || searchParams.get('date');
+  const matchTicker = state?.matchTicker || searchParams.get('match');
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,16 +43,23 @@ export default function ComparisonDetail() {
   const [watchlisted, setWatchlisted] = useState(false);
 
   useEffect(() => {
-    if (!snapshot || !matchTicker) navigate('/', { replace: true });
-  }, [snapshot, matchTicker, navigate]);
+    if (!ticker || !date || !matchTicker) navigate('/', { replace: true });
+  }, [ticker, date, matchTicker, navigate]);
+
+  // Update URL for shareable links
+  useEffect(() => {
+    if (!ticker || !date || !matchTicker) return;
+    const currentT = searchParams.get('ticker');
+    const currentD = searchParams.get('date');
+    const currentM = searchParams.get('match');
+    if (currentT !== ticker || currentD !== date || currentM !== matchTicker) {
+      navigate(`/comparison?ticker=${encodeURIComponent(ticker)}&date=${date}&match=${encodeURIComponent(matchTicker)}`, { replace: true, state });
+    }
+  }, [ticker, date, matchTicker]);
 
   useEffect(() => {
-    if (!snapshot || !matchTicker) return;
-    const params = new URLSearchParams({
-      ticker:      snapshot.ticker,
-      date:        snapshot.date,
-      matchTicker: matchTicker,
-    });
+    if (!ticker || !date || !matchTicker) return;
+    const params = new URLSearchParams({ ticker, date, matchTicker });
     fetch(`/api/comparison?${params}`)
       .then(res => {
         if (!res.ok) return res.json().then(d => { throw new Error(d.error || 'Failed'); });
@@ -56,7 +67,7 @@ export default function ComparisonDetail() {
       })
       .then(d => { setData(d); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
-  }, [snapshot, matchTicker]);
+  }, [ticker, date, matchTicker]);
 
   function addToWatchlist() {
     if (!data?.match) return;
@@ -64,7 +75,7 @@ export default function ComparisonDetail() {
     setWatchlisted(true);
   }
 
-  if (!snapshot || !matchTicker) return null;
+  if (!ticker || !date || !matchTicker) return null;
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-10">
