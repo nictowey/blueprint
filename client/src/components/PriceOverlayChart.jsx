@@ -29,7 +29,7 @@ export default function PriceOverlayChart({
 
   if (tplNorm.length < 2 && matchNorm.length < 2) {
     return (
-      <div className="h-full flex items-center justify-center text-slate-600 text-sm">
+      <div className="h-full flex items-center justify-center text-warm-muted text-sm font-light">
         No price data available for overlay
       </div>
     );
@@ -120,22 +120,22 @@ export default function PriceOverlayChart({
   return (
     <div>
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <span className="text-xs text-slate-500 uppercase tracking-wider">Price overlay (normalized to 100)</span>
+        <span className="section-label">Price overlay (normalized to 100)</span>
         <div className="flex items-center gap-4 text-xs">
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 bg-accent inline-block rounded" />
-            <span className="text-slate-400">{templateTicker || templateLabel}</span>
+            <span className="text-warm-gray">{templateTicker || templateLabel}</span>
             {tplReturn != null && (
-              <span className={tplReturn >= 0 ? 'text-green-400' : 'text-red-400'}>
+              <span className={`font-mono ${tplReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {tplReturn >= 0 ? '+' : ''}{tplReturn.toFixed(1)}%
               </span>
             )}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-0.5 bg-purple-400 inline-block rounded" />
-            <span className="text-slate-400">{matchTicker || matchLabel}</span>
+            <span className="text-warm-gray">{matchTicker || matchLabel}</span>
             {matchReturn != null && (
-              <span className={matchReturn >= 0 ? 'text-green-400' : 'text-red-400'}>
+              <span className={`font-mono ${matchReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {matchReturn >= 0 ? '+' : ''}{matchReturn.toFixed(1)}%
               </span>
             )}
@@ -156,14 +156,14 @@ export default function PriceOverlayChart({
           {/* Grid lines */}
           {yLines.map((line, i) => (
             <g key={i}>
-              <line x1={PAD_L} y1={line.y} x2={W - PAD_R} y2={line.y} stroke="#334155" strokeWidth="0.5" />
-              <text x={PAD_L - 4} y={line.y + 3} textAnchor="end" fill="#64748b" fontSize="9">{line.label}</text>
+              <line x1={PAD_L} y1={line.y} x2={W - PAD_R} y2={line.y} stroke="#1c1c2e" strokeWidth="0.5" />
+              <text x={PAD_L - 4} y={line.y + 3} textAnchor="end" fill="#5a5850" fontSize="9" fontFamily="JetBrains Mono, monospace">{line.label}</text>
             </g>
           ))}
 
           {/* 100 baseline */}
           {baseY >= PAD_T && baseY <= PAD_T + plotH && (
-            <line x1={PAD_L} y1={baseY} x2={W - PAD_R} y2={baseY} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="4,3" />
+            <line x1={PAD_L} y1={baseY} x2={W - PAD_R} y2={baseY} stroke="#5a5850" strokeWidth="0.5" strokeDasharray="4,3" />
           )}
 
           {/* Template line */}
@@ -171,7 +171,7 @@ export default function PriceOverlayChart({
             <polyline
               points={tplPolyline}
               fill="none"
-              stroke="#60a5fa"
+              stroke="#c9a84c"
               strokeWidth="2"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -193,10 +193,10 @@ export default function PriceOverlayChart({
           {/* Hover crosshair */}
           {hover && (
             <>
-              <line x1={hover.x} y1={PAD_T} x2={hover.x} y2={PAD_T + plotH} stroke="#94a3b8" strokeWidth="0.5" strokeDasharray="3,2" />
+              <line x1={hover.x} y1={PAD_T} x2={hover.x} y2={PAD_T + plotH} stroke="#5a5850" strokeWidth="0.5" strokeDasharray="3,2" />
               {hover.tplVal != null && (() => {
                 const cy = PAD_T + plotH - ((hover.tplVal - minVal) / range) * plotH;
-                return <circle cx={hover.x} cy={cy} r="3" fill="#60a5fa" />;
+                return <circle cx={hover.x} cy={cy} r="3" fill="#c9a84c" />;
               })()}
               {hover.matchVal != null && (() => {
                 const cy = PAD_T + plotH - ((hover.matchVal - minVal) / range) * plotH;
@@ -209,17 +209,17 @@ export default function PriceOverlayChart({
         {/* Hover tooltip */}
         {hover && (
           <div
-            className="absolute top-0 pointer-events-none bg-dark-card/95 border border-dark-border rounded-lg px-3 py-2 text-xs shadow-lg"
+            className="absolute top-0 pointer-events-none bg-dark-card/95 border border-dark-border rounded-lg px-3 py-2 text-xs shadow-lg backdrop-blur-sm"
             style={{ left: `${Math.min((hover.x / W) * 100, 75)}%` }}
           >
             {hover.tplDate && (
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="w-2 h-2 rounded-full bg-accent inline-block" />
-                <span className="text-slate-400">{hover.tplDate}</span>
-                <span className="text-slate-200 font-semibold">
+                <span className="text-warm-gray font-mono">{hover.tplDate}</span>
+                <span className="text-warm-white font-semibold font-mono">
                   ${hover.tplPrice?.toFixed(2)}
                 </span>
-                <span className={hover.tplVal >= 100 ? 'text-green-400' : 'text-red-400'}>
+                <span className={`font-mono ${hover.tplVal >= 100 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {hover.tplVal >= 100 ? '+' : ''}{(hover.tplVal - 100).toFixed(1)}%
                 </span>
               </div>
@@ -227,11 +227,11 @@ export default function PriceOverlayChart({
             {hover.matchDate && (
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-purple-400 inline-block" />
-                <span className="text-slate-400">{hover.matchDate}</span>
-                <span className="text-slate-200 font-semibold">
+                <span className="text-warm-gray font-mono">{hover.matchDate}</span>
+                <span className="text-warm-white font-semibold font-mono">
                   ${hover.matchPrice?.toFixed(2)}
                 </span>
-                <span className={hover.matchVal >= 100 ? 'text-green-400' : 'text-red-400'}>
+                <span className={`font-mono ${hover.matchVal >= 100 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {hover.matchVal >= 100 ? '+' : ''}{(hover.matchVal - 100).toFixed(1)}%
                 </span>
               </div>

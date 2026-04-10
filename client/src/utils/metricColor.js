@@ -6,7 +6,7 @@
  * bar so users get one consistent signal per metric.
  *
  * Green  = very similar to template (≥75% similarity)
- * Yellow = moderately similar (40-75%)
+ * Amber  = moderately similar (40-75%)
  * Red    = significantly different (<40%)
  *
  * When a per-metric similarity score is available (from the API), use it directly.
@@ -19,10 +19,10 @@
  * @returns {string} Tailwind color class
  */
 export function getMetricColorFromScore(similarity) {
-  if (similarity == null) return 'text-slate-600';
+  if (similarity == null) return 'text-warm-muted';
   const pct = similarity * 100;
-  if (pct >= 75) return 'text-green-400';
-  if (pct >= 40) return 'text-yellow-400';
+  if (pct >= 75) return 'text-emerald-400';
+  if (pct >= 40) return 'text-amber-400';
   return 'text-red-400';
 }
 
@@ -31,13 +31,13 @@ export function getMetricColorFromScore(similarity) {
  * Uses relative difference for a rough approximation.
  */
 export function getMetricColor(key, templateVal, matchVal) {
-  if (templateVal == null || matchVal == null) return 'text-slate-600';
-  if (templateVal === 0 && matchVal === 0) return 'text-green-400';
+  if (templateVal == null || matchVal == null) return 'text-warm-muted';
+  if (templateVal === 0 && matchVal === 0) return 'text-emerald-400';
 
   const denom = Math.max(Math.abs(templateVal), Math.abs(matchVal), 0.01);
   const pctDiff = Math.abs(matchVal - templateVal) / denom * 100;
 
-  if (pctDiff <= 15) return 'text-green-400';
-  if (pctDiff <= 50) return 'text-yellow-400';
+  if (pctDiff <= 15) return 'text-emerald-400';
+  if (pctDiff <= 50) return 'text-amber-400';
   return 'text-red-400';
 }

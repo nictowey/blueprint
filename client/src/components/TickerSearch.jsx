@@ -72,21 +72,21 @@ export default function TickerSearch({ value, onChange, onSelect }) {
         />
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-accent/40 border-t-accent rounded-full animate-spin" />
           </div>
         )}
       </div>
       {open && suggestions.length > 0 && (
-        <div className="absolute z-20 w-full mt-1 bg-dark-card border border-dark-border rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute z-20 w-full mt-1 bg-dark-card border border-dark-border rounded-lg shadow-xl overflow-hidden backdrop-blur-sm">
           {suggestions.map(item => (
             <button
               key={item.symbol}
-              className="w-full text-left px-4 py-2.5 hover:bg-dark-border flex items-center justify-between gap-3 transition-colors"
+              className="w-full text-left px-4 py-2.5 hover:bg-dark-card-hover flex items-center justify-between gap-3 transition-colors duration-150"
               onMouseDown={() => handleSelect(item)}
             >
-              <span className="font-mono font-semibold text-slate-100 text-sm">{item.symbol}</span>
-              <span className="text-slate-400 text-sm truncate">{item.name}</span>
-              <span className="text-slate-600 text-xs flex-shrink-0">{item.exchangeShortName}</span>
+              <span className="font-mono font-semibold text-warm-white text-sm">{item.symbol}</span>
+              <span className="text-warm-gray text-sm truncate font-light">{item.name}</span>
+              <span className="text-warm-muted text-xs flex-shrink-0 font-mono">{item.exchangeShortName}</span>
             </button>
           ))}
         </div>

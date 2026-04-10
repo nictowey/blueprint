@@ -9,18 +9,18 @@ const PERIODS = ['1m', '3m', '6m', '12m'];
 const PERIOD_LABELS = { '1m': '1 Month', '3m': '3 Months', '6m': '6 Months', '12m': '12 Months' };
 
 function ReturnCell({ value, benchmark }) {
-  if (value == null) return <td className="px-3 py-2.5 text-center text-slate-600 text-sm">—</td>;
+  if (value == null) return <td className="px-3 py-2.5 text-center text-warm-muted/40 text-sm font-mono">—</td>;
   const positive = value > 0;
-  const color = positive ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-slate-400';
+  const color = positive ? 'text-emerald-400' : value < 0 ? 'text-red-400' : 'text-warm-gray';
   const vsBench = benchmark != null ? value - benchmark : null;
 
   return (
     <td className="px-3 py-2.5 text-center">
-      <span className={`text-sm font-semibold ${color}`}>
+      <span className={`text-sm font-semibold font-mono ${color}`}>
         {positive ? '+' : ''}{value.toFixed(1)}%
       </span>
       {vsBench != null && (
-        <span className={`block text-xs mt-0.5 ${vsBench > 0 ? 'text-green-500/60' : vsBench < 0 ? 'text-red-500/60' : 'text-slate-600'}`}>
+        <span className={`block text-xs mt-0.5 font-mono ${vsBench > 0 ? 'text-emerald-500/60' : vsBench < 0 ? 'text-red-500/60' : 'text-warm-muted'}`}>
           {vsBench > 0 ? '+' : ''}{vsBench.toFixed(1)}% vs SPY
         </span>
       )}
@@ -34,38 +34,38 @@ function SummaryCard({ label, period, summary, benchmark }) {
 
   return (
     <div className="card flex-1 min-w-[140px]">
-      <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-xl font-bold ${summary.avgReturn > 0 ? 'text-green-400' : summary.avgReturn < 0 ? 'text-red-400' : 'text-slate-300'}`}>
+      <p className="section-label mb-2">{label}</p>
+      <p className={`text-xl font-bold font-mono ${summary.avgReturn > 0 ? 'text-emerald-400' : summary.avgReturn < 0 ? 'text-red-400' : 'text-warm-white'}`}>
         {summary.avgReturn > 0 ? '+' : ''}{summary.avgReturn.toFixed(1)}%
       </p>
-      <p className="text-xs text-slate-500 mt-1">Avg return</p>
+      <p className="text-xs text-warm-muted mt-1 font-light">Avg return</p>
       <div className="mt-3 space-y-1 text-xs">
         <div className="flex justify-between">
-          <span className="text-slate-500">Median</span>
-          <span className="text-slate-300">{summary.medianReturn > 0 ? '+' : ''}{summary.medianReturn.toFixed(1)}%</span>
+          <span className="text-warm-muted">Median</span>
+          <span className="text-warm-white font-mono">{summary.medianReturn > 0 ? '+' : ''}{summary.medianReturn.toFixed(1)}%</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-500">Win rate</span>
-          <span className={summary.winRate >= 50 ? 'text-green-400' : 'text-red-400'}>{summary.winRate}%</span>
+          <span className="text-warm-muted">Win rate</span>
+          <span className={`font-mono ${summary.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>{summary.winRate}%</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-500">Best</span>
-          <span className="text-green-400">+{summary.bestReturn.toFixed(1)}%</span>
+          <span className="text-warm-muted">Best</span>
+          <span className="text-emerald-400 font-mono">+{summary.bestReturn.toFixed(1)}%</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-500">Worst</span>
-          <span className="text-red-400">{summary.worstReturn.toFixed(1)}%</span>
+          <span className="text-warm-muted">Worst</span>
+          <span className="text-red-400 font-mono">{summary.worstReturn.toFixed(1)}%</span>
         </div>
         {benchReturn != null && (
           <div className="flex justify-between pt-1 border-t border-dark-border/50">
-            <span className="text-slate-500">SPY</span>
-            <span className="text-slate-400">{benchReturn > 0 ? '+' : ''}{benchReturn.toFixed(1)}%</span>
+            <span className="text-warm-muted">SPY</span>
+            <span className="text-warm-gray font-mono">{benchReturn > 0 ? '+' : ''}{benchReturn.toFixed(1)}%</span>
           </div>
         )}
         {summary.avgVsBenchmark != null && (
           <div className="flex justify-between">
-            <span className="text-slate-500">Alpha</span>
-            <span className={summary.avgVsBenchmark > 0 ? 'text-green-400' : 'text-red-400'}>
+            <span className="text-warm-muted">Alpha</span>
+            <span className={`font-mono ${summary.avgVsBenchmark > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {summary.avgVsBenchmark > 0 ? '+' : ''}{summary.avgVsBenchmark.toFixed(1)}%
             </span>
           </div>
@@ -110,8 +110,8 @@ export default function BacktestResults() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
-          <p className="text-slate-400 text-sm animate-pulse">Running backtest — fetching forward returns…</p>
-          <p className="text-slate-600 text-xs">This may take 15–30 seconds</p>
+          <p className="text-warm-gray text-sm animate-pulse font-light">Running backtest — fetching forward returns…</p>
+          <p className="text-warm-muted text-xs">This may take 15–30 seconds</p>
         </div>
       </main>
     );
@@ -120,7 +120,7 @@ export default function BacktestResults() {
   if (error) {
     return (
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-        <div className="card border-red-500/30 text-red-400 text-sm mb-4">{error}</div>
+        <div className="card border-red-500/20 text-red-400 text-sm mb-4">{error}</div>
         <button className="btn-secondary" onClick={() => navigate(-1)}>← Back to matches</button>
       </main>
     );
@@ -130,7 +130,7 @@ export default function BacktestResults() {
     return (
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
         <div className="card text-center py-10">
-          <p className="text-slate-300 text-sm">No backtest data available for this template.</p>
+          <p className="text-warm-white text-sm">No backtest data available for this template.</p>
         </div>
         <button className="btn-secondary mt-4" onClick={() => navigate(-1)}>← Back to matches</button>
       </main>
@@ -140,15 +140,15 @@ export default function BacktestResults() {
   const { results, benchmark, summary } = data;
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-100">
-            Backtest: <span className="text-accent">{ticker}</span>
-            <span className="text-slate-500 text-base font-normal ml-2">{date}</span>
+          <h1 className="text-xl sm:text-2xl font-display text-warm-white">
+            Backtest: <span className="text-accent italic">{ticker}</span>
+            <span className="text-warm-muted text-base font-sans font-normal ml-2 font-mono">{date}</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-warm-gray mt-1 font-light">
             How did the top {results.length} matches perform after the snapshot date?
           </p>
         </div>
@@ -176,8 +176,8 @@ export default function BacktestResults() {
       </div>
 
       {/* Disclaimer */}
-      <div className="card mb-6 border-yellow-500/20 bg-yellow-500/5">
-        <p className="text-xs text-yellow-400/80 leading-relaxed">
+      <div className="card mb-6 border-amber-500/15 bg-amber-500/5">
+        <p className="text-xs text-amber-400/80 leading-relaxed font-light">
           Past performance does not guarantee future results. This backtest uses current universe data matched against
           a historical snapshot — survivorship bias may affect results. Use as one input among many.
         </p>
@@ -199,12 +199,12 @@ export default function BacktestResults() {
       {/* Return visualization */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
-          <span className="text-xs text-slate-500 uppercase tracking-wider">Return distribution</span>
+          <span className="section-label">Return distribution</span>
           <div className="flex gap-1">
             {PERIODS.map(p => (
               <button
                 key={p}
-                className={`text-xs px-2.5 py-1 rounded ${chartPeriod === p ? 'bg-accent/20 text-accent' : 'text-slate-500 hover:text-slate-300'}`}
+                className={`text-xs px-2.5 py-1 rounded font-mono transition-colors duration-200 ${chartPeriod === p ? 'bg-accent/15 text-accent' : 'text-warm-muted hover:text-warm-gray'}`}
                 onClick={() => setChartPeriod(p)}
               >
                 {p}
@@ -224,31 +224,31 @@ export default function BacktestResults() {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-dark-border/50">
-              <th className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider">#</th>
-              <th className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider">Ticker</th>
-              <th className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider hidden sm:table-cell">Sector</th>
-              <th className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider text-center">Score</th>
-              <th className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider text-center">Start $</th>
+              <th className="px-3 py-2 section-label">#</th>
+              <th className="px-3 py-2 section-label">Ticker</th>
+              <th className="px-3 py-2 section-label hidden sm:table-cell">Sector</th>
+              <th className="px-3 py-2 section-label text-center">Score</th>
+              <th className="px-3 py-2 section-label text-center">Start $</th>
               {PERIODS.map(p => (
-                <th key={p} className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider text-center">{p}</th>
+                <th key={p} className="px-3 py-2 section-label text-center">{p}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {results.map((r, i) => (
-              <tr key={r.ticker} className="border-b border-dark-border/30 hover:bg-dark-border/20 transition-colors">
-                <td className="px-3 py-2.5 text-slate-600 text-sm">{i + 1}</td>
+              <tr key={r.ticker} className="border-b border-dark-border/20 hover:bg-dark-card-hover transition-colors duration-150">
+                <td className="px-3 py-2.5 text-warm-muted text-sm font-mono">{i + 1}</td>
                 <td className="px-3 py-2.5">
-                  <span className="font-mono font-semibold text-slate-100 text-sm">{r.ticker}</span>
-                  <span className="block text-xs text-slate-500 truncate max-w-[120px]">{r.companyName}</span>
+                  <span className="font-mono font-semibold text-warm-white text-sm">{r.ticker}</span>
+                  <span className="block text-xs text-warm-muted truncate max-w-[120px] font-light">{r.companyName}</span>
                 </td>
-                <td className="px-3 py-2.5 text-xs text-slate-500 hidden sm:table-cell">{r.sector || '—'}</td>
+                <td className="px-3 py-2.5 text-xs text-warm-muted hidden sm:table-cell">{r.sector || '—'}</td>
                 <td className="px-3 py-2.5 text-center">
-                  <span className={`text-sm font-semibold ${r.matchScore >= 70 ? 'text-green-400' : r.matchScore >= 55 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  <span className={`text-sm font-semibold font-mono ${r.matchScore >= 70 ? 'text-emerald-400' : r.matchScore >= 55 ? 'text-accent' : 'text-red-400'}`}>
                     {Math.round(r.matchScore)}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-center text-sm text-slate-300">
+                <td className="px-3 py-2.5 text-center text-sm text-warm-white font-mono">
                   {r.startPrice != null ? `$${r.startPrice.toFixed(2)}` : '—'}
                 </td>
                 {PERIODS.map(p => (
@@ -262,24 +262,24 @@ export default function BacktestResults() {
             ))}
             {/* Benchmark row */}
             {benchmark && (
-              <tr className="border-t-2 border-dark-border/50 bg-dark-border/10">
+              <tr className="border-t-2 border-dark-border/50 bg-dark-surface">
                 <td className="px-3 py-2.5" />
                 <td className="px-3 py-2.5">
-                  <span className="font-mono font-semibold text-slate-400 text-sm">SPY</span>
-                  <span className="block text-xs text-slate-600">Benchmark</span>
+                  <span className="font-mono font-semibold text-warm-gray text-sm">SPY</span>
+                  <span className="block text-xs text-warm-muted font-light">Benchmark</span>
                 </td>
                 <td className="px-3 py-2.5 hidden sm:table-cell" />
                 <td className="px-3 py-2.5" />
-                <td className="px-3 py-2.5 text-center text-sm text-slate-400">
+                <td className="px-3 py-2.5 text-center text-sm text-warm-gray font-mono">
                   {benchmark.startPrice != null ? `$${benchmark.startPrice.toFixed(2)}` : '—'}
                 </td>
                 {PERIODS.map(p => (
                   <td key={p} className="px-3 py-2.5 text-center">
                     {benchmark.returns?.[p]?.returnPct != null ? (
-                      <span className={`text-sm font-semibold ${benchmark.returns[p].returnPct > 0 ? 'text-green-400/70' : 'text-red-400/70'}`}>
+                      <span className={`text-sm font-semibold font-mono ${benchmark.returns[p].returnPct > 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
                         {benchmark.returns[p].returnPct > 0 ? '+' : ''}{benchmark.returns[p].returnPct.toFixed(1)}%
                       </span>
-                    ) : <span className="text-slate-600 text-sm">—</span>}
+                    ) : <span className="text-warm-muted text-sm font-mono">—</span>}
                   </td>
                 ))}
               </tr>

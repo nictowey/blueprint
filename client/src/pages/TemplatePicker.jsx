@@ -193,8 +193,8 @@ export default function TemplatePicker() {
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Warm-up banner */}
       {!serverReady && !pollTimedOut && (
-        <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-yellow-400 text-xs sm:text-sm">
-          <span className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin shrink-0" />
+        <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-400 text-xs sm:text-sm animate-fade-in">
+          <span className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin shrink-0" />
           <span>
             Server warming up — {stockCount.toLocaleString()} stocks loaded so far.
             Snapshot lookups work now; match results will be ready shortly.
@@ -202,13 +202,13 @@ export default function TemplatePicker() {
         </div>
       )}
       {!serverReady && pollTimedOut && (
-        <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-red-500/30 bg-red-500/5 text-red-400 text-xs sm:text-sm">
+        <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 text-xs sm:text-sm animate-fade-in">
           <span>
             Server is taking longer than expected to load.
             Snapshot lookups may still work — match results require a fully loaded universe.
           </span>
           <button
-            className="ml-auto shrink-0 text-xs underline hover:text-red-300"
+            className="ml-auto shrink-0 text-xs underline hover:text-red-300 transition-colors"
             onClick={() => {
               setPollTimedOut(false);
               pollCountRef.current = 0;
@@ -239,84 +239,84 @@ export default function TemplatePicker() {
       )}
 
       {/* Hero */}
-      <div className="text-center mb-10 sm:mb-14">
-        <div className="inline-block mb-4 px-3 py-1 rounded-full border border-accent/30 bg-accent/5 text-accent text-xs font-medium tracking-wide">
+      <div className="text-center mb-12 sm:mb-16 animate-fade-in-up">
+        <div className="inline-block mb-5 px-4 py-1.5 rounded-full border border-accent/20 bg-accent/5 text-accent text-xs font-medium tracking-wide">
           28 metrics · 5 strategies · {stockCount > 0 ? `${stockCount.toLocaleString()} stocks` : '5,000+ stocks'}
         </div>
-        <h1 className="text-3xl sm:text-5xl font-bold text-slate-100 mb-4 leading-tight">
+        <h1 className="text-3xl sm:text-5xl font-display text-warm-white mb-5 leading-tight">
           Find stocks that look like<br />
-          <span className="text-accent">yesterday's biggest winners</span>
+          <span className="text-accent italic">yesterday's biggest winners</span>
         </h1>
-        <p className="text-slate-400 text-base sm:text-lg max-w-xl mx-auto leading-relaxed">
+        <p className="text-warm-gray text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-light">
           Blueprint matches today's stocks against historical breakout profiles using valuation,
           growth, profitability, and momentum data — then backtests the results.
         </p>
       </div>
 
       {/* How it works */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12 animate-fade-in-up-delay">
         {[
           {
-            step: '1',
+            step: '01',
             title: 'Pick a winner',
             desc: 'Choose a stock that broke out and the date before it ran. Blueprint captures its full financial profile.',
             icon: (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#60a5fa" strokeWidth="1.5"/><path d="M10 6v4l3 2" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#c9a84c" strokeWidth="1.2"/><path d="M10 6v4l3 2" stroke="#c9a84c" strokeWidth="1.2" strokeLinecap="round"/></svg>
             ),
           },
           {
-            step: '2',
+            step: '02',
             title: 'Find matches',
             desc: 'Blueprint scans thousands of stocks to find the ones that most closely resemble your template today.',
             icon: (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5" stroke="#a78bfa" strokeWidth="1.5"/><path d="M12.5 12.5L17 17" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5" stroke="#c9a84c" strokeWidth="1.2"/><path d="M12.5 12.5L17 17" stroke="#c9a84c" strokeWidth="1.2" strokeLinecap="round"/></svg>
             ),
           },
           {
-            step: '3',
+            step: '03',
             title: 'Validate & track',
             desc: 'Backtest how past matches performed, compare metrics side by side, and add the best to your watchlist.',
             icon: (
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 14l4-4 3 3 7-9" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 14l4-4 3 3 7-9" stroke="#22c55e" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             ),
           },
         ].map(item => (
-          <div key={item.step} className="card text-center py-5 px-4">
-            <div className="flex items-center justify-center gap-2 mb-2">
+          <div key={item.step} className="card text-center py-6 px-4 group hover:border-dark-border-hover transition-all duration-300">
+            <div className="flex items-center justify-center gap-2.5 mb-3">
               {item.icon}
-              <span className="text-xs text-slate-600 font-bold">{item.step}</span>
+              <span className="text-[10px] text-warm-muted font-mono tracking-widest">{item.step}</span>
             </div>
-            <p className="text-sm font-semibold text-slate-200 mb-1">{item.title}</p>
-            <p className="text-xs text-slate-500 leading-relaxed">{item.desc}</p>
+            <p className="text-sm font-semibold text-warm-white mb-1.5">{item.title}</p>
+            <p className="text-xs text-warm-gray leading-relaxed font-light">{item.desc}</p>
           </div>
         ))}
       </div>
 
       {/* Feature highlights */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-12 animate-fade-in-up-delay-2">
         {[
           { label: 'Sector-relative scoring', desc: 'Compares within sectors' },
           { label: 'Momentum matching', desc: 'Price trajectory alignment' },
           { label: 'Forward backtesting', desc: '1m to 12m returns vs SPY' },
           { label: 'CSV export & sharing', desc: 'Share any analysis' },
         ].map(f => (
-          <div key={f.label} className="rounded-lg border border-dark-border/50 bg-dark-card/30 px-3 py-3 text-center">
-            <p className="text-xs font-semibold text-slate-300 mb-0.5">{f.label}</p>
-            <p className="text-[10px] text-slate-600">{f.desc}</p>
+          <div key={f.label} className="rounded-lg border border-dark-border/50 bg-dark-surface px-3 py-3 text-center hover:border-dark-border transition-colors duration-200">
+            <p className="text-xs font-medium text-warm-white mb-0.5">{f.label}</p>
+            <p className="text-[10px] text-warm-muted font-light">{f.desc}</p>
           </div>
         ))}
       </div>
 
       {/* Mode toggle */}
-      <div className="flex items-center justify-center gap-3 mb-6">
+      <div className="flex items-center justify-center gap-3 mb-6 animate-fade-in-up-delay-3">
         <button
-          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${!blendMode ? 'border-accent/50 bg-accent/10 text-accent' : 'border-dark-border text-slate-500 hover:text-slate-300'}`}
+          className={`text-xs px-4 py-1.5 rounded-full border transition-all duration-200 ${!blendMode ? 'border-accent/40 bg-accent/10 text-accent' : 'border-dark-border text-warm-muted hover:text-warm-gray'}`}
           onClick={() => { setBlendMode(false); setBlendTemplates([]); }}
         >
           Single template
         </button>
         <button
-          className={`text-xs px-3 py-1.5 rounded-full border transition-all ${blendMode ? 'border-accent/50 bg-accent/10 text-accent' : 'border-dark-border text-slate-500 hover:text-slate-300'}`}
+          className={`text-xs px-4 py-1.5 rounded-full border transition-all duration-200 ${blendMode ? 'border-accent/40 bg-accent/10 text-accent' : 'border-dark-border text-warm-muted hover:text-warm-gray'}`}
           onClick={() => { setBlendMode(true); setSnapshot(null); }}
         >
           Multi-template blend
@@ -325,17 +325,17 @@ export default function TemplatePicker() {
 
       {/* Blend template list */}
       {blendMode && blendTemplates.length > 0 && (
-        <div className="card mb-4 border-accent/20">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+        <div className="card mb-4 border-accent/15 animate-fade-in">
+          <p className="section-label mb-3">
             Blend templates ({blendTemplates.length}/5)
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
             {blendTemplates.map((t, i) => (
-              <div key={`${t.ticker}-${t.date}`} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/5">
+              <div key={`${t.ticker}-${t.date}`} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-accent/20 bg-accent/5">
                 <span className="font-mono font-bold text-sm text-accent">{t.ticker}</span>
-                <span className="text-xs text-slate-500">{t.date}</span>
+                <span className="text-xs text-warm-muted">{t.date}</span>
                 <button
-                  className="text-slate-600 hover:text-red-400 transition-colors ml-1"
+                  className="text-warm-muted hover:text-red-400 transition-colors ml-1"
                   onClick={() => removeFromBlend(i)}
                   title="Remove"
                 >
@@ -352,26 +352,26 @@ export default function TemplatePicker() {
             >
               {blendLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-dark-bg/30 border-t-dark-bg rounded-full animate-spin" />
                   Blending...
                 </span>
               ) : `Blend ${blendTemplates.length} Templates & Find Matches`}
             </button>
           )}
           {blendTemplates.length < 2 && (
-            <p className="text-xs text-slate-500 text-center">Add at least 2 templates to blend</p>
+            <p className="text-xs text-warm-muted text-center">Add at least 2 templates to blend</p>
           )}
         </div>
       )}
 
       {/* Search area */}
-      <div className="card mb-6">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+      <div className="card mb-6 animate-fade-in-up-delay-3">
+        <p className="section-label mb-4">
           {blendMode ? `Add template ${blendTemplates.length + 1}` : 'Template Stock'}
         </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="w-full sm:flex-1">
-            <label className="block text-sm text-slate-400 mb-1.5">Ticker</label>
+            <label className="block text-sm text-warm-gray mb-1.5 font-light">Ticker</label>
             <TickerSearch
               value={ticker}
               onChange={handleTickerChange}
@@ -379,10 +379,10 @@ export default function TemplatePicker() {
             />
           </div>
           <div className="w-full sm:w-auto">
-            <label className="block text-sm text-slate-400 mb-1.5">Snapshot Date</label>
+            <label className="block text-sm text-warm-gray mb-1.5 font-light">Snapshot Date</label>
             <input
               type="date"
-              className={`input-field w-full sm:w-40 ${!datePickerReady ? 'opacity-40 cursor-not-allowed' : ''}`}
+              className={`input-field w-full sm:w-40 ${!datePickerReady ? 'opacity-30 cursor-not-allowed' : ''}`}
               value={date}
               min={dateRange?.earliestDate || ''}
               max={yesterday()}
@@ -394,19 +394,19 @@ export default function TemplatePicker() {
               }}
             />
             {dateRangeLoading && (
-              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
-                <span className="w-3 h-3 border border-slate-500/50 border-t-slate-400 rounded-full animate-spin" />
+              <p className="text-xs text-warm-muted mt-1 flex items-center gap-1.5">
+                <span className="w-3 h-3 border border-warm-muted/50 border-t-warm-gray rounded-full animate-spin" />
                 Checking data availability…
               </p>
             )}
             {!dateRangeLoading && hasValidTicker && !dateRange && ticker.length > 0 && (
-              <p className="text-xs text-slate-500 mt-1">Enter a ticker to see available dates</p>
+              <p className="text-xs text-warm-muted mt-1">Enter a ticker to see available dates</p>
             )}
             {dateRange && !dateRangeLoading && dateRange.earliestDate && (
-              <p className="text-xs text-slate-500 mt-1">
-                Available: <span className="text-slate-400">{dateRange.earliestDate}</span> — <span className="text-slate-400">today</span>
+              <p className="text-xs text-warm-muted mt-1">
+                Available: <span className="text-warm-gray">{dateRange.earliestDate}</span> — <span className="text-warm-gray">today</span>
                 {!dateRange.hasFullData && dateRange.message && (
-                  <span className="block text-yellow-500/80 mt-0.5">{dateRange.message}</span>
+                  <span className="block text-amber-500/80 mt-0.5">{dateRange.message}</span>
                 )}
               </p>
             )}
@@ -421,7 +421,7 @@ export default function TemplatePicker() {
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-dark-bg/30 border-t-dark-bg rounded-full animate-spin" />
                 Loading…
               </span>
             ) : 'Load Snapshot'}
@@ -434,8 +434,8 @@ export default function TemplatePicker() {
 
       {/* Quick start suggestions — only show when no ticker entered */}
       {!ticker && !snapshot && (
-        <div className="mb-6">
-          <p className="text-xs text-slate-600 uppercase tracking-wider mb-3 text-center">Try a famous breakout</p>
+        <div className="mb-8 animate-fade-in-up-delay-3">
+          <p className="section-label mb-3 text-center">Try a famous breakout</p>
           <div className="flex flex-wrap justify-center gap-2">
             {[
               { ticker: 'CLS', date: '2023-12-01', label: 'Celestica', desc: 'Dec 2023' },
@@ -447,15 +447,15 @@ export default function TemplatePicker() {
             ].map(s => (
               <button
                 key={s.ticker}
-                className="px-3 py-2 rounded-lg border border-dark-border/50 hover:border-accent/40 bg-dark-card/30 hover:bg-accent/5 transition-all text-left group"
+                className="px-3 py-2.5 rounded-lg border border-dark-border/50 hover:border-accent/30 bg-dark-surface hover:bg-accent/5 transition-all duration-200 text-left group"
                 onClick={() => {
                   handleTickerChange(s.ticker);
                   setDate(s.date);
                   loadSnapshot(s.ticker, s.date);
                 }}
               >
-                <span className="font-mono font-bold text-sm text-slate-200 group-hover:text-accent transition-colors">{s.ticker}</span>
-                <span className="block text-[10px] text-slate-600">{s.label} · {s.desc}</span>
+                <span className="font-mono font-bold text-sm text-warm-white group-hover:text-accent transition-colors duration-200">{s.ticker}</span>
+                <span className="block text-[10px] text-warm-muted font-light">{s.label} · {s.desc}</span>
               </button>
             ))}
           </div>
@@ -464,7 +464,7 @@ export default function TemplatePicker() {
 
       {/* Snapshot card */}
       {snapshot && (
-        <>
+        <div className="animate-fade-in-up">
           <SnapshotCard snapshot={snapshot} />
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
             {blendMode ? (
@@ -494,7 +494,7 @@ export default function TemplatePicker() {
               </button>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* Top pairs across the universe */}

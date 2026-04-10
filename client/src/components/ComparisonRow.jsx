@@ -16,10 +16,10 @@ export default function ComparisonRow({ label, metricKey, leftValue, rightValue 
   const colorClass = getDiffColor(metricKey, leftValue, rightValue);
 
   return (
-    <div className="grid grid-cols-[1fr_2px_40px_2px_1fr] items-center gap-0 py-3 border-b border-dark-border last:border-0">
+    <div className="grid grid-cols-[1fr_2px_40px_2px_1fr] items-center gap-0 py-3 border-b border-dark-border/30 last:border-0">
       {/* Left value */}
       <div className="text-right pr-4">
-        <span className={`text-sm font-semibold ${leftValue == null ? 'text-slate-600' : 'text-slate-100'}`}>
+        <span className={`text-sm font-semibold font-mono ${leftValue == null ? 'text-warm-muted/40' : 'text-warm-white'}`}>
           {formatMetric(metricKey, leftValue)}
         </span>
       </div>
@@ -37,7 +37,7 @@ export default function ComparisonRow({ label, metricKey, leftValue, rightValue 
 
       {/* Right value */}
       <div className="pl-4">
-        <span className={`text-sm font-semibold ${rightValue == null ? 'text-slate-600' : 'text-slate-100'}`}>
+        <span className={`text-sm font-semibold font-mono ${rightValue == null ? 'text-warm-muted/40' : 'text-warm-white'}`}>
           {formatMetric(metricKey, rightValue)}
         </span>
       </div>
@@ -48,8 +48,8 @@ export default function ComparisonRow({ label, metricKey, leftValue, rightValue 
 // Static row for the label column (rendered separately)
 export function MetricLabel({ label }) {
   return (
-    <div className="py-3 border-b border-dark-border last:border-0 text-center">
-      <span className="text-xs text-slate-500 uppercase tracking-wider">{label}</span>
+    <div className="py-3 border-b border-dark-border/30 last:border-0 text-center">
+      <span className="text-xs text-warm-muted uppercase tracking-wider">{label}</span>
     </div>
   );
 }

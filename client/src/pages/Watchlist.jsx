@@ -85,12 +85,12 @@ export default function WatchlistPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100">Watchlist</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-display text-warm-white">Watchlist</h1>
+          <p className="text-sm text-warm-muted mt-1 font-light">
             {items.length === 0 ? 'No stocks saved yet' : `${items.length} stock${items.length > 1 ? 's' : ''} tracked`}
           </p>
         </div>
@@ -126,14 +126,14 @@ export default function WatchlistPage() {
             >
               {loadingLive ? (
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 border border-slate-500/50 border-t-slate-400 rounded-full animate-spin" />
+                  <span className="w-3 h-3 border border-warm-muted/50 border-t-warm-gray rounded-full animate-spin" />
                   Refreshing…
                 </span>
               ) : 'Refresh'}
             </button>
           )}
           {items.length > 0 && !confirmClear && (
-            <button className="btn-secondary text-xs text-red-400/70 hover:text-red-400" onClick={() => setConfirmClear(true)}>
+            <button className="btn-secondary text-xs text-red-400/60 hover:text-red-400" onClick={() => setConfirmClear(true)}>
               Clear all
             </button>
           )}
@@ -149,8 +149,13 @@ export default function WatchlistPage() {
       {/* Empty state */}
       {items.length === 0 && (
         <div className="card text-center py-16">
-          <p className="text-slate-400 text-lg mb-2">Your watchlist is empty</p>
-          <p className="text-slate-600 text-sm mb-6 max-w-sm mx-auto">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent/10 flex items-center justify-center">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+              <path d="M8 2l1.8 3.6L14 6.4l-3 2.9.7 4.1L8 11.4l-3.7 2 .7-4.1-3-2.9 4.2-.8L8 2z" stroke="#c9a84c" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
+            </svg>
+          </div>
+          <p className="text-warm-white text-lg mb-2 font-display">Your watchlist is empty</p>
+          <p className="text-warm-muted text-sm mb-6 max-w-sm mx-auto font-light">
             Find matching stocks and add them to your watchlist from the comparison page to track their performance.
           </p>
           <button className="btn-primary" onClick={() => navigate('/')}>
@@ -167,15 +172,15 @@ export default function WatchlistPage() {
             const gain = gainSinceAdd(item);
 
             return (
-              <div key={item.ticker} className="card hover:border-accent/30 transition-colors">
+              <div key={item.ticker} className="card hover:border-dark-border-hover transition-all duration-200">
                 <div className="flex items-start justify-between gap-3">
                   {/* Left: ticker info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="font-mono font-bold text-slate-100 text-base">{item.ticker}</span>
-                      <span className="text-slate-400 text-sm truncate">{item.companyName}</span>
+                      <span className="font-mono font-bold text-warm-white text-base">{item.ticker}</span>
+                      <span className="text-warm-gray text-sm truncate font-light">{item.companyName}</span>
                       {item.sector && (
-                        <span className="text-xs border border-dark-border text-slate-600 px-2 py-0.5 rounded-full">
+                        <span className="text-xs border border-dark-border text-warm-muted px-2 py-0.5 rounded-full">
                           {item.sector}
                         </span>
                       )}
@@ -184,41 +189,41 @@ export default function WatchlistPage() {
                     {/* Price row */}
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       {live?.price != null && (
-                        <span className="text-sm text-slate-200 font-semibold">
+                        <span className="text-sm text-warm-white font-semibold font-mono">
                           ${live.price.toFixed(2)}
                         </span>
                       )}
                       {live?.change != null && (
-                        <span className={`text-xs font-medium ${live.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`text-xs font-medium font-mono ${live.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {live.change >= 0 ? '+' : ''}{live.change.toFixed(2)}% today
                         </span>
                       )}
                       {gain != null && (
-                        <span className={`text-xs ${gain >= 0 ? 'text-green-400/70' : 'text-red-400/70'}`}>
+                        <span className={`text-xs font-mono ${gain >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
                           {gain >= 0 ? '+' : ''}{gain.toFixed(1)}% since added
                         </span>
                       )}
                     </div>
 
                     {/* Match context */}
-                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-slate-600">
+                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-warm-muted">
                       {item.matchScore && (
                         <span>
-                          Score: <span className={item.matchScore >= 70 ? 'text-green-400/70' : item.matchScore >= 55 ? 'text-yellow-400/70' : 'text-red-400/70'}>
+                          Score: <span className={`font-mono ${item.matchScore >= 70 ? 'text-emerald-400/70' : item.matchScore >= 55 ? 'text-accent/70' : 'text-red-400/70'}`}>
                             {Math.round(item.matchScore)}
                           </span>
                         </span>
                       )}
                       {item.templateTicker && (
-                        <span>
-                          Matched to <span className="text-slate-400">{item.templateTicker}</span>
-                          {item.templateDate && <span className="text-slate-600"> ({item.templateDate})</span>}
+                        <span className="font-light">
+                          Matched to <span className="text-warm-gray font-mono">{item.templateTicker}</span>
+                          {item.templateDate && <span className="text-warm-muted"> ({item.templateDate})</span>}
                         </span>
                       )}
                       {item.priceAtAdd != null && (
-                        <span>Added at ${item.priceAtAdd.toFixed(2)}</span>
+                        <span className="font-mono">Added at ${item.priceAtAdd.toFixed(2)}</span>
                       )}
-                      <span>{timeSince(item.addedAt)}</span>
+                      <span className="font-light">{timeSince(item.addedAt)}</span>
                     </div>
                   </div>
 
@@ -226,14 +231,14 @@ export default function WatchlistPage() {
                   <div className="flex flex-col gap-1.5 shrink-0">
                     {item.templateTicker && item.templateDate && (
                       <button
-                        className="btn-secondary text-xs px-2.5 py-1"
+                        className="btn-secondary text-xs px-2.5 py-1 hover:border-accent/30 hover:text-accent"
                         onClick={() => navigate(`/comparison?ticker=${encodeURIComponent(item.templateTicker)}&date=${item.templateDate}&match=${encodeURIComponent(item.ticker)}`)}
                       >
                         View match
                       </button>
                     )}
                     <button
-                      className="text-xs text-red-400/60 hover:text-red-400 transition-colors px-2.5 py-1"
+                      className="text-xs text-red-400/50 hover:text-red-400 transition-colors px-2.5 py-1"
                       onClick={() => handleRemove(item.ticker)}
                     >
                       Remove

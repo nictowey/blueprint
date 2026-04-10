@@ -25,21 +25,22 @@ export default function App() {
         </Routes>
         <footer className="border-t border-dark-border py-6 sm:py-8 mt-auto">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded bg-accent/20 flex items-center justify-center">
-                  <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                    <rect x="1" y="1" width="5" height="5" rx="1" fill="#6c63ff" opacity="0.9"/>
-                    <rect x="8" y="1" width="5" height="5" rx="1" fill="#6c63ff" opacity="0.6"/>
-                    <rect x="1" y="8" width="5" height="5" rx="1" fill="#6c63ff" opacity="0.6"/>
-                    <rect x="8" y="8" width="5" height="5" rx="1" fill="#6c63ff" opacity="0.3"/>
+            <div className="divider-gold mb-6" />
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-warm-muted">
+              <div className="flex items-center gap-2.5">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-accent/20 to-accent-dim/10 flex items-center justify-center">
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                    <rect x="1" y="1" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.7"/>
+                    <rect x="9" y="1" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.4"/>
+                    <rect x="1" y="9" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.4"/>
+                    <rect x="9" y="9" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.2"/>
                   </svg>
                 </div>
-                <span>Blueprint — Stock breakout pattern matching</span>
+                <span className="font-display text-sm text-warm-gray">Blueprint</span>
               </div>
               <div className="flex items-center gap-4">
                 <span>Data via Financial Modeling Prep</span>
-                <span className="text-slate-700">·</span>
+                <span className="text-dark-border">·</span>
                 <span>Not financial advice</span>
               </div>
             </div>

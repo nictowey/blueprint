@@ -1,6 +1,6 @@
 export default function Sparkline({ data, gainPct, label = 'What happened after this snapshot', period = '18 months' }) {
   if (!data || data.length < 2) {
-    return <div className="h-full flex items-center justify-center text-slate-600 text-sm">No price history</div>;
+    return <div className="h-full flex items-center justify-center text-warm-muted text-sm font-light">No price history</div>;
   }
 
   const prices = data.map(d => d.price);
@@ -18,7 +18,7 @@ export default function Sparkline({ data, gainPct, label = 'What happened after 
     return `${x},${y}`;
   }).join(' ');
 
-  const strokeColor = gainPct == null ? '#94a3b8' : gainPct >= 0 ? '#22c55e' : '#ef4444';
+  const strokeColor = gainPct == null ? '#9a9890' : gainPct >= 0 ? '#22c55e' : '#ef4444';
   const gainStr = gainPct == null
     ? '—'
     : `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%`;
@@ -26,11 +26,11 @@ export default function Sparkline({ data, gainPct, label = 'What happened after 
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-slate-500 uppercase tracking-wider">
+        <span className="section-label">
           {label}
         </span>
         <span
-          className="text-sm font-bold"
+          className="text-sm font-bold font-mono"
           style={{ color: strokeColor }}
         >
           {gainStr} over {period}

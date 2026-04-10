@@ -4,47 +4,137 @@
 
 @layer base {
   body {
-    background-color: #0f0f13;
-    color: #f1f5f9;
-    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #08080c;
+    color: #e8e6e1;
+    font-family: 'Outfit', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle noise texture overlay */
+  #root::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.018;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #08080c;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1c1c2e;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a2a40;
+  }
+
+  /* Selection color */
+  ::selection {
+    background: rgba(201, 168, 76, 0.2);
+    color: #e8e6e1;
   }
 }
 
 @layer components {
   .card {
-    @apply bg-dark-card border border-dark-border rounded-xl;
-    padding: 1rem;           /* p-4 on mobile */
+    @apply bg-dark-card border border-dark-border rounded-xl transition-all duration-200;
+    padding: 1rem;
   }
+
+  .card-hover {
+    @apply card;
+  }
+  .card-hover:hover {
+    @apply border-dark-border-hover bg-dark-card-hover;
+    box-shadow: 0 0 30px -10px rgba(201, 168, 76, 0.04);
+  }
+
   .btn-primary {
-    @apply bg-accent hover:bg-opacity-90 text-white font-semibold rounded-lg transition-all duration-150 cursor-pointer;
-    padding: 0.625rem 1.25rem;  /* py-2.5 px-5 on mobile */
+    @apply bg-accent hover:bg-accent-light text-dark-bg font-semibold rounded-lg transition-all duration-200 cursor-pointer;
+    padding: 0.625rem 1.25rem;
   }
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
+
   .btn-secondary {
-    @apply border border-dark-border text-slate-400 hover:text-white hover:border-slate-500 rounded-lg transition-all duration-150 cursor-pointer text-sm;
-    padding: 0.5rem 0.75rem;    /* py-2 px-3 on mobile */
+    @apply border border-dark-border text-warm-gray hover:text-warm-white hover:border-dark-border-hover rounded-lg transition-all duration-200 cursor-pointer text-sm;
+    padding: 0.5rem 0.75rem;
   }
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
   .input-field {
-    @apply bg-dark-card border border-dark-border text-slate-100 rounded-lg px-4 py-2.5 outline-none
-           focus:border-accent focus:ring-1 focus:ring-accent transition-all duration-150 w-full placeholder-slate-600;
+    @apply bg-dark-surface border border-dark-border text-warm-white rounded-lg px-4 py-2.5 outline-none
+           focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all duration-200 w-full;
+    font-family: inherit;
   }
+  .input-field::placeholder {
+    color: #3a3a48;
+  }
+
   .tag-green {
-    @apply text-xs bg-green-500/10 border border-green-500/30 text-green-400 px-2.5 py-0.5 rounded-full;
+    @apply text-xs border text-emerald-400 px-2.5 py-0.5 rounded-full;
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.2);
   }
+
   .tag-yellow {
-    @apply text-xs bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-2.5 py-0.5 rounded-full;
+    @apply text-xs border text-amber-400 px-2.5 py-0.5 rounded-full;
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.2);
   }
+
+  .tag-gold {
+    @apply text-xs border text-accent px-2.5 py-0.5 rounded-full;
+    background: rgba(201, 168, 76, 0.08);
+    border-color: rgba(201, 168, 76, 0.2);
+  }
+
+  /* Section heading with editorial serif */
+  .section-label {
+    @apply text-xs font-medium uppercase tracking-[0.15em] text-warm-muted;
+  }
+
+  /* Gold divider line */
+  .divider-gold {
+    @apply h-px w-full;
+    background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.15), transparent);
+  }
+
+  /* Glow effect for score rings */
+  .glow-gold {
+    filter: drop-shadow(0 0 6px rgba(201, 168, 76, 0.2));
+  }
+
+  /* Staggered animation helper */
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.1s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.2s; }
+  .stagger-5 { animation-delay: 0.25s; }
+  .stagger-6 { animation-delay: 0.3s; }
 }
 
-/* Responsive overrides — @apply can't use sm: prefixes, so use a media query */
+/* Responsive overrides */
 @media (min-width: 640px) {
-  .card {
-    padding: 1.5rem;          /* p-6 on desktop */
+  .card, .card-hover {
+    padding: 1.5rem;
   }
   .btn-primary {
-    padding: 0.75rem 1.5rem;  /* py-3 px-6 on desktop */
+    padding: 0.75rem 1.5rem;
   }
   .btn-secondary {
-    padding: 0.5rem 1rem;     /* py-2 px-4 on desktop */
+    padding: 0.5rem 1rem;
   }
 }

@@ -7,9 +7,9 @@ import { toCSV, downloadCSV } from '../utils/export';
 import ShareBar from '../components/ShareBar';
 
 function scoreLabel(score) {
-  if (score >= 85) return { text: 'Excellent match', color: 'text-green-400' };
-  if (score >= 70) return { text: 'Strong match', color: 'text-green-400' };
-  if (score >= 55) return { text: 'Moderate match', color: 'text-yellow-400' };
+  if (score >= 85) return { text: 'Excellent match', color: 'text-emerald-400' };
+  if (score >= 70) return { text: 'Strong match', color: 'text-emerald-400' };
+  if (score >= 55) return { text: 'Moderate match', color: 'text-accent' };
   return { text: 'Weak match', color: 'text-red-400' };
 }
 
@@ -172,7 +172,6 @@ export default function MatchResults() {
 
   useEffect(() => {
     // Clear any in-flight retry timers BEFORE starting new fetch
-    // (prevents stale timers from previous profile/snapshot firing concurrently)
     if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
 
@@ -195,7 +194,7 @@ export default function MatchResults() {
         <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
-            <p className="text-slate-400 text-sm">Loading snapshot…</p>
+            <p className="text-warm-gray text-sm font-light">Loading snapshot…</p>
           </div>
         </main>
       );
@@ -204,19 +203,19 @@ export default function MatchResults() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* Summary bar */}
       <div className="card mb-6 sm:mb-8">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono font-bold text-lg sm:text-xl text-slate-100">{snapshot.ticker}</span>
-              <span className="text-slate-500">·</span>
-              <span className="text-slate-400 text-xs sm:text-sm">{snapshot.date}</span>
+              <span className="font-mono font-bold text-lg sm:text-xl text-warm-white">{snapshot.ticker}</span>
+              <span className="text-warm-muted">·</span>
+              <span className="text-warm-gray text-xs sm:text-sm font-mono">{snapshot.date}</span>
             </div>
-            <p className="text-sm text-slate-400">{snapshot.companyName}</p>
+            <p className="text-sm text-warm-gray font-light">{snapshot.companyName}</p>
             {snapshot.dataAsOf && snapshot.dataAsOf !== snapshot.date && (
-              <p className="text-xs text-yellow-500/80 mt-1">
+              <p className="text-xs text-amber-500/80 mt-1">
                 Financials as of {snapshot.dataAsOf}
                 {snapshot.ttmQuarters < 4 ? ` (${snapshot.ttmQuarters}/4 quarters available)` : ''}
               </p>
@@ -229,8 +228,8 @@ export default function MatchResults() {
               { key: 'grossMargin', label: 'Margin' },
             ].map(({ key, label }) => (
               <div key={key} className="text-center">
-                <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
-                <p className="text-sm font-semibold text-slate-200">{formatMetric(key, snapshot[key])}</p>
+                <p className="section-label mb-0.5">{label}</p>
+                <p className="text-sm font-semibold text-warm-white font-mono">{formatMetric(key, snapshot[key])}</p>
               </div>
             ))}
           </div>
@@ -241,9 +240,9 @@ export default function MatchResults() {
       {/* Warm-up retry state */}
       {warming && (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="w-10 h-10 border-4 border-dark-border border-t-yellow-400 rounded-full animate-spin" />
-          <p className="text-yellow-400 text-sm font-medium">Universe warming up</p>
-          <p className="text-slate-500 text-xs">
+          <div className="w-10 h-10 border-4 border-dark-border border-t-amber-400 rounded-full animate-spin" />
+          <p className="text-amber-400 text-sm font-medium">Universe warming up</p>
+          <p className="text-warm-muted text-xs font-mono">
             {warmStockCount.toLocaleString()} stocks loaded — retrying in {retryCountdown}s…
           </p>
         </div>
@@ -253,23 +252,23 @@ export default function MatchResults() {
       {loading && !warming && (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
-          <p className="text-slate-400 text-sm animate-pulse">{LOADING_MESSAGES[msgIdx]}</p>
+          <p className="text-warm-gray text-sm animate-pulse font-light">{LOADING_MESSAGES[msgIdx]}</p>
         </div>
       )}
 
       {/* Error state */}
       {error && !loading && (
-        <div className="card border-red-500/30 text-red-400 text-sm">
+        <div className="card border-red-500/20 text-red-400 text-sm">
           {error}
         </div>
       )}
 
-      {/* Empty results — profile hard filters may have excluded everything */}
+      {/* Empty results */}
       {matches && !loading && matches.length === 0 && (
         <div className="card text-center py-10">
-          <p className="text-slate-300 text-sm font-medium mb-2">No matches found</p>
-          <p className="text-slate-500 text-xs leading-relaxed max-w-md mx-auto">
-            The <span className="text-slate-400">{profiles.find(p => p.key === activeProfile)?.name || activeProfile}</span> strategy
+          <p className="text-warm-white text-sm font-medium mb-2">No matches found</p>
+          <p className="text-warm-gray text-xs leading-relaxed max-w-md mx-auto font-light">
+            The <span className="text-warm-white">{profiles.find(p => p.key === activeProfile)?.name || activeProfile}</span> strategy
             has filters that excluded all candidates. Try a different strategy profile or a different template stock.
           </p>
           {profiles.length > 1 && (
@@ -317,26 +316,26 @@ export default function MatchResults() {
             <div className="card mb-6 border-dark-border/50">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-accent text-sm">i</span>
+                  <span className="text-accent text-sm font-display italic">i</span>
                 </div>
                 <div className="text-sm">
-                  <p className="text-slate-300">
-                    Found <span className="font-semibold text-slate-100">{matches.length} matches</span> —
-                    top score is <span className={`font-semibold ${scoreLabel(topScore).color}`}>{Math.round(topScore)}</span>
+                  <p className="text-warm-white font-light">
+                    Found <span className="font-semibold">{matches.length} matches</span> —
+                    top score is <span className={`font-semibold font-mono ${scoreLabel(topScore).color}`}>{Math.round(topScore)}</span>
                     {topScore >= 75
                       ? '. These stocks share very similar financial profiles to the template.'
                       : topScore >= 55
                         ? '. Decent similarity — review individual metrics for areas of divergence.'
                         : '. Moderate similarity — the template profile may be uncommon in today\'s market.'}
                   </p>
-                  <p className="text-slate-500 text-xs mt-1">
+                  <p className="text-warm-muted text-xs mt-1 font-mono">
                     Avg score: {avgScore} · Scores above 70 indicate strong similarity across valuation, growth, profitability, and technicals.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Backtest button — only when date is > 1 month ago */}
+            {/* Backtest button */}
             {(() => {
               const oneMonthAgo = new Date();
               oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
@@ -349,10 +348,11 @@ export default function MatchResults() {
                 if (activeProfile !== DEFAULT_PROFILE) backtestParams.set('profile', activeProfile);
                 return (
                   <button
-                    className="btn-secondary w-full mb-5 text-sm py-2.5 flex items-center justify-center gap-2"
+                    className="btn-secondary w-full mb-5 text-sm py-2.5 flex items-center justify-center gap-2 hover:border-accent/30 hover:text-accent"
                     onClick={() => navigate(`/backtest?${backtestParams}`)}
                   >
-                    <span>📊</span> Backtest — See how these matches actually performed
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 12l3-3 2.5 2.5L14 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Backtest — See how these matches actually performed
                   </button>
                 );
               }
@@ -364,7 +364,7 @@ export default function MatchResults() {
               <div className="card mb-5 border-dark-border/50">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-500 uppercase tracking-wider shrink-0">Strategy</label>
+                    <label className="section-label shrink-0">Strategy</label>
                     <select
                       className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
                       value={activeProfile}
@@ -375,7 +375,7 @@ export default function MatchResults() {
                       ))}
                     </select>
                   </div>
-                  <p className="text-xs text-slate-500 sm:ml-2 leading-relaxed">
+                  <p className="text-xs text-warm-gray sm:ml-2 leading-relaxed font-light">
                     {profiles.find(p => p.key === activeProfile)?.description || ''}
                   </p>
                 </div>
@@ -385,7 +385,7 @@ export default function MatchResults() {
             {/* Filters row */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-5">
               <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-500 uppercase tracking-wider shrink-0">Sector</label>
+                <label className="section-label shrink-0">Sector</label>
                 <select
                   className="input-field text-sm py-1.5 px-3 w-full sm:w-auto min-w-0"
                   value={sectorFilter}
@@ -402,7 +402,7 @@ export default function MatchResults() {
               </div>
 
               <div className="flex items-center gap-2 sm:ml-auto">
-                <label className="text-xs text-slate-500 uppercase tracking-wider shrink-0">Sort</label>
+                <label className="section-label shrink-0">Sort</label>
                 <select
                   className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
                   value={sortBy}
@@ -417,7 +417,7 @@ export default function MatchResults() {
 
             {/* Results count + share/export */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-warm-muted font-light">
                 Showing {sorted.length} of {matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
               </p>
               <ShareBar
@@ -443,7 +443,7 @@ export default function MatchResults() {
             </div>
 
             {sorted.length === 0 ? (
-              <div className="card text-center py-8 text-slate-500 text-sm">
+              <div className="card text-center py-8 text-warm-muted text-sm font-light">
                 No matches in this sector. Try "All sectors" to see all results.
               </div>
             ) : (

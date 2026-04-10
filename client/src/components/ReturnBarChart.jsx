@@ -26,16 +26,16 @@ export default function ReturnBarChart({ results, period, benchmarkReturn }) {
 
         return (
           <div key={item.ticker} className="flex items-center gap-2 h-6">
-            <span className="text-xs font-mono text-slate-400 w-12 text-right shrink-0">{item.ticker}</span>
+            <span className="text-xs font-mono text-warm-gray w-12 text-right shrink-0">{item.ticker}</span>
             <div className="flex-1 relative h-full flex items-center">
               {/* Center line */}
-              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-700" />
+              <div className="absolute left-1/2 top-0 bottom-0 w-px bg-dark-border" />
               {/* Bar */}
               <div
-                className="absolute h-4 rounded-sm"
+                className="absolute h-4 rounded-sm transition-all duration-500"
                 style={{
                   backgroundColor: isPositive ? '#22c55e' : '#ef4444',
-                  opacity: 0.7,
+                  opacity: 0.6,
                   width: `${barWidth}%`,
                   ...(isPositive
                     ? { left: '50%' }
@@ -44,7 +44,7 @@ export default function ReturnBarChart({ results, period, benchmarkReturn }) {
               />
               {/* Label */}
               <span
-                className={`absolute text-[10px] font-semibold ${isPositive ? 'text-green-300' : 'text-red-300'}`}
+                className={`absolute text-[10px] font-semibold font-mono ${isPositive ? 'text-emerald-300' : 'text-red-300'}`}
                 style={{
                   ...(isPositive
                     ? { left: `calc(50% + ${barWidth}% + 4px)` }
@@ -60,14 +60,14 @@ export default function ReturnBarChart({ results, period, benchmarkReturn }) {
       {/* Benchmark line */}
       {benchmarkReturn != null && (
         <div className="flex items-center gap-2 h-6 border-t border-dark-border/50 pt-1">
-          <span className="text-xs font-mono text-slate-500 w-12 text-right shrink-0">SPY</span>
+          <span className="text-xs font-mono text-warm-muted w-12 text-right shrink-0">SPY</span>
           <div className="flex-1 relative h-full flex items-center">
-            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-700" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-dark-border" />
             <div
-              className="absolute h-4 rounded-sm"
+              className="absolute h-4 rounded-sm transition-all duration-500"
               style={{
                 backgroundColor: benchmarkReturn >= 0 ? '#60a5fa' : '#f87171',
-                opacity: 0.5,
+                opacity: 0.4,
                 width: `${Math.abs(benchmarkReturn) / maxAbs * 50}%`,
                 ...(benchmarkReturn >= 0
                   ? { left: '50%' }
@@ -75,7 +75,7 @@ export default function ReturnBarChart({ results, period, benchmarkReturn }) {
               }}
             />
             <span
-              className="absolute text-[10px] font-semibold text-blue-300"
+              className="absolute text-[10px] font-semibold font-mono text-blue-300"
               style={{
                 ...(benchmarkReturn >= 0
                   ? { left: `calc(50% + ${Math.abs(benchmarkReturn) / maxAbs * 50}% + 4px)` }
