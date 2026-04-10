@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 export default function Header() {
   return (
     <header className="border-b border-dark-border bg-dark-card/50 backdrop-blur sticky top-0 z-10">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-3">
         <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="w-7 h-7 rounded-md bg-accent flex items-center justify-center">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

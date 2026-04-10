@@ -21,13 +21,13 @@ export default function MatchCard({ match, snapshot, rank }) {
   return (
     <div className="card hover:border-accent/40 transition-colors cursor-default">
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2.5 mb-0.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 mb-0.5 flex-wrap">
             <span className="text-xs text-slate-600 font-medium">#{rank}</span>
-            <span className="font-mono font-bold text-slate-100 text-lg">{match.ticker}</span>
-            <span className="text-slate-400">{match.companyName}</span>
+            <span className="font-mono font-bold text-slate-100 text-base sm:text-lg">{match.ticker}</span>
+            <span className="text-slate-400 text-sm truncate">{match.companyName}</span>
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             {match.sector && (
               <span className="text-xs border border-dark-border text-slate-500 px-2 py-0.5 rounded-full">
                 {match.sector}
@@ -40,10 +40,10 @@ export default function MatchCard({ match, snapshot, rank }) {
         </div>
 
         {/* Score ring */}
-        <div style={{ position: 'relative', width: 60, height: 60, flexShrink: 0 }}>
+        <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }} className="ml-2">
           <svg
-            width="60"
-            height="60"
+            width="56"
+            height="56"
             viewBox="0 0 60 60"
             style={{ transform: 'rotate(-90deg)' }}
           >
@@ -68,10 +68,10 @@ export default function MatchCard({ match, snapshot, rank }) {
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#a09cf5', lineHeight: 1 }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#a09cf5', lineHeight: 1 }}>
               {match.matchScore}
             </span>
-            <span style={{ fontSize: '0.48rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#475569' }}>
+            <span style={{ fontSize: '0.45rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#475569' }}>
               match
             </span>
           </div>
@@ -79,7 +79,7 @@ export default function MatchCard({ match, snapshot, rank }) {
       </div>
 
       {/* Key stats row — match value with template reference */}
-      <div className="flex gap-4 mb-3 py-2 px-1">
+      <div className="flex flex-wrap gap-3 sm:gap-4 mb-3 py-2 px-1">
         {KEY_STATS.map(({ key, label }) => (
           <div key={key} className="text-center">
             <p className="text-[10px] text-slate-600 uppercase tracking-wider">{label}</p>
@@ -112,11 +112,11 @@ export default function MatchCard({ match, snapshot, rank }) {
         ))}
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
         <span className="text-xs text-slate-600">
           {match.metricsCompared}/27 metrics compared
         </span>
-        <button className="btn-secondary" onClick={goToComparison}>
+        <button className="btn-secondary w-full sm:w-auto" onClick={goToComparison}>
           View Comparison →
         </button>
       </div>

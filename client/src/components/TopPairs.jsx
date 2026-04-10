@@ -91,7 +91,7 @@ export default function TopPairs() {
         {pairs.map((pair, i) => (
           <div
             key={i}
-            className="card flex items-center gap-4 py-3 px-4 cursor-pointer hover:border-accent/40 transition-colors"
+            className="card flex items-center gap-3 sm:gap-4 py-3 px-3 sm:px-4 cursor-pointer hover:border-accent/40 transition-colors"
             onClick={() => {
               const today = new Date().toISOString().slice(0, 10);
               navigate(`/comparison?ticker=${encodeURIComponent(pair.stockA.ticker)}&date=${today}&match=${encodeURIComponent(pair.stockB.ticker)}`, {
@@ -104,7 +104,7 @@ export default function TopPairs() {
           >
             <ScoreRing score={pair.matchScore} />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-sm flex-wrap">
                 <span className="font-mono font-bold text-slate-100">{pair.stockA.ticker}</span>
                 <span className="text-slate-600">vs</span>
                 <span className="font-mono font-bold text-slate-100">{pair.stockB.ticker}</span>
@@ -114,10 +114,10 @@ export default function TopPairs() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                <span>{pair.stockA.companyName}</span>
-                <span className="text-slate-700">|</span>
-                <span>{pair.stockB.companyName}</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 mt-0.5 truncate">
+                <span className="truncate">{pair.stockA.companyName}</span>
+                <span className="text-slate-700 shrink-0">|</span>
+                <span className="truncate">{pair.stockB.companyName}</span>
               </div>
             </div>
             <div className="text-right shrink-0 hidden sm:block">

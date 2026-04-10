@@ -132,10 +132,10 @@ export default function TemplatePicker() {
 
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-12">
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Warm-up banner */}
       {!serverReady && (
-        <div className="mb-6 flex items-center gap-3 px-4 py-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-yellow-400 text-sm">
+        <div className="mb-6 flex items-center gap-3 px-3 sm:px-4 py-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 text-yellow-400 text-xs sm:text-sm">
           <span className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin shrink-0" />
           <span>
             Server warming up — {stockCount.toLocaleString()} stocks loaded so far.
@@ -145,11 +145,11 @@ export default function TemplatePicker() {
       )}
 
       {/* Hero */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-slate-100 mb-3">
+      <div className="text-center mb-8 sm:mb-12">
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-100 mb-3">
           Find the next <span className="text-accent">10x</span>
         </h1>
-        <p className="text-slate-400 text-lg">
+        <p className="text-slate-400 text-base sm:text-lg">
           Pick a stock and a date. See what its profile looked like. Find stocks that look the same today.
         </p>
       </div>
@@ -157,8 +157,8 @@ export default function TemplatePicker() {
       {/* Search area */}
       <div className="card mb-6">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Template Stock</p>
-        <div className="flex gap-3 items-end">
-          <div className="flex-1">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div className="w-full sm:flex-1">
             <label className="block text-sm text-slate-400 mb-1.5">Ticker</label>
             <TickerSearch
               value={ticker}
@@ -166,19 +166,17 @@ export default function TemplatePicker() {
               onSelect={handleTickerChange}
             />
           </div>
-          <div>
+          <div className="w-full sm:w-auto">
             <label className="block text-sm text-slate-400 mb-1.5">Snapshot Date</label>
             <input
               type="date"
-              className={`input-field w-40 ${!datePickerReady ? 'opacity-40 cursor-not-allowed' : ''}`}
+              className={`input-field w-full sm:w-40 ${!datePickerReady ? 'opacity-40 cursor-not-allowed' : ''}`}
               value={date}
               min={dateRange?.earliestDate || ''}
               max={yesterday()}
               disabled={!datePickerReady}
               onChange={e => {
                 const val = e.target.value;
-                // Double-check: reject dates outside the valid range even if
-                // the browser's native picker let them through
                 if (dateRange?.earliestDate && val < dateRange.earliestDate) return;
                 setDate(val);
               }}
@@ -189,7 +187,7 @@ export default function TemplatePicker() {
                 Checking data availability…
               </p>
             )}
-            {!dateRangeLoading && hasValidTicker && !dateRange && !dateRangeLoading && ticker.length > 0 && (
+            {!dateRangeLoading && hasValidTicker && !dateRange && ticker.length > 0 && (
               <p className="text-xs text-slate-500 mt-1">Enter a ticker to see available dates</p>
             )}
             {dateRange && !dateRangeLoading && dateRange.earliestDate && (
@@ -205,12 +203,12 @@ export default function TemplatePicker() {
             )}
           </div>
           <button
-            className="btn-primary whitespace-nowrap"
+            className="btn-primary whitespace-nowrap w-full sm:w-auto"
             onClick={() => loadSnapshot()}
             disabled={!canLoadSnapshot}
           >
             {loading ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 Loading…
               </span>
@@ -228,7 +226,7 @@ export default function TemplatePicker() {
           <SnapshotCard snapshot={snapshot} />
           <div className="mt-6">
             <button
-              className="btn-primary w-full text-center text-base py-4"
+              className="btn-primary w-full text-center text-sm sm:text-base py-3 sm:py-4"
               onClick={goToMatches}
             >
               Find Stocks That Look Like This Today →

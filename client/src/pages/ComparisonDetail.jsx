@@ -138,9 +138,9 @@ export default function ComparisonDetail() {
   if (!ticker || !date || !matchTicker) return null;
 
   return (
-    <main className="max-w-5xl mx-auto px-6 py-10">
+    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
       {/* Nav */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-6 sm:mb-8">
         <button className="btn-secondary" onClick={() => navigate(-1)}>← Back to Results</button>
         {data && (
           <button
@@ -231,14 +231,14 @@ export default function ComparisonDetail() {
           );
         })()}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* LEFT PANEL — Template (historical) */}
           <div className="card">
             <div className="mb-4 min-h-[72px]">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Template · {data.template.date}</p>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-bold text-xl text-slate-100">{data.template.ticker}</span>
-                <span className="text-slate-400 text-sm">{data.template.companyName}</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-bold text-lg sm:text-xl text-slate-100">{data.template.ticker}</span>
+                <span className="text-slate-400 text-xs sm:text-sm">{data.template.companyName}</span>
               </div>
               {data.template.sector && (
                 <span className="text-xs border border-dark-border text-slate-500 px-2 py-0.5 rounded-full mt-1 inline-block">
@@ -248,7 +248,7 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Sparkline */}
-            <div className="bg-dark-bg rounded-lg p-4 mb-6 h-[140px]">
+            <div className="bg-dark-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px]">
               <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
             </div>
 
@@ -267,7 +267,7 @@ export default function ComparisonDetail() {
                   {group.label}
                 </div>
                 {group.metrics.map(key => (
-                  <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0">
+                  <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 border-b border-dark-border last:border-0">
                     <span className="text-xs text-slate-500 uppercase tracking-wider">{METRIC_LABELS[key]}</span>
                     <span className={`text-sm font-semibold ${data.template[key] == null ? 'text-slate-600' : 'text-slate-100'}`}>
                       {formatMetric(key, data.template[key])}
@@ -296,7 +296,7 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Match sparkline — last 12 months */}
-            <div className="bg-dark-bg rounded-lg p-4 mb-6 h-[140px]">
+            <div className="bg-dark-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px]">
               <Sparkline
                 data={data.matchSparkline}
                 gainPct={data.matchSparklineGainPct}
@@ -328,7 +328,7 @@ export default function ComparisonDetail() {
                   // Color based on similarity score (consistent with similarity bar)
                   const colorClass = metricScore ? getMetricColorFromScore(metricScore.similarity) : getMetricColor(key, leftVal, rightVal);
                   return (
-                    <div key={key} className="flex items-center justify-between py-2.5 border-b border-dark-border last:border-0 gap-2">
+                    <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 border-b border-dark-border last:border-0 gap-2">
                       <span className="text-xs text-slate-500 uppercase tracking-wider flex-shrink-0">{METRIC_LABELS[key]}</span>
                       <div className="flex items-center gap-2">
                         {sim != null && (

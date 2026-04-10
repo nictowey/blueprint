@@ -165,7 +165,7 @@ export default function MatchResults() {
   if (!snapshot) {
     if (snapshotLoading) {
       return (
-        <main className="max-w-3xl mx-auto px-6 py-10">
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
             <p className="text-slate-400 text-sm">Loading snapshot…</p>
@@ -177,30 +177,32 @@ export default function MatchResults() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-10">
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
       {/* Summary bar */}
-      <div className="card mb-8 flex flex-wrap items-center gap-4 justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono font-bold text-xl text-slate-100">{snapshot.ticker}</span>
-            <span className="text-slate-500">·</span>
-            <span className="text-slate-400 text-sm">{snapshot.date}</span>
-          </div>
-          <p className="text-sm text-slate-400">{snapshot.companyName}</p>
-        </div>
-        <div className="flex gap-6">
-          {[
-            { key: 'peRatio', label: 'P/E' },
-            { key: 'revenueGrowthYoY', label: 'Growth' },
-            { key: 'grossMargin', label: 'Margin' },
-          ].map(({ key, label }) => (
-            <div key={key} className="text-center">
-              <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
-              <p className="text-sm font-semibold text-slate-200">{formatMetric(key, snapshot[key])}</p>
+      <div className="card mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-mono font-bold text-lg sm:text-xl text-slate-100">{snapshot.ticker}</span>
+              <span className="text-slate-500">·</span>
+              <span className="text-slate-400 text-xs sm:text-sm">{snapshot.date}</span>
             </div>
-          ))}
+            <p className="text-sm text-slate-400">{snapshot.companyName}</p>
+          </div>
+          <div className="flex gap-4 sm:gap-6">
+            {[
+              { key: 'peRatio', label: 'P/E' },
+              { key: 'revenueGrowthYoY', label: 'Growth' },
+              { key: 'grossMargin', label: 'Margin' },
+            ].map(({ key, label }) => (
+              <div key={key} className="text-center">
+                <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">{label}</p>
+                <p className="text-sm font-semibold text-slate-200">{formatMetric(key, snapshot[key])}</p>
+              </div>
+            ))}
+          </div>
+          <button className="btn-secondary w-full sm:w-auto" onClick={() => navigate(-1)}>← Back</button>
         </div>
-        <button className="btn-secondary" onClick={() => navigate(-1)}>← Back</button>
       </div>
 
       {/* Warm-up retry state */}
@@ -278,11 +280,11 @@ export default function MatchResults() {
             </div>
 
             {/* Filters row */}
-            <div className="flex flex-wrap items-center gap-3 mb-5">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-5">
               <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-500 uppercase tracking-wider">Sector</label>
+                <label className="text-xs text-slate-500 uppercase tracking-wider shrink-0">Sector</label>
                 <select
-                  className="input-field text-sm py-1.5 px-3 w-auto"
+                  className="input-field text-sm py-1.5 px-3 w-full sm:w-auto min-w-0"
                   value={sectorFilter}
                   onChange={e => setSectorFilter(e.target.value)}
                 >
@@ -296,10 +298,10 @@ export default function MatchResults() {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 ml-auto">
-                <label className="text-xs text-slate-500 uppercase tracking-wider">Sort</label>
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <label className="text-xs text-slate-500 uppercase tracking-wider shrink-0">Sort</label>
                 <select
-                  className="input-field text-sm py-1.5 px-3 w-auto"
+                  className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
                   value={sortBy}
                   onChange={e => setSortBy(e.target.value)}
                 >

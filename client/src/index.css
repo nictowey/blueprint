@@ -13,13 +13,13 @@
 
 @layer components {
   .card {
-    @apply bg-dark-card border border-dark-border rounded-xl p-6;
+    @apply bg-dark-card border border-dark-border rounded-xl p-4 sm:p-6;
   }
   .btn-primary {
-    @apply bg-accent hover:bg-opacity-90 text-white font-semibold px-6 py-3 rounded-lg transition-all duration-150 cursor-pointer;
+    @apply bg-accent hover:bg-opacity-90 text-white font-semibold px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-all duration-150 cursor-pointer;
   }
   .btn-secondary {
-    @apply border border-dark-border text-slate-400 hover:text-white hover:border-slate-500 px-4 py-2 rounded-lg transition-all duration-150 cursor-pointer text-sm;
+    @apply border border-dark-border text-slate-400 hover:text-white hover:border-slate-500 px-3 sm:px-4 py-2 rounded-lg transition-all duration-150 cursor-pointer text-sm;
   }
   .input-field {
     @apply bg-dark-card border border-dark-border text-slate-100 rounded-lg px-4 py-2.5 outline-none
