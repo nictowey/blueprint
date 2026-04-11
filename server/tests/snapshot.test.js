@@ -129,4 +129,18 @@ describe('GET /api/snapshot — TTM construction', () => {
     expect(typeof res.body.priceVsMa50).toBe('number');
     expect(typeof res.body.priceVsMa200).toBe('number');
   });
+
+  test('snapshot includes snapshotBuilder fields (dataAsOf, ttmQuarters)', async () => {
+    const res = await request(app).get('/api/snapshot?ticker=NVDA&date=2023-12-15');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('dataAsOf');
+    expect(res.body).toHaveProperty('ttmQuarters');
+  });
+
+  test('returns 404 when no price data available', async () => {
+    fmp.getHistoricalPrices.mockResolvedValue([]);
+    const res = await request(app).get('/api/snapshot?ticker=FAKE&date=2023-12-15');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/No price data/);
+  });
 });

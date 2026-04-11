@@ -192,6 +192,9 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const ttmFCF = ttmCashFlowQ.length >= 4
     ? ttmCashFlowQ.reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
     : null;
+  const ttmOperatingCashFlow = ttmCashFlowQ.length >= 4
+    ? ttmCashFlowQ.reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
+    : null;
 
   const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
   const ev = computedMarketCap != null
@@ -203,6 +206,7 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const priceToBook = (computedMarketCap > 0 && equity > 0) ? computedMarketCap / equity : null;
   const evToEBITDA = (ev != null && ttm?.ebitda > 0) ? ev / ttm.ebitda : null;
   const evToRevenue = (ev != null && ttm?.revenue > 0) ? ev / ttm.revenue : null;
+  const earningsYield = (price > 0 && ttm) ? ttm.eps / price : null;
   const pegRatio = (peRatio > 0 && epsGrowthYoY > 0) ? peRatio / (epsGrowthYoY * 100) : null;
 
   // Returns — require positive equity/assets to avoid nonsensical negative ratios
@@ -235,6 +239,7 @@ async function buildSnapshot(ticker, date, throttle = true) {
     evToEBITDA:        evToEBITDA ?? null,
     evToRevenue:       evToRevenue ?? null,
     pegRatio:          pegRatio ?? null,
+    earningsYield:     earningsYield ?? null,
     // Profitability
     grossMargin,
     operatingMargin,
@@ -254,12 +259,17 @@ async function buildSnapshot(ticker, date, throttle = true) {
     interestCoverage:  interestCoverage ?? null,
     netDebtToEBITDA:   netDebtToEBITDA ?? null,
     freeCashFlowYield: freeCashFlowYield ?? null,
+    totalCash:         cash,
+    totalDebt:         totalDebt,
+    freeCashFlow:      ttmFCF,
+    operatingCashFlow: ttmOperatingCashFlow,
     // Technical
     rsi14,
     pctBelowHigh,
     priceVsMa50,
     priceVsMa200,
     beta:              profile?.beta ?? null,
+    avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
     relativeVolume:    relativeVolume,
     // Size
     marketCap:         computedMarketCap ?? null,
