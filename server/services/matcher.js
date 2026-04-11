@@ -94,6 +94,30 @@ const MIN_OVERLAP_RATIO = 0.6;
 const EPSILON = 0.01;
 const SECTOR_MATCH_BONUS = 0.06; // 6% bonus for same-sector matches
 
+// ---------- Fundamental coherence ----------
+// Metrics that represent the fundamental "substance" of a company.
+// If these collectively score poorly, no amount of technical alignment should rescue the match.
+const FUNDAMENTAL_METRICS = new Set([
+  // Valuation
+  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
+  // Profitability
+  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
+  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
+  // Growth
+  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
+  // Financial Health
+  'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
+  // Size
+  'marketCap',
+]);
+
+// Threshold below which fundamental similarity triggers a penalty.
+// 0.30 = if the average fundamental similarity is below 30%, the match is penalized.
+const FUNDAMENTAL_FLOOR = 0.30;
+// How aggressively to penalize. At floor=0.30 and fundamentalAvg=0.10,
+// shortfall=0.20, penalty = 1 - 0.20*2.5 = 0.50 → score halved.
+const FUNDAMENTAL_PENALTY_SCALE = 2.5;
+
 Object.freeze(MATCH_METRICS);
 
 // ---------- Same-company detection ----------
@@ -547,6 +571,31 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
 
   // Growth quality adjustment: penalize/reward based on growth profile alignment
   baseScore *= growthQualityPenalty(snapshot, stock);
+
+  // --- Fundamental coherence check ---
+  // Prevent technically-similar but fundamentally-different stocks from ranking high.
+  // Compute the weighted average similarity of ONLY fundamental metrics.
+  // If it's below FUNDAMENTAL_FLOOR, apply a proportional penalty.
+  let fundScore = 0;
+  let fundWeight = 0;
+  for (const ms of metricScores) {
+    if (FUNDAMENTAL_METRICS.has(ms.metric)) {
+      fundScore += ms.similarity * ms.weight;
+      fundWeight += ms.weight;
+    }
+  }
+  if (fundWeight > 0) {
+    const fundAvg = fundScore / fundWeight; // 0-1 range
+    if (fundAvg < FUNDAMENTAL_FLOOR) {
+      // Shortfall-proportional penalty: the further below the floor, the harsher.
+      // At fundAvg=0.10, shortfall=0.20 → penalty = 1 - 0.20*2.5 = 0.50
+      // At fundAvg=0.25, shortfall=0.05 → penalty = 1 - 0.05*2.5 = 0.875
+      // At fundAvg=0.30+, no penalty.
+      const shortfall = FUNDAMENTAL_FLOOR - fundAvg;
+      const penalty = Math.max(0.25, 1 - shortfall * FUNDAMENTAL_PENALTY_SCALE);
+      baseScore *= penalty;
+    }
+  }
 
   // Sector match bonus: same-sector matches get a boost since breakout patterns
   // are more comparable within the same sector/industry.
