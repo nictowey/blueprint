@@ -223,15 +223,16 @@ async function fetchTemplate(sym, date) {
   const pegRatio = (peRatio > 0 && epsGrowthYoY > 0) ? peRatio / (epsGrowthYoY * 100) : null;
 
   // Returns
-  const returnOnEquity = (ttm && equity != null && equity !== 0) ? ttm.netIncome / equity : null;
-  const returnOnAssets = (ttm && totalAssets != null && totalAssets !== 0) ? ttm.netIncome / totalAssets : null;
-  const returnOnCapital = (ttm && equity != null && totalDebt != null && cash != null && (equity + totalDebt - cash) !== 0)
+  // Require positive equity/assets (consistent with universe.js) — negative equity produces nonsensical ratios
+  const returnOnEquity = (ttm && equity != null && equity > 0) ? ttm.netIncome / equity : null;
+  const returnOnAssets = (ttm && totalAssets != null && totalAssets > 0) ? ttm.netIncome / totalAssets : null;
+  const returnOnCapital = (ttm && equity != null && equity > 0 && totalDebt != null && cash != null && (equity + totalDebt - cash) > 0)
     ? ttm.operatingIncome / (equity + totalDebt - cash) : null;
 
   // Financial Health
-  const currentRatio = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities !== 0)
+  const currentRatio = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities > 0)
     ? totalCurrentAssets / totalCurrentLiabilities : null;
-  const debtToEquity = (totalDebt != null && equity != null && equity !== 0) ? totalDebt / equity : null;
+  const debtToEquity = (totalDebt != null && equity != null && equity > 0) ? totalDebt / equity : null;
   const interestCoverage = (ttm && ttm.interestExpense != null && ttm.interestExpense !== 0)
     ? ttm.operatingIncome / Math.abs(ttm.interestExpense) : null;
   const netDebtToEBITDA = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;
