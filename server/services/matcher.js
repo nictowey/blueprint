@@ -19,44 +19,43 @@ const MATCH_METRICS = [
 const { getProfile, DEFAULT_PROFILE } = require('./matchProfiles');
 const { computeSectorStats, sectorZScore } = require('./sectorStats');
 
-// Default weights — used when no profile is specified (growth_breakout)
-const DEFAULT_METRIC_WEIGHTS = {
-  // --- Tier 1: Core breakout signals (3.0) ---
-  revenueGrowthYoY: 3.0,
-  epsGrowthYoY: 3.0,
-  pegRatio: 3.0,
-  operatingMargin: 3.0,
-  // --- Tier 2: Valuation & momentum setup (2.5) ---
-  peRatio: 2.5,
-  evToEBITDA: 2.5,
-  pctBelowHigh: 2.5,
-  priceVsMa200: 2.5,
-  marketCap: 2.5,
-  // --- Tier 3: Quality & risk confirmation (2.0) ---
-  returnOnEquity: 2.0,
-  revenueGrowth3yr: 2.0,
-  freeCashFlowYield: 2.0,
-  returnOnCapital: 2.0,
-  priceVsMa50: 2.0,
-  // --- Tier 4: Risk guardrails (1.5) ---
-  debtToEquity: 1.5,
-  netDebtToEBITDA: 1.5,
-  rsi14: 1.5,
-  grossMargin: 1.5,
-  // --- Tier 5: Supporting context (1.0) ---
-  beta: 1.0,
-  netMargin: 1.0,
-  ebitdaMargin: 1.0,
-  returnOnAssets: 1.0,
-  priceToBook: 1.0,
-  priceToSales: 1.0,
-  evToRevenue: 1.0,
-  currentRatio: 1.0,
-  interestCoverage: 1.0,
-  relativeVolume: 1.5,
-};
+// ---------- Category-first scoring architecture ----------
+// Metrics are grouped into categories. Each category computes its own average
+// similarity (equal metric weight within the category), then categories are
+// combined using category weights that reflect relevance to breakout detection.
+//
+// This structurally prevents any single dimension from dominating: technicals
+// can only contribute their category share (~10%) regardless of how many metrics
+// score 99%. Meanwhile, the raw metric data within each category speaks for itself.
+//
+// Category weights reflect breakout relevance:
+//   - Growth & Profitability are the strongest signals for identifying companies
+//     that resemble historical breakout patterns (high weight)
+//   - Valuation captures the pricing setup before a breakout (high weight)
+//   - Financial Health is contextual — confirms viability (moderate weight)
+//   - Size matters for comparability (moderate weight)
+//   - Technicals are acknowledged but secondary — they confirm positioning
+//     but shouldn't define the match (lower weight)
 
-// Kept for backward-compat — existing code that references METRIC_WEIGHTS directly
+const METRIC_CATEGORIES = {
+  valuation:       { metrics: ['peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio'], weight: 0.22 },
+  profitability:   { metrics: ['grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin', 'returnOnEquity', 'returnOnAssets', 'returnOnCapital'], weight: 0.25 },
+  growth:          { metrics: ['revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY'], weight: 0.25 },
+  financialHealth: { metrics: ['currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield'], weight: 0.10 },
+  size:            { metrics: ['marketCap'], weight: 0.08 },
+  technical:       { metrics: ['rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta', 'relativeVolume'], weight: 0.10 },
+};
+// Weights sum to 1.0: valuation(0.22) + profitability(0.25) + growth(0.25) + health(0.10) + size(0.08) + technical(0.10)
+
+// Build a lookup: metric name → category name
+const METRIC_TO_CATEGORY = {};
+for (const [cat, { metrics }] of Object.entries(METRIC_CATEGORIES)) {
+  for (const m of metrics) METRIC_TO_CATEGORY[m] = cat;
+}
+
+// Legacy weight map — still used by match profiles that override weights.
+const DEFAULT_METRIC_WEIGHTS = {};
+for (const metric of MATCH_METRICS) DEFAULT_METRIC_WEIGHTS[metric] = 1.0;
 const METRIC_WEIGHTS = DEFAULT_METRIC_WEIGHTS;
 
 // ---------- Metric classification for specialized similarity functions ----------
@@ -92,42 +91,7 @@ const TECHNICAL_PCT = new Set([
 
 const MIN_OVERLAP_RATIO = 0.6;
 const EPSILON = 0.01;
-const SECTOR_MATCH_BONUS = 0.06; // 6% bonus for same-sector matches
-
-// ---------- Fundamental coherence ----------
-// Metrics that represent the fundamental "substance" of a company.
-// If these collectively score poorly, no amount of technical alignment should rescue the match.
-const FUNDAMENTAL_METRICS = new Set([
-  // Valuation
-  'peRatio', 'priceToBook', 'priceToSales', 'evToEBITDA', 'evToRevenue', 'pegRatio',
-  // Profitability
-  'grossMargin', 'operatingMargin', 'netMargin', 'ebitdaMargin',
-  'returnOnEquity', 'returnOnAssets', 'returnOnCapital',
-  // Growth
-  'revenueGrowthYoY', 'revenueGrowth3yr', 'epsGrowthYoY',
-  // Financial Health
-  'currentRatio', 'debtToEquity', 'interestCoverage', 'netDebtToEBITDA', 'freeCashFlowYield',
-  // Size
-  'marketCap',
-]);
-
-// Threshold below which fundamental similarity triggers a penalty.
-// 0.40 = if the average fundamental similarity is below 40%, the match is penalized.
-const FUNDAMENTAL_FLOOR = 0.40;
-// How aggressively to penalize. At floor=0.40 and fundamentalAvg=0.15,
-// shortfall=0.25, penalty = 1 - 0.25*2.0 = 0.50 → score halved.
-const FUNDAMENTAL_PENALTY_SCALE = 2.0;
-
-// Technical metrics used to detect "technical inflation" — when technicals
-// score much higher than fundamentals, they're inflating the match score.
-const TECHNICAL_METRICS = new Set([
-  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta', 'relativeVolume',
-]);
-// When technical avg exceeds fundamental avg by more than this, apply dampening.
-// 25 percentage points gap threshold; beyond that, the excess tech similarity is dampened.
-const TECH_INFLATION_GAP = 0.25;
-// How much to dampen. At gap=0.45, excess=0.20 → penalty = 1 - 0.20*1.8 = 0.64
-const TECH_INFLATION_SCALE = 1.8;
+const SECTOR_MATCH_BONUS = 0.04; // 4% bonus for same-sector matches
 
 Object.freeze(MATCH_METRICS);
 
@@ -525,7 +489,6 @@ function growthQualityPenalty(snapshot, stock) {
 // ---------- Core similarity scoring ----------
 
 function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = {}) {
-  const weights = options.weights || METRIC_WEIGHTS;
   const sectorBonus = options.sectorBonus != null ? options.sectorBonus : SECTOR_MATCH_BONUS;
   const sectorStats = options.sectorStats || null;
 
@@ -533,15 +496,12 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   const snapSectorStats = sectorStats?.[snapshot.sector] || null;
   const stockSectorStats = sectorStats?.[stock.sector] || null;
 
-  let score = 0;
-  let totalWeight = 0;
+  // --- Step 1: Compute per-metric similarity scores ---
   let overlapCount = 0;
   const metricScores = [];
 
   for (const metric of MATCH_METRICS) {
-    const weight = weights[metric] ?? 1.0;
     const rawSim = metricSimilarity(metric, snapshot[metric], stock[metric]);
-
     if (rawSim === null) continue;
 
     // Blend raw similarity with sector-relative similarity (if available)
@@ -549,94 +509,55 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
     if (snapSectorStats && stockSectorStats) {
       const sectorSim = sectorRelativeSimilarity(metric, snapshot[metric], stock[metric], snapSectorStats, stockSectorStats);
       if (sectorSim != null) {
-        // 70% raw + 30% sector-relative: raw comparison is still primary,
-        // sector context refines it. Cross-sector matches benefit most.
         similarity = rawSim * 0.70 + sectorSim * 0.30;
       }
     }
 
     overlapCount++;
-    score += similarity * weight;
-    totalWeight += weight;
-    metricScores.push({ metric, similarity, weight });
+    metricScores.push({ metric, similarity, weight: 1.0 });
   }
 
-  if (totalWeight === 0) {
-    return { score: 0, metricScores: [], overlapCount: 0, overlapRatio: 0 };
+  if (overlapCount === 0) {
+    return { score: 0, metricScores: [], categoryScores: {}, overlapCount: 0, overlapRatio: 0 };
   }
 
-  let baseScore = (score / totalWeight) * 100;
+  // --- Step 2: Category-first averaging ---
+  // Group metrics by category, compute average similarity per category,
+  // then combine categories using breakout-relevance weights.
+  const categoryScores = {};
+  let weightedSum = 0;
+  let totalCategoryWeight = 0;
 
-  // Momentum composite: add as a bonus/penalty (up to ±3 points)
-  const momSim = momentumSimilarity(snapshot.recentCloses, stock.recentCloses);
-  if (momSim != null) {
-    // momSim ranges 0-1; center at 0.5, so ±0.5 maps to ±3 points
-    baseScore += (momSim - 0.5) * 6;
+  for (const [catName, { metrics: catMetrics, weight: catWeight }] of Object.entries(METRIC_CATEGORIES)) {
+    const catResults = metricScores.filter(ms => catMetrics.includes(ms.metric));
+    if (catResults.length === 0) continue; // Skip categories with no data
+
+    const catAvg = catResults.reduce((sum, ms) => sum + ms.similarity, 0) / catResults.length;
+    categoryScores[catName] = {
+      score: Math.round(catAvg * 1000) / 10, // e.g., 72.3%
+      metricsAvailable: catResults.length,
+      metricsTotal: catMetrics.length,
+    };
+    weightedSum += catAvg * catWeight;
+    totalCategoryWeight += catWeight;
   }
 
-  // Overlap penalty: penalize matches with sparse data coverage
+  if (totalCategoryWeight === 0) {
+    return { score: 0, metricScores: [], categoryScores: {}, overlapCount: 0, overlapRatio: 0 };
+  }
+
+  // Normalize by the weight of categories that have data
+  let baseScore = (weightedSum / totalCategoryWeight) * 100;
+
+  // --- Step 3: Overlap coverage adjustment ---
+  // If the stock has data for most template metrics, full credit.
+  // If sparse, reduce confidence proportionally.
   const overlapRatio = snapshotPopulatedCount > 0
     ? overlapCount / snapshotPopulatedCount
     : 0;
   baseScore *= Math.sqrt(overlapRatio);
 
-  // Growth quality adjustment: penalize/reward based on growth profile alignment
-  baseScore *= growthQualityPenalty(snapshot, stock);
-
-  // --- Fundamental coherence check ---
-  // Prevent technically-similar but fundamentally-different stocks from ranking high.
-  // Compute the weighted average similarity of ONLY fundamental metrics.
-  // If it's below FUNDAMENTAL_FLOOR, apply a proportional penalty.
-  let fundScore = 0;
-  let fundWeight = 0;
-  for (const ms of metricScores) {
-    if (FUNDAMENTAL_METRICS.has(ms.metric)) {
-      fundScore += ms.similarity * ms.weight;
-      fundWeight += ms.weight;
-    }
-  }
-  if (fundWeight > 0) {
-    const fundAvg = fundScore / fundWeight; // 0-1 range
-    if (fundAvg < FUNDAMENTAL_FLOOR) {
-      // Shortfall-proportional penalty: the further below the floor, the harsher.
-      // At fundAvg=0.10, shortfall=0.20 → penalty = 1 - 0.20*2.5 = 0.50
-      // At fundAvg=0.25, shortfall=0.05 → penalty = 1 - 0.05*2.5 = 0.875
-      // At fundAvg=0.30+, no penalty.
-      const shortfall = FUNDAMENTAL_FLOOR - fundAvg;
-      const penalty = Math.max(0.25, 1 - shortfall * FUNDAMENTAL_PENALTY_SCALE);
-      baseScore *= penalty;
-    }
-
-    // --- Technical inflation dampener ---
-    // When technicals score much higher than fundamentals, they inflate the
-    // overall weighted average beyond what the fundamental similarity justifies.
-    // Example: TSLA 2016 vs RIVN — technicals ~94% but fundamentals ~49%.
-    // The 45-point gap lets technicals drag the score up to ~64, which is misleading.
-    // Dampen the score when this gap is too large.
-    let techScore = 0;
-    let techWeight = 0;
-    for (const ms of metricScores) {
-      if (TECHNICAL_METRICS.has(ms.metric)) {
-        techScore += ms.similarity * ms.weight;
-        techWeight += ms.weight;
-      }
-    }
-    if (techWeight > 0) {
-      const techAvg = techScore / techWeight;
-      const gap = techAvg - fundAvg;
-      if (gap > TECH_INFLATION_GAP) {
-        // The further technicals outpace fundamentals, the more we dampen.
-        // At gap=0.45, excess=0.20 → penalty = 1 - 0.20*1.8 = 0.64
-        // At gap=0.30, excess=0.05 → penalty = 1 - 0.05*1.8 = 0.91
-        const excess = gap - TECH_INFLATION_GAP;
-        const dampener = Math.max(0.40, 1 - excess * TECH_INFLATION_SCALE);
-        baseScore *= dampener;
-      }
-    }
-  }
-
-  // Sector match bonus: same-sector matches get a boost since breakout patterns
-  // are more comparable within the same sector/industry.
+  // Sector match bonus: small boost for same-sector matches
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
     baseScore *= (1 + sectorBonus);
   }
@@ -644,10 +565,9 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   const finalScore = Math.max(0, Math.min(99, baseScore));
 
   // --- Confidence scoring ---
-  // Measures how trustworthy/reliable the match score is
-  const confidence = computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, momSim, options.sectorStats, stock);
+  const confidence = computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, null, options.sectorStats, stock);
 
-  return { score: finalScore, metricScores, overlapCount, overlapRatio, confidence };
+  return { score: finalScore, metricScores, categoryScores, overlapCount, overlapRatio, confidence };
 }
 
 /**
@@ -724,7 +644,7 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
       stock.companyName, snapshot.companyName
     ))
     .map(stock => {
-      const { score, metricScores, overlapCount, overlapRatio, confidence } =
+      const { score, metricScores, categoryScores, overlapCount, overlapRatio, confidence } =
         calculateSimilarity(snapshot, stock, snapshotPopulatedCount, { ...profileOptions, sectorStats });
 
       // Rank by weighted contribution (similarity × weight) so the most IMPORTANT
@@ -748,6 +668,7 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
         _overlapRatio: overlapRatio,
         matchScore: Math.round(score * 10) / 10,
         metricsCompared: overlapCount,
+        categoryScores,
         confidence,
         topMatches,
         topDifferences,

@@ -509,6 +509,7 @@ router.get('/', async (req, res) => {
       match: matchMetrics,
       matchScore: Math.round(similarity.score * 10) / 10,
       metricsCompared: similarity.overlapCount,
+      categoryScores: similarity.categoryScores || {},
       confidence: similarity.confidence || null,
       topMatches,
       topDifferences,
