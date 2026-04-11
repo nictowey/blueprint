@@ -12,7 +12,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { runValidation, DEFAULT_TEST_CASES } = require('../services/validation');
-const { loadCacheFromRedis, isReady } = require('../services/universe');
+const { buildCache, isReady } = require('../services/universe');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,12 +56,12 @@ async function main() {
   console.log('='.repeat(70));
   console.log();
 
-  // Load universe from Redis
+  // Load universe from Redis (buildCache loads from Redis first, falls back to FMP screener)
   console.log('Loading universe from Redis...');
-  await loadCacheFromRedis();
+  await buildCache();
 
   if (!isReady()) {
-    console.error('ERROR: Universe cache not ready. Ensure Redis is populated.');
+    console.error('ERROR: Universe cache not ready. Ensure Redis is populated and FMP_API_KEY is set.');
     process.exit(1);
   }
   console.log('Universe loaded.\n');

@@ -8,6 +8,8 @@ client/dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+server/.cache/
+server/scripts/validation-report-*.json
 .DS_Store
 .idea/
 .vscode/

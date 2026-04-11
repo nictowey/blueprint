@@ -1,11 +1,13 @@
 const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
 const fmp = require('./fmp');
 const { computeRSI } = require('./rsi');
 
 const REDIS_KEY = 'universe_cache';
 const CACHE_VERSION_KEY = 'universe_cache_version';
 const CACHE_VERSION = 2; // accept existing Redis cache; incremental refresh applies new formulas
-const CACHE_TTL_SECONDS = 90000; // 25 hours
+const CACHE_TTL_SECONDS = 604800; // 7 days — incremental refresh keeps data fresh
 
 async function saveCacheToRedis(cache) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -56,6 +58,45 @@ async function loadCacheFromRedis() {
     return cache;
   } catch (err) {
     console.warn(`[universe] Failed to load cache from Redis: ${err.message}`);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Local file cache — fast fallback when Redis is unavailable or expired
+// ---------------------------------------------------------------------------
+
+const LOCAL_CACHE_DIR = path.join(__dirname, '..', '.cache');
+const LOCAL_CACHE_FILE = path.join(LOCAL_CACHE_DIR, 'universe.json');
+
+function saveLocalCache(cache) {
+  try {
+    if (!fs.existsSync(LOCAL_CACHE_DIR)) fs.mkdirSync(LOCAL_CACHE_DIR, { recursive: true });
+    const data = JSON.stringify({
+      version: CACHE_VERSION,
+      savedAt: new Date().toISOString(),
+      entries: Array.from(cache.entries()),
+    });
+    fs.writeFileSync(LOCAL_CACHE_FILE, data);
+    console.log(`[universe] Local cache saved: ${cache.size} stocks`);
+  } catch (err) {
+    console.warn(`[universe] Failed to save local cache: ${err.message}`);
+  }
+}
+
+function loadLocalCache() {
+  try {
+    if (!fs.existsSync(LOCAL_CACHE_FILE)) return null;
+    const raw = JSON.parse(fs.readFileSync(LOCAL_CACHE_FILE, 'utf8'));
+    if (raw.version !== CACHE_VERSION) {
+      console.log(`[universe] Local cache version mismatch (${raw.version} vs ${CACHE_VERSION}) — skipping`);
+      return null;
+    }
+    const cache = new Map(raw.entries);
+    console.log(`[universe] Loaded local cache: ${cache.size} stocks (saved ${raw.savedAt})`);
+    return cache;
+  } catch (err) {
+    console.warn(`[universe] Failed to load local cache: ${err.message}`);
     return null;
   }
 }
@@ -300,11 +341,12 @@ async function enrichStock(entry) {
 }
 
 async function buildCache() {
-  const redisCache = await loadCacheFromRedis();
-  if (redisCache) {
+  // Try Redis first, then local file, then FMP screener
+  const cachedData = await loadCacheFromRedis() || loadLocalCache();
+  if (cachedData) {
     // Spread lastEnriched timestamps across the next 24h so incremental
     // refresh cycles evenly rather than refreshing all stocks at once.
-    const stocks = Array.from(redisCache.values());
+    const stocks = Array.from(cachedData.values());
     const now = Date.now();
     const window = 24 * 60 * 60 * 1000;
     stocks.forEach((entry, i) => {
@@ -312,7 +354,7 @@ async function buildCache() {
         entry.lastEnriched = now - window + (i / stocks.length) * window;
       }
     });
-    state.cache = redisCache;
+    state.cache = cachedData;
     state.ready = true;
     state.lastRefreshed = new Date().toISOString();
     return;
@@ -427,10 +469,11 @@ async function buildCache() {
           console.log(`[universe] Progress: ${newCache.size}/${filtered.length} stocks (${elapsed}min elapsed, ~${remaining}min remaining)`);
         }
 
-        // Save to Redis every 500 stocks so progress survives restarts
+        // Save to Redis + local file every 500 stocks so progress survives restarts
         if (newCache.size % 500 === 0) {
           state.cache = newCache;
           await saveCacheToRedis(newCache);
+          saveLocalCache(newCache);
           console.log(`[universe] Checkpoint saved: ${newCache.size} stocks`);
         }
       } catch (err) {
@@ -445,6 +488,7 @@ async function buildCache() {
     const totalMin = ((Date.now() - buildStart) / 1000 / 60).toFixed(1);
     console.log(`[universe] ✓ Cache ready: ${newCache.size} stocks in ${totalMin} minutes`);
     await saveCacheToRedis(newCache);
+    saveLocalCache(newCache);
   } catch (err) {
     console.error('[universe] Cache build failed:', err.message);
     state.ready = false;
@@ -471,6 +515,7 @@ async function refreshStalest(n = INCREMENTAL_BATCH_SIZE) {
 
   state.lastIncrementalRefresh = new Date().toISOString();
   await saveCacheToRedis(state.cache);
+  saveLocalCache(state.cache);
 }
 
 function startCache() {
@@ -478,4 +523,4 @@ function startCache() {
   setInterval(refreshStalest, INCREMENTAL_INTERVAL_MS);
 }
 
-module.exports = { startCache, getCache, isReady, getStatus, saveCacheToRedis, loadCacheFromRedis };
+module.exports = { startCache, buildCache, getCache, isReady, getStatus, saveCacheToRedis, loadCacheFromRedis };
