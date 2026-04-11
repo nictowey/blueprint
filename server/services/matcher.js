@@ -112,11 +112,22 @@ const FUNDAMENTAL_METRICS = new Set([
 ]);
 
 // Threshold below which fundamental similarity triggers a penalty.
-// 0.30 = if the average fundamental similarity is below 30%, the match is penalized.
-const FUNDAMENTAL_FLOOR = 0.30;
-// How aggressively to penalize. At floor=0.30 and fundamentalAvg=0.10,
-// shortfall=0.20, penalty = 1 - 0.20*2.5 = 0.50 → score halved.
-const FUNDAMENTAL_PENALTY_SCALE = 2.5;
+// 0.40 = if the average fundamental similarity is below 40%, the match is penalized.
+const FUNDAMENTAL_FLOOR = 0.40;
+// How aggressively to penalize. At floor=0.40 and fundamentalAvg=0.15,
+// shortfall=0.25, penalty = 1 - 0.25*2.0 = 0.50 → score halved.
+const FUNDAMENTAL_PENALTY_SCALE = 2.0;
+
+// Technical metrics used to detect "technical inflation" — when technicals
+// score much higher than fundamentals, they're inflating the match score.
+const TECHNICAL_METRICS = new Set([
+  'rsi14', 'pctBelowHigh', 'priceVsMa50', 'priceVsMa200', 'beta', 'relativeVolume',
+]);
+// When technical avg exceeds fundamental avg by more than this, apply dampening.
+// 25 percentage points gap threshold; beyond that, the excess tech similarity is dampened.
+const TECH_INFLATION_GAP = 0.25;
+// How much to dampen. At gap=0.45, excess=0.20 → penalty = 1 - 0.20*1.8 = 0.64
+const TECH_INFLATION_SCALE = 1.8;
 
 Object.freeze(MATCH_METRICS);
 
@@ -594,6 +605,33 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
       const shortfall = FUNDAMENTAL_FLOOR - fundAvg;
       const penalty = Math.max(0.25, 1 - shortfall * FUNDAMENTAL_PENALTY_SCALE);
       baseScore *= penalty;
+    }
+
+    // --- Technical inflation dampener ---
+    // When technicals score much higher than fundamentals, they inflate the
+    // overall weighted average beyond what the fundamental similarity justifies.
+    // Example: TSLA 2016 vs RIVN — technicals ~94% but fundamentals ~49%.
+    // The 45-point gap lets technicals drag the score up to ~64, which is misleading.
+    // Dampen the score when this gap is too large.
+    let techScore = 0;
+    let techWeight = 0;
+    for (const ms of metricScores) {
+      if (TECHNICAL_METRICS.has(ms.metric)) {
+        techScore += ms.similarity * ms.weight;
+        techWeight += ms.weight;
+      }
+    }
+    if (techWeight > 0) {
+      const techAvg = techScore / techWeight;
+      const gap = techAvg - fundAvg;
+      if (gap > TECH_INFLATION_GAP) {
+        // The further technicals outpace fundamentals, the more we dampen.
+        // At gap=0.45, excess=0.20 → penalty = 1 - 0.20*1.8 = 0.64
+        // At gap=0.30, excess=0.05 → penalty = 1 - 0.05*1.8 = 0.91
+        const excess = gap - TECH_INFLATION_GAP;
+        const dampener = Math.max(0.40, 1 - excess * TECH_INFLATION_SCALE);
+        baseScore *= dampener;
+      }
     }
   }
 
