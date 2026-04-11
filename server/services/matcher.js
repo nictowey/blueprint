@@ -579,52 +579,28 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   const finalScore = Math.max(0, Math.min(100, baseScore));
 
   // --- Confidence scoring ---
-  const confidence = computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, null, options.sectorStats, stock);
+  const confidence = computeConfidence(metricScores, overlapCount, snapshotPopulatedCount);
 
   return { score: finalScore, metricScores, categoryScores, overlapCount, overlapRatio, confidence };
 }
 
 /**
- * Compute a 0-100 confidence score for a match.
- * Factors:
- *   1. Data coverage (40%): what fraction of template metrics had data
- *   2. Score consistency (30%): low variance across metrics = more confident
- *   3. Momentum data available (15%): momentum signal adds confidence
- *   4. Sector stats available (15%): sector-relative scoring adds confidence
+ * Compute a data-quality indicator for a match.
+ * This is NOT a confidence score — it only measures how much data was available
+ * for the comparison, not how trustworthy the match score is.
+ *
+ * To be upgraded to a true confidence score once backtest validation
+ * establishes a correlation between data quality and match accuracy.
  */
-function computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, momSim, sectorStats, stock) {
-  // 1. Data coverage: 60%+ overlap is minimum; 90%+ is excellent
+function computeConfidence(metricScores, overlapCount, snapshotPopulatedCount) {
   const coverageRatio = snapshotPopulatedCount > 0 ? overlapCount / snapshotPopulatedCount : 0;
-  const coverageScore = Math.min(1, Math.max(0, (coverageRatio - 0.5) / 0.5)); // 50%→0, 100%→1
+  const score = Math.round(coverageRatio * 100);
 
-  // 2. Score consistency: standard deviation of per-metric similarities
-  // Low std dev = metrics agree = more confident
-  let consistencyScore = 0.5; // default if not enough data
-  if (metricScores.length >= 5) {
-    const sims = metricScores.map(m => m.similarity);
-    const mean = sims.reduce((s, v) => s + v, 0) / sims.length;
-    const variance = sims.reduce((s, v) => s + (v - mean) ** 2, 0) / sims.length;
-    const stdDev = Math.sqrt(variance);
-    // stdDev of 0 = perfect consistency (1.0), stdDev of 0.35+ = poor (0.0)
-    consistencyScore = Math.max(0, 1 - stdDev / 0.35);
-  }
-
-  // 3. Momentum data: binary (available or not)
-  const momentumScore = momSim != null ? 1.0 : 0.0;
-
-  // 4. Sector stats: does this stock's sector have sector-relative data?
-  const hasSectorStats = !!(sectorStats && stock.sector && sectorStats[stock.sector]);
-  const sectorScore = hasSectorStats ? 1.0 : 0.0;
-
-  // Weighted combination
-  const raw = coverageScore * 0.40 + consistencyScore * 0.30 + momentumScore * 0.15 + sectorScore * 0.15;
-
-  // Map to 0-100 and assign a label
-  const score = Math.round(raw * 100);
+  // Label is purely about data coverage, not match quality
   let level;
-  if (score >= 80) level = 'high';
-  else if (score >= 50) level = 'medium';
-  else level = 'low';
+  if (coverageRatio >= 0.90) level = 'complete';
+  else if (coverageRatio >= 0.75) level = 'adequate';
+  else level = 'sparse';
 
   return { score, level, coverageRatio: Math.round(coverageRatio * 100), metricsAvailable: overlapCount };
 }
