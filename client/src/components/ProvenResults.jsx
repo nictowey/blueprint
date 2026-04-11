@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 
 function formatPct(val) {
   if (val == null) return '—';
-  const pct = (val * 100).toFixed(1);
+  // Server sends values already in percentage form (e.g. 47.5 means 47.5%)
+  const pct = val.toFixed(1);
   return val >= 0 ? `+${pct}%` : `${pct}%`;
 }
 
 function formatWinRate(val) {
   if (val == null) return '—';
-  return `${Math.round(val * 100)}%`;
+  // Server sends winRate already as percentage (e.g. 89 means 89%)
+  return `${Math.round(val)}%`;
 }
 
 function ReturnCell({ value, label }) {
@@ -73,7 +75,7 @@ export default function ProvenResults() {
     return (
       <div className="my-10 animate-fade-in">
         <div className="divider-gold mb-8" />
-        <h2 className="text-lg font-display text-warm-white text-center mb-2">Proven Track Record</h2>
+        <h2 className="text-lg font-display text-warm-white text-center mb-2">Historical Backtest</h2>
         <div className="flex flex-col items-center justify-center py-6 gap-2">
           <div className="w-5 h-5 border-2 border-dark-border border-t-accent rounded-full animate-spin" />
           <p className="text-xs text-warm-muted font-light">Computing historical backtest results...</p>
@@ -105,9 +107,9 @@ export default function ProvenResults() {
 
       {/* Header */}
       <div className="text-center mb-6">
-        <h2 className="text-lg font-display text-warm-white mb-1">Proven Track Record</h2>
+        <h2 className="text-lg font-display text-warm-white mb-1">Historical Backtest</h2>
         <p className="text-sm text-warm-gray font-light">
-          How Blueprint's matches performed after identification — real returns, real data
+          Hypothetical performance of Blueprint's top matches from known breakout dates
         </p>
       </div>
 
@@ -178,8 +180,9 @@ export default function ProvenResults() {
       </div>
 
       <p className="text-[10px] text-warm-muted text-center mt-4 font-light">
-        Returns shown are average forward returns of Blueprint's top 10 matches from each template date.
-        Past performance does not guarantee future results.
+        Hypothetical results based on Blueprint's matching algorithm applied to historical breakout dates.
+        Top 10 matches per template — forward returns measured from the template date.
+        This is not a live trading record. Past performance does not guarantee future results.
       </p>
     </div>
   );

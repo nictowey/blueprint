@@ -1,8 +1,11 @@
 /**
  * /api/track-record
  *
- * Returns pre-computed backtest summaries for canonical breakout examples.
- * These prove that Blueprint's matches actually correlate with forward returns.
+ * Returns historical backtest summaries for canonical breakout examples.
+ * Uses point-in-time snapshots to build proper historical comparisons:
+ *   1. Template snapshot: what the breakout stock looked like AT its breakout date
+ *   2. Universe: current stocks (limitation — see methodology note)
+ *   3. Forward returns: actual price changes measured from the breakout date
  *
  * Results are lazily computed on first request and cached for 24 hours.
  * If the universe isn't ready yet, returns 202 (try again later).
@@ -10,11 +13,10 @@
 const express = require('express');
 const router = express.Router();
 const { isReady, getCache } = require('../services/universe');
-const { findMatches, MATCH_METRICS } = require('../services/matcher');
+const { findMatches } = require('../services/matcher');
 const { getProfile, applyHardFilters, DEFAULT_PROFILE } = require('../services/matchProfiles');
 const { runBacktest } = require('../services/backtest');
-const fmp = require('../services/fmp');
-const { computeRSI } = require('../services/rsi');
+const { buildSnapshot } = require('../services/snapshotBuilder');
 
 // Canonical breakouts — the "hall of fame"
 const CANONICAL_BREAKOUTS = [
@@ -30,49 +32,6 @@ let trackRecordCacheTs = 0;
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 let computing = false;
 
-/**
- * Build a minimal snapshot from the universe cache.
- * If the ticker is in the universe, use that data.
- * Otherwise, fall back to FMP API calls.
- */
-async function buildSnapshot(ticker, date) {
-  // Try universe cache first (fast path)
-  const universe = getCache();
-  const cached = universe.get(ticker);
-  if (cached) {
-    const snap = { ticker, sector: cached.sector, companyName: cached.companyName };
-    for (const metric of MATCH_METRICS) snap[metric] = cached[metric] ?? null;
-    return snap;
-  }
-
-  // Slow path — fetch from FMP
-  try {
-    const [profileData, historicalPrices] = await Promise.all([
-      fmp.getCompanyProfile(ticker),
-      fmp.getHistoricalPrices(ticker, date),
-    ]);
-
-    if (!profileData) return null;
-
-    const snap = {
-      ticker,
-      sector: profileData.sector || null,
-      companyName: profileData.companyName || ticker,
-      marketCap: profileData.mktCap || null,
-      beta: profileData.beta || null,
-    };
-
-    // Fill remaining metrics as null — the matcher handles missing data gracefully
-    for (const metric of MATCH_METRICS) {
-      if (snap[metric] === undefined) snap[metric] = null;
-    }
-
-    return snap;
-  } catch {
-    return null;
-  }
-}
-
 async function computeTrackRecord() {
   if (computing) return;
   computing = true;
@@ -83,9 +42,22 @@ async function computeTrackRecord() {
 
     for (const breakout of CANONICAL_BREAKOUTS) {
       try {
-        const snapshot = await buildSnapshot(breakout.ticker, breakout.date);
-        if (!snapshot) continue;
+        // Build a proper point-in-time snapshot using historical financial data.
+        // This fetches quarterly income statements, balance sheets, prices etc.
+        // filtered to only data available ON OR BEFORE the breakout date.
+        console.log(`[track-record] Building point-in-time snapshot for ${breakout.ticker} @ ${breakout.date}...`);
+        const snapshot = await buildSnapshot(breakout.ticker, breakout.date, true);
+        if (!snapshot) {
+          console.warn(`[track-record] Could not build snapshot for ${breakout.ticker} @ ${breakout.date}`);
+          continue;
+        }
 
+        // Get the current universe for comparison candidates.
+        // NOTE: This compares the historical template against today's universe,
+        // not what the universe looked like at the breakout date. A true backtest
+        // would require historical snapshots for all ~3000+ stocks, which isn't
+        // feasible with current API limits. The forward returns ARE measured from
+        // the actual breakout date, so those numbers are real.
         let universe = getCache();
         universe = applyHardFilters(universe, profile.hardFilters);
 
@@ -96,7 +68,7 @@ async function computeTrackRecord() {
 
         if (matches.length === 0) continue;
 
-        // Run backtest for forward returns
+        // Run backtest — fetches actual forward returns from the breakout date
         const backtestResult = await runBacktest(matches, breakout.date);
         const summary = backtestResult.summary || {};
         const topMatch = matches[0];
@@ -117,8 +89,8 @@ async function computeTrackRecord() {
           winRate3m:    summary['3m']?.winRate ?? null,
           winRate6m:    summary['6m']?.winRate ?? null,
           winRate12m:   summary['12m']?.winRate ?? null,
-          alpha12m:     summary['12m']?.alpha ?? null,
-          benchmarkReturn12m: backtestResult.benchmark?.['12m'] ?? null,
+          alpha12m:     summary['12m']?.avgVsBenchmark ?? null,
+          benchmarkReturn12m: summary['12m']?.benchmarkReturn ?? null,
         });
       } catch (err) {
         console.warn(`[track-record] Failed for ${breakout.ticker}:`, err.message);
@@ -155,7 +127,7 @@ router.get('/', async (_req, res) => {
 
   // First request — start background computation
   computeTrackRecord();
-  return res.status(202).json({ message: 'Computing track record — check back in ~60 seconds.' });
+  return res.status(202).json({ message: 'Computing historical backtest — check back in ~60 seconds.' });
 });
 
 module.exports = router;

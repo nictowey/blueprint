@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../components/TickerSearch';
 import SnapshotCard from '../components/SnapshotCard';
 import TopPairs from '../components/TopPairs';
-import ProvenResults from '../components/ProvenResults';
+
 import { httpError } from '../utils/httpError';
 
 // Yesterday as YYYY-MM-DD (max date for picker)
@@ -13,7 +13,7 @@ function yesterday() {
   return d.toISOString().slice(0, 10);
 }
 
-// Famous breakouts with verified gain data
+// Example breakout stocks — used as quick-pick template suggestions
 const FAMOUS_BREAKOUTS = [
   { ticker: 'CLS',  date: '2023-12-01', label: 'Celestica',   gain: '+490%',  period: 'Dec 2023', color: '#22c55e' },
   { ticker: 'NVDA', date: '2023-01-03', label: 'NVIDIA',      gain: '+800%',  period: 'Jan 2023', color: '#22c55e' },
@@ -488,18 +488,18 @@ export default function TemplatePicker() {
       )}
 
       {/* ════════════════════════════════════════════════════ */}
-      {/* TRACK RECORD — Social proof section                 */}
+      {/* METHODOLOGY — How it works section                    */}
       {/* ════════════════════════════════════════════════════ */}
       {!snapshot && (
         <div className="my-10 animate-fade-in-up-delay-3">
           <div className="divider-gold mb-8" />
           <div className="text-center mb-6">
-            <h2 className="text-lg font-display text-warm-white mb-1">Built on Real Breakout Data</h2>
-            <p className="text-sm text-warm-gray font-light">Blueprint's matching engine is calibrated against verified historical breakouts</p>
+            <h2 className="text-lg font-display text-warm-white mb-1">How Blueprint Works</h2>
+            <p className="text-sm text-warm-gray font-light">Multi-metric similarity matching calibrated against historical breakout profiles</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { value: '28', label: 'Comparison metrics', detail: 'Valuation, growth, profitability, momentum' },
+              { value: '26', label: 'Comparison metrics', detail: 'Valuation, growth, profitability, momentum' },
               { value: '8', label: 'Similarity functions', detail: 'Log-scale, sector-relative, directional' },
               { value: '5', label: 'Strategy profiles', detail: 'Growth, value, momentum, quality, GARP' },
               { value: '<5min', label: 'Universe refresh', detail: 'Live data across all stocks' },
@@ -529,9 +529,6 @@ export default function TemplatePicker() {
           </div>
         </div>
       )}
-
-      {/* Track record — verified backtest results */}
-      {!snapshot && serverReady && <ProvenResults />}
 
       {/* Top pairs / Breakout Candidates */}
       {serverReady && <TopPairs />}

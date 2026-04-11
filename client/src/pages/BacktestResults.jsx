@@ -178,8 +178,9 @@ export default function BacktestResults() {
       {/* Disclaimer */}
       <div className="card mb-6 border-amber-500/15 bg-amber-500/5">
         <p className="text-xs text-amber-400/80 leading-relaxed font-light">
-          Past performance does not guarantee future results. This backtest uses current universe data matched against
-          a historical snapshot — survivorship bias may affect results. Use as one input among many.
+          This backtest finds stocks that currently resemble the historical template, then measures their actual price
+          changes from the template date. Matches are based on today's fundamentals, not what these companies looked like
+          at the template date. Survivorship bias may affect results. Past performance does not guarantee future results.
         </p>
       </div>
 
