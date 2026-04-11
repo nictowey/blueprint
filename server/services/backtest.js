@@ -22,7 +22,7 @@ async function getForwardReturns(ticker, startDate) {
   const startEntry = sorted.find(p => p.date >= startDate);
   if (!startEntry) return null;
 
-  const startPrice = startEntry.close || startEntry.adjClose;
+  const startPrice = startEntry.adjClose || startEntry.close;
   if (!startPrice) return null;
 
   // Helper: find price closest to N months after start
@@ -55,7 +55,7 @@ async function getForwardReturns(ticker, startDate) {
       }
     }
 
-    const endPrice = closest.close || closest.adjClose;
+    const endPrice = closest.adjClose || closest.close;
     if (!endPrice) return null;
 
     return {
