@@ -71,28 +71,30 @@ async function fetchTemplate(sym, date) {
 // (used only when the match ticker is NOT in the universe cache)
 // ========================================================================
 async function buildCurrentMetrics(ticker) {
-  const [profile, ttmMetrics, ttmRatios, incomeQ, hist, balance, cashFlow] = await Promise.all([
+  const fromDate = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+  const toDate = new Date().toISOString().slice(0, 10);
+
+  const [profileData, incomeData, balanceData, cashFlowData, historical] = await Promise.all([
     fmp.getProfile(ticker, false),
-    fmp.getKeyMetricsTTM(ticker, false),
-    fmp.getRatiosTTM(ticker, false),
     fmp.getIncomeStatements(ticker, 16, false, 'quarter'),
-    fmp.getHistoricalPrices(ticker,
-      new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10),
-      new Date().toISOString().slice(0, 10),
-      false
-    ),
-    fmp.getBalanceSheet(ticker, 2, false),
-    fmp.getCashFlowStatement(ticker, 2, false),
+    fmp.getBalanceSheet(ticker, 1, false, 'quarter'),
+    fmp.getCashFlowStatement(ticker, 4, false, 'quarter'),
+    fmp.getHistoricalPrices(ticker, fromDate, toDate, false),
   ]);
 
-  const bal = Array.isArray(balance) ? balance[0] || {} : {};
-  const cf  = Array.isArray(cashFlow) ? cashFlow[0] || {} : {};
-
-  // --- TTM growth from quarterly data (consistent with universe.js / snapshot.js) ---
+  // --- sumQuarters: identical to universe.js ---
   function sumQuarters(quarters) {
+    const sum = (field) => quarters.reduce((s, q) => s + (q[field] ?? 0), 0);
+    const sharesOut = quarters[0]?.weightedAverageShsOutDil ?? null;
     return {
-      revenue:  quarters.reduce((s, q) => s + (q.revenue || 0), 0),
-      eps:      quarters.reduce((s, q) => s + (q.epsdiluted || q.eps || 0), 0),
+      revenue: sum('revenue'),
+      grossProfit: sum('grossProfit'),
+      operatingIncome: sum('operatingIncome'),
+      netIncome: sum('netIncome'),
+      ebitda: sum('ebitda'),
+      eps: sum('eps'),
+      interestExpense: sum('interestExpense'),
+      sharesOut,
     };
   }
   function validTtmWindow(quarters) {
@@ -103,13 +105,15 @@ async function buildCurrentMetrics(ticker) {
     return spanMonths >= 8 && spanMonths <= 15;
   }
 
-  const ttmQ = (incomeQ || []).slice(0, 4);
-  const priorTtmQ = (incomeQ || []).slice(4, 8);
-  const ttm3yrAgoQ = (incomeQ || []).slice(12, 16);
+  const incomeQ = incomeData || [];
+  const ttmQ = incomeQ.slice(0, 4);
+  const priorTtmQ = incomeQ.slice(4, 8);
+  const ttm3yrAgoQ = incomeQ.slice(12, 16);
   const ttm = validTtmWindow(ttmQ) ? sumQuarters(ttmQ) : null;
   const priorTtm = validTtmWindow(priorTtmQ) ? sumQuarters(priorTtmQ) : null;
   const ttm3yrAgo = validTtmWindow(ttm3yrAgoQ) ? sumQuarters(ttm3yrAgoQ) : null;
 
+  // --- Growth: TTM vs prior-year TTM (same as universe.js) ---
   let revenueGrowthYoY = null;
   if (ttm && priorTtm && priorTtm.revenue !== 0)
     revenueGrowthYoY = (ttm.revenue - priorTtm.revenue) / Math.abs(priorTtm.revenue);
@@ -122,67 +126,123 @@ async function buildCurrentMetrics(ticker) {
   if (ttm && priorTtm && priorTtm.eps !== 0)
     epsGrowthYoY = (ttm.eps - priorTtm.eps) / Math.abs(priorTtm.eps);
 
-  const pricesAsc = [...hist].reverse().map(h => h.close);
+  // --- Balance sheet (latest quarterly) ---
+  const balance = Array.isArray(balanceData) && balanceData.length > 0 ? balanceData[0] : null;
+  const equity = balance?.totalStockholdersEquity ?? null;
+  const totalAssets = balance?.totalAssets ?? null;
+  const totalCurrentAssets = balance?.totalCurrentAssets ?? null;
+  const totalCurrentLiabilities = balance?.totalCurrentLiabilities ?? null;
+  const totalDebt = balance?.totalDebt ?? null;
+  const cash = balance?.cashAndCashEquivalents ?? null;
+
+  // --- Cash flow TTM (sum 4 quarters — must have all 4 for accuracy) ---
+  const cfQuarters = Array.isArray(cashFlowData) ? cashFlowData : [];
+  const ttmFCF = cfQuarters.length >= 4
+    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
+    : null;
+  const ttmOperatingCF = cfQuarters.length >= 4
+    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
+    : null;
+
+  // --- Historical prices & technicals ---
+  const hist = Array.isArray(historical) ? historical : [];
+  const oldestFirst = [...hist].reverse();
+  const closes = oldestFirst.map(d => d.close).filter(c => c != null);
   const currentPrice = hist[0]?.close ?? null;
-  // 52-week high: use only the last 252 trading days (~1 year)
-  const prices52w = pricesAsc.slice(-252);
-  const high52w = prices52w.length > 0 ? Math.max(...prices52w) : null;
+
+  const rsi14 = computeRSI(closes.slice(-30));
+
+  const closes52w = closes.slice(-252);
+  const high52w = closes52w.length >= 200 ? Math.max(...closes52w) : null;
   const pctBelowHigh = currentPrice != null && high52w > 0
     ? ((high52w - currentPrice) / high52w) * 100 : null;
-  const rsi14 = computeRSI(pricesAsc.slice(-30));
 
   let priceVsMa50 = null, priceVsMa200 = null;
-  if (pricesAsc.length >= 50) {
-    const ma50 = pricesAsc.slice(-50).reduce((s, v) => s + v, 0) / 50;
+  if (closes.length >= 50) {
+    const ma50 = closes.slice(-50).reduce((s, v) => s + v, 0) / 50;
     if (currentPrice != null && ma50 > 0) priceVsMa50 = ((currentPrice - ma50) / ma50) * 100;
   }
-  if (pricesAsc.length >= 200) {
-    const ma200 = pricesAsc.slice(-200).reduce((s, v) => s + v, 0) / 200;
+  if (closes.length >= 200) {
+    const ma200 = closes.slice(-200).reduce((s, v) => s + v, 0) / 200;
     if (currentPrice != null && ma200 > 0) priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
   }
 
+  // --- Relative volume (5-day avg / 50-day avg, same as universe.js) ---
+  let relativeVolume = null;
+  const volumes = oldestFirst.map(d => d.volume).filter(v => v != null && v > 0);
+  if (volumes.length >= 50) {
+    const vol50 = volumes.slice(-50).reduce((s, v) => s + v, 0) / 50;
+    const vol5 = volumes.slice(-5).reduce((s, v) => s + v, 0) / Math.min(5, volumes.slice(-5).length);
+    if (vol50 > 0) relativeVolume = vol5 / vol50;
+  }
+
+  // --- Computed ratios (same formulas as universe.js enrichStock) ---
+  const sharesOut = ttm?.sharesOut ?? null;
+  const price = currentPrice;
+  const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
+  // EV: only when all three components are non-null
+  const ev = (computedMarketCap != null && totalDebt != null && cash != null)
+    ? computedMarketCap + totalDebt - cash : null;
+
+  // Valuation
+  const peRatio      = (price > 0 && ttm?.eps > 0) ? price / ttm.eps : null;
+  const priceToSales = (computedMarketCap > 0 && ttm?.revenue > 0) ? computedMarketCap / ttm.revenue : null;
+  const priceToBook  = (computedMarketCap > 0 && equity > 0) ? computedMarketCap / equity : null;
+  const evToEBITDA   = (ev != null && ttm?.ebitda > 0) ? ev / ttm.ebitda : null;
+  const evToRevenue  = (ev != null && ttm?.revenue > 0) ? ev / ttm.revenue : null;
+  const earningsYield = (price > 0 && ttm) ? ttm.eps / price : null;
+  const pegRatio     = (peRatio > 0 && epsGrowthYoY > 0) ? peRatio / (epsGrowthYoY * 100) : null;
+
+  // Margins
+  const grossMargin     = ttm && ttm.revenue ? ttm.grossProfit / ttm.revenue : null;
+  const operatingMargin = ttm && ttm.revenue ? ttm.operatingIncome / ttm.revenue : null;
+  const netMargin       = ttm && ttm.revenue ? ttm.netIncome / ttm.revenue : null;
+  const ebitdaMargin    = ttm && ttm.revenue ? ttm.ebitda / ttm.revenue : null;
+
+  // Returns — require positive denominator
+  const returnOnEquity  = (ttm && equity != null && equity > 0) ? ttm.netIncome / equity : null;
+  const returnOnAssets  = (ttm && totalAssets != null && totalAssets > 0) ? ttm.netIncome / totalAssets : null;
+  const investedCapital = (equity != null && totalDebt != null && cash != null) ? equity + totalDebt - cash : null;
+  const returnOnCapital = (ttm && investedCapital != null && investedCapital > 0)
+    ? ttm.operatingIncome / investedCapital : null;
+
+  // Financial Health
+  const currentRatio     = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities > 0)
+    ? totalCurrentAssets / totalCurrentLiabilities : null;
+  const debtToEquity     = (totalDebt != null && equity != null && equity > 0) ? totalDebt / equity : null;
+  const interestCoverage = (ttm && ttm.interestExpense != null && ttm.interestExpense !== 0)
+    ? ttm.operatingIncome / Math.abs(ttm.interestExpense) : null;
+  const netDebtToEBITDA  = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;
+  const freeCashFlowYield = (ttmFCF != null && computedMarketCap > 0) ? ttmFCF / computedMarketCap : null;
+  const dividendYield    = profileData?.lastDiv && price > 0 ? profileData.lastDiv / price : null;
+
   return {
     ticker,
-    companyName:       profile?.companyName || ticker,
-    sector:            profile?.sector || null,
+    companyName:       profileData?.companyName || ticker,
+    sector:            profileData?.sector || null,
     date:              new Date().toISOString().slice(0, 10),
     price:             currentPrice,
     // Valuation
-    peRatio:           ttmRatios.priceToEarningsRatioTTM ?? null,
-    priceToBook:       ttmRatios.priceToBookRatioTTM ?? null,
-    priceToSales:      ttmRatios.priceToSalesRatioTTM ?? null,
-    evToEBITDA:        ttmMetrics.evToEBITDATTM ?? null,
-    evToRevenue:       ttmMetrics.evToSalesTTM ?? null,
-    pegRatio:          ttmRatios.priceToEarningsGrowthRatioTTM ?? null,
-    earningsYield:     ttmMetrics.earningsYieldTTM ?? null,
-    // Profitability — prefer FMP TTM ratios
-    grossMargin:       ttmRatios.grossProfitMarginTTM ?? null,
-    operatingMargin:   ttmRatios.operatingProfitMarginTTM ?? null,
-    netMargin:         ttmRatios.netProfitMarginTTM ?? null,
-    ebitdaMargin:      ttmRatios.ebitdaMarginTTM ?? null,
-    returnOnEquity:    ttmMetrics.returnOnEquityTTM ?? null,
-    returnOnAssets:    ttmMetrics.returnOnAssetsTTM ?? null,
-    returnOnCapital:   ttmMetrics.returnOnInvestedCapitalTTM ?? null,
-    // Growth (TTM-based from quarterly data, consistent with universe.js)
+    peRatio, priceToBook, priceToSales, evToEBITDA, evToRevenue, pegRatio, earningsYield,
+    // Profitability
+    grossMargin, operatingMargin, netMargin, ebitdaMargin,
+    returnOnEquity, returnOnAssets, returnOnCapital,
+    // Growth
     revenueGrowthYoY, revenueGrowth3yr, epsGrowthYoY,
-    eps:               ttm ? ttm.eps : null,
+    eps: ttm ? ttm.eps : null,
     // Financial Health
-    currentRatio:      ttmRatios.currentRatioTTM ?? ttmMetrics.currentRatioTTM ?? null,
-    debtToEquity:      ttmRatios.debtToEquityRatioTTM ?? null,
-    interestCoverage:  ttmRatios.interestCoverageRatioTTM ?? null,
-    netDebtToEBITDA:   ttmMetrics.netDebtToEBITDATTM ?? null,
-    freeCashFlowYield: ttmMetrics.freeCashFlowYieldTTM ?? null,
-    dividendYield:     ttmRatios.dividendYieldTTM ?? null,
-    totalCash:         bal.cashAndCashEquivalents ?? null,
-    totalDebt:         bal.totalDebt ?? null,
-    freeCashFlow:      cf.freeCashFlow ?? null,
-    operatingCashFlow: cf.operatingCashFlow ?? null,
+    currentRatio, debtToEquity, interestCoverage, netDebtToEBITDA, freeCashFlowYield, dividendYield,
+    totalCash:         cash,
+    totalDebt,
+    freeCashFlow:      ttmFCF,
+    operatingCashFlow: ttmOperatingCF,
     // Technical
     rsi14, pctBelowHigh, priceVsMa50, priceVsMa200,
-    beta:              profile?.beta ?? null,
-    avgVolume:         profile?.volAvg ?? profile?.averageVolume ?? null,
+    beta:              profileData?.beta ?? null,
+    avgVolume:         profileData?.averageVolume ?? null,
+    relativeVolume,
     // Overview
-    marketCap:         ttmMetrics.marketCap ?? null,
+    marketCap:         computedMarketCap,
     shortInterestPct:  null,
   };
 }

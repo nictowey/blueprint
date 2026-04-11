@@ -33,8 +33,6 @@ function setupMocks() {
   fmp.getShortInterest.mockResolvedValue(null);
   fmp.getBalanceSheet.mockResolvedValue([]);
   fmp.getCashFlowStatement.mockResolvedValue([]);
-  fmp.getKeyMetricsTTM.mockResolvedValue({});
-  fmp.getRatiosTTM.mockResolvedValue({});
 
   // After refactor, getHistoricalPrices is called by:
   //   - buildSnapshot (via Promise.allSettled): template 1yr history
