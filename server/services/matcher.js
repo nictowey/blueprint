@@ -101,8 +101,7 @@ Object.freeze(MATCH_METRICS);
 function baseTicker(t) {
   return t
     .replace(/\.(A|B|C|V|K|P)$/i, '')        // BRK.A, MKC.V → BRK, MKC
-    .replace(/-(A|B|C|WS|WT|U|V|P|R|W|UN)$/i, '') // SPAC-A, FOO-WS → SPAC, FOO
-    .replace(/[LP]$/i, '');                    // GOOGL → GOOG, preferred
+    .replace(/-(A|B|C|WS|WT|U|V|P|R|W|UN)$/i, ''); // SPAC-A, FOO-WS → SPAC, FOO
 }
 
 // Common dual-class tickers where the base-ticker approach fails (ZG/Z, FOX/FOXA, etc.)

@@ -344,13 +344,22 @@ describe('baseTicker', () => {
     expect(baseTicker('BAR-U')).toBe('BAR');
   });
 
-  test('strips trailing L/P', () => {
-    expect(baseTicker('GOOGL')).toBe('GOOG');
+  test('does not strip trailing L (handled by DUAL_CLASS_MAP instead)', () => {
+    expect(baseTicker('GOOGL')).toBe('GOOGL');
   });
 
   test('no-op for simple tickers', () => {
-    expect(baseTicker('AAPL')).toBe('AAP');
-    // Note: AAPL ends in L which gets stripped — this is a known edge case
-    // but doesn't cause false positives because the comparison is symmetric
+    expect(baseTicker('AAPL')).toBe('AAPL');
+    expect(baseTicker('MSFT')).toBe('MSFT');
+    expect(baseTicker('NFLX')).toBe('NFLX');
+  });
+
+  test('does NOT strip L from NFLX or AAPL', () => {
+    expect(baseTicker('NFLX')).toBe('NFLX');
+    expect(baseTicker('AAPL')).toBe('AAPL');
+  });
+
+  test('does NOT strip P from SHOP', () => {
+    expect(baseTicker('SHOP')).toBe('SHOP');
   });
 });
