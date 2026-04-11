@@ -61,8 +61,8 @@ async function loadCacheFromRedis() {
 }
 
 const RETRY_ON_FAIL_MS = 60 * 60 * 1000;          // 1 hour
-const INCREMENTAL_INTERVAL_MS = 5 * 60 * 1000;    // 5 minutes (was 10)
-const INCREMENTAL_BATCH_SIZE = 60;                 // stocks per interval (~7h full cycle for ~5000 stocks, was 35)
+const INCREMENTAL_INTERVAL_MS = 5 * 60 * 1000;    // 5 minutes
+const INCREMENTAL_BATCH_SIZE = 100;                // stocks per interval (~4h full cycle for ~5000 stocks)
 
 const state = {
   cache: new Map(),
@@ -137,11 +137,20 @@ async function enrichStock(entry) {
   const historical   = await safeFmpCall(() => fmp.getHistoricalPrices(symbol, from, to)) || [];
   const profileData  = await safeFmpCall(() => fmp.getProfile(symbol)) || {};
 
-  // --- TTM from 4 most recent quarters (same as snapshot.js) ---
+  // --- TTM from 4 most recent quarters ---
+  // Validate that the 4 quarters span a ~12-month window to avoid
+  // summing misaligned quarters (e.g., a missing quarter compressing to 9 months).
   const ttmQ = incomeData.slice(0, 4);
   const priorTtmQ = incomeData.slice(4, 8);
-  const ttm = ttmQ.length >= 4 ? sumQuarters(ttmQ) : null;
-  const priorTtm = priorTtmQ.length >= 4 ? sumQuarters(priorTtmQ) : null;
+  function validTtmWindow(quarters) {
+    if (quarters.length < 4) return false;
+    const newest = new Date(quarters[0].date);
+    const oldest = new Date(quarters[3].date);
+    const spanMonths = (newest - oldest) / (30.44 * 24 * 60 * 60 * 1000);
+    return spanMonths >= 8 && spanMonths <= 15;
+  }
+  const ttm = validTtmWindow(ttmQ) ? sumQuarters(ttmQ) : null;
+  const priorTtm = validTtmWindow(priorTtmQ) ? sumQuarters(priorTtmQ) : null;
 
   // --- Growth: TTM vs prior-year TTM ---
   let revenueGrowthYoY = null;
@@ -150,9 +159,10 @@ async function enrichStock(entry) {
   }
 
   const ttm3yrAgoQ = incomeData.slice(12, 16);
-  const ttm3yrAgo = ttm3yrAgoQ.length >= 4 ? sumQuarters(ttm3yrAgoQ) : null;
+  const ttm3yrAgo = validTtmWindow(ttm3yrAgoQ) ? sumQuarters(ttm3yrAgoQ) : null;
   let revenueGrowth3yr = null;
-  if (ttm && ttm3yrAgo && ttm3yrAgo.revenue > 0) {
+  // Both current and 3yr-ago TTM revenue must be positive for CAGR to be meaningful
+  if (ttm && ttm.revenue > 0 && ttm3yrAgo && ttm3yrAgo.revenue > 0) {
     revenueGrowth3yr = Math.pow(ttm.revenue / ttm3yrAgo.revenue, 1 / 3) - 1;
   }
 
@@ -162,22 +172,24 @@ async function enrichStock(entry) {
   }
 
   // --- Balance sheet (latest quarterly) ---
-  const balance = Array.isArray(balanceData) ? balanceData[0] || {} : {};
-  const equity = balance.totalStockholdersEquity ?? null;
-  const totalAssets = balance.totalAssets ?? null;
-  const totalCurrentAssets = balance.totalCurrentAssets ?? null;
-  const totalCurrentLiabilities = balance.totalCurrentLiabilities ?? null;
-  const totalDebt = balance.totalDebt ?? null;
-  const cash = balance.cashAndCashEquivalents ?? null;
+  // If FMP call failed (empty array), preserve existing cached values
+  // rather than overwriting with null.
+  const balance = Array.isArray(balanceData) && balanceData.length > 0 ? balanceData[0] : null;
+  const equity = balance?.totalStockholdersEquity ?? entry.equity ?? null;
+  const totalAssets = balance?.totalAssets ?? entry.totalAssets ?? null;
+  const totalCurrentAssets = balance?.totalCurrentAssets ?? entry.totalCurrentAssets ?? null;
+  const totalCurrentLiabilities = balance?.totalCurrentLiabilities ?? entry.totalCurrentLiabilities ?? null;
+  const totalDebt = balance?.totalDebt ?? entry.totalDebt ?? null;
+  const cash = balance?.cashAndCashEquivalents ?? entry.totalCash ?? null;
 
-  // --- Cash flow TTM (sum 4 quarters, same as snapshot.js) ---
+  // --- Cash flow TTM (sum 4 quarters — must have all 4 for accuracy) ---
   const cfQuarters = Array.isArray(cashFlowData) ? cashFlowData : [];
   const ttmFCF = cfQuarters.length >= 4
     ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
-    : (cfQuarters[0]?.freeCashFlow ?? null);
+    : null;
   const ttmOperatingCF = cfQuarters.length >= 4
     ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
-    : (cfQuarters[0]?.operatingCashFlow ?? null);
+    : null;
 
   // --- Historical prices ---
   let rsi14 = null;
@@ -191,9 +203,10 @@ async function enrichStock(entry) {
 
     rsi14 = computeRSI(closes.slice(-30));
 
-    // Use only the last 252 trading days (~1 year) for 52-week high
+    // Use only the last 252 trading days (~1 year) for 52-week high.
+    // Require at least 200 days for meaningful "52-week" reference.
     const closes52w = closes.slice(-252);
-    const high52w = closes52w.length > 0 ? Math.max(...closes52w) : null;
+    const high52w = closes52w.length >= 200 ? Math.max(...closes52w) : null;
     const currentPrice = historical[0].close;
 
     if (high52w > 0 && currentPrice != null) {
@@ -230,8 +243,8 @@ async function enrichStock(entry) {
   const sharesOut = ttm?.sharesOut ?? null;
   const price = entry.price;
   const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
-  const ev = (computedMarketCap != null && totalDebt != null && cash != null)
-    ? computedMarketCap + totalDebt - cash : null;
+  const ev = computedMarketCap != null
+    ? computedMarketCap + (totalDebt ?? 0) - (cash ?? 0) : null;
 
   // Valuation
   entry.peRatio        = (price > 0 && ttm?.eps > 0) ? price / ttm.eps : null;
@@ -248,11 +261,12 @@ async function enrichStock(entry) {
   entry.netMargin       = ttm && ttm.revenue ? ttm.netIncome / ttm.revenue : null;
   entry.ebitdaMargin    = ttm && ttm.revenue ? ttm.ebitda / ttm.revenue : null;
 
-  // Returns
-  entry.returnOnEquity   = (ttm && equity != null && equity !== 0) ? ttm.netIncome / equity : null;
-  entry.returnOnAssets   = (ttm && totalAssets != null && totalAssets !== 0) ? ttm.netIncome / totalAssets : null;
-  entry.returnOnCapital  = (ttm && equity != null && totalDebt != null && cash != null && (equity + totalDebt - cash) !== 0)
-    ? ttm.operatingIncome / (equity + totalDebt - cash) : null;
+  // Returns — require positive equity/assets to avoid nonsensical negative ratios
+  entry.returnOnEquity   = (ttm && equity != null && equity > 0) ? ttm.netIncome / equity : null;
+  entry.returnOnAssets   = (ttm && totalAssets != null && totalAssets > 0) ? ttm.netIncome / totalAssets : null;
+  const investedCapital  = (equity != null && totalDebt != null && cash != null) ? equity + totalDebt - cash : null;
+  entry.returnOnCapital  = (ttm && investedCapital != null && investedCapital > 0)
+    ? ttm.operatingIncome / investedCapital : null;
 
   // Growth
   entry.revenueGrowthYoY = revenueGrowthYoY;
@@ -261,9 +275,9 @@ async function enrichStock(entry) {
   entry.eps              = ttm ? ttm.eps : null;
 
   // Financial Health
-  entry.currentRatio     = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities !== 0)
+  entry.currentRatio     = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities > 0)
     ? totalCurrentAssets / totalCurrentLiabilities : null;
-  entry.debtToEquity     = (totalDebt != null && equity != null && equity !== 0) ? totalDebt / equity : null;
+  entry.debtToEquity     = (totalDebt != null && equity != null && equity > 0) ? totalDebt / equity : null;
   entry.interestCoverage = (ttm && ttm.interestExpense != null && ttm.interestExpense !== 0)
     ? ttm.operatingIncome / Math.abs(ttm.interestExpense) : null;
   entry.netDebtToEBITDA  = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;

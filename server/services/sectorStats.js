@@ -103,7 +103,9 @@ function sectorZScore(value, sectorStats, metric) {
   if (!stats) return null;
 
   const iqr = stats.q75 - stats.q25;
-  if (iqr < 0.001) return 0; // All stocks roughly same value
+  // If IQR is near-zero, sector has no meaningful spread — return null
+  // instead of 0 (which would falsely claim "perfectly aligned with sector").
+  if (iqr < 0.001) return null;
 
   return (value - stats.median) / iqr;
 }

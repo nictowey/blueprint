@@ -88,7 +88,7 @@ describe('loadCacheFromRedis', () => {
   test('returns null on a Redis cache miss', async () => {
     const { fetch, loadCacheFromRedis } = setup();
     fetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '3' }) }) // version OK
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '2' }) }) // version OK
       .mockResolvedValueOnce({ ok: true, json: async () => ({ result: null }) }); // no data
     expect(await loadCacheFromRedis()).toBeNull();
   });
@@ -96,7 +96,7 @@ describe('loadCacheFromRedis', () => {
   test('returns a Map with all stock entries on a cache hit', async () => {
     const { fetch, loadCacheFromRedis } = setup();
     fetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '3' }) }) // version OK
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '2' }) }) // version OK
       .mockResolvedValueOnce({ ok: true, json: async () => ({ result: JSON.stringify(sampleEntries) }) });
 
     const result = await loadCacheFromRedis();
@@ -109,7 +109,7 @@ describe('loadCacheFromRedis', () => {
   test('returns null when Redis returns corrupt data', async () => {
     const { fetch, loadCacheFromRedis } = setup();
     fetch
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '3' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: '2' }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 'not valid json {{{' }) });
     expect(await loadCacheFromRedis()).toBeNull();
   });

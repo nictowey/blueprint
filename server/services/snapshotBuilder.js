@@ -98,8 +98,16 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const ttmIncomeQ = incomeQuarters.slice(0, 4);
   const priorTtmIncomeQ = incomeQuarters.slice(4, 8);
 
-  const ttm = ttmIncomeQ.length >= 4 ? sumQuarters(ttmIncomeQ) : null;
-  const priorTtm = priorTtmIncomeQ.length >= 4 ? sumQuarters(priorTtmIncomeQ) : null;
+  // Validate that 4 quarters actually span a ~12-month window
+  function validTtmWindow(quarters) {
+    if (quarters.length < 4) return false;
+    const newest = new Date(quarters[0].date);
+    const oldest = new Date(quarters[3].date);
+    const spanMonths = (newest - oldest) / (30.44 * 24 * 60 * 60 * 1000);
+    return spanMonths >= 8 && spanMonths <= 15;
+  }
+  const ttm = validTtmWindow(ttmIncomeQ) ? sumQuarters(ttmIncomeQ) : null;
+  const priorTtm = validTtmWindow(priorTtmIncomeQ) ? sumQuarters(priorTtmIncomeQ) : null;
 
   const mostRecentQuarterDate = ttmIncomeQ[0]?.date ?? null;
   const ttmQuarterCount = ttmIncomeQ.length;
@@ -117,9 +125,10 @@ async function buildSnapshot(ticker, date, throttle = true) {
   }
 
   const ttm3yrAgoQ = incomeQuarters.slice(12, 16);
-  const ttm3yrAgo = ttm3yrAgoQ.length >= 4 ? sumQuarters(ttm3yrAgoQ) : null;
+  const ttm3yrAgo = validTtmWindow(ttm3yrAgoQ) ? sumQuarters(ttm3yrAgoQ) : null;
   let revenueGrowth3yr = null;
-  if (ttm && ttm3yrAgo && ttm3yrAgo.revenue > 0) {
+  // Both current and 3yr-ago TTM revenue must be positive for CAGR to be meaningful
+  if (ttm && ttm.revenue > 0 && ttm3yrAgo && ttm3yrAgo.revenue > 0) {
     revenueGrowth3yr = Math.pow(ttm.revenue / ttm3yrAgo.revenue, 1 / 3) - 1;
   }
 
@@ -144,7 +153,7 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const rsi14 = computeRSI(pricesAsc.slice(-30));
 
   const prices52w = pricesAsc.slice(-252);
-  const high52w = prices52w.length > 0 ? Math.max(...prices52w) : null;
+  const high52w = prices52w.length >= 200 ? Math.max(...prices52w) : null;
   const pctBelowHigh =
     price != null && high52w != null && high52w > 0
       ? ((high52w - price) / high52w) * 100
@@ -182,11 +191,11 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const ttmCashFlowQ = cashFlowQuarters.slice(0, 4);
   const ttmFCF = ttmCashFlowQ.length >= 4
     ? ttmCashFlowQ.reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
-    : (cashFlowQuarters[0]?.freeCashFlow ?? null);
+    : null;
 
   const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
-  const ev = (computedMarketCap != null && totalDebt != null && cash != null)
-    ? computedMarketCap + totalDebt - cash : null;
+  const ev = computedMarketCap != null
+    ? computedMarketCap + (totalDebt ?? 0) - (cash ?? 0) : null;
 
   // Valuation
   const peRatio = (price > 0 && ttm?.eps > 0) ? price / ttm.eps : null;
@@ -196,16 +205,17 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const evToRevenue = (ev != null && ttm?.revenue > 0) ? ev / ttm.revenue : null;
   const pegRatio = (peRatio > 0 && epsGrowthYoY > 0) ? peRatio / (epsGrowthYoY * 100) : null;
 
-  // Returns
-  const returnOnEquity = (ttm && equity != null && equity !== 0) ? ttm.netIncome / equity : null;
-  const returnOnAssets = (ttm && totalAssets != null && totalAssets !== 0) ? ttm.netIncome / totalAssets : null;
-  const returnOnCapital = (ttm && equity != null && totalDebt != null && cash != null && (equity + totalDebt - cash) !== 0)
-    ? ttm.operatingIncome / (equity + totalDebt - cash) : null;
+  // Returns — require positive equity/assets to avoid nonsensical negative ratios
+  const returnOnEquity = (ttm && equity != null && equity > 0) ? ttm.netIncome / equity : null;
+  const returnOnAssets = (ttm && totalAssets != null && totalAssets > 0) ? ttm.netIncome / totalAssets : null;
+  const investedCapital = (equity != null && totalDebt != null && cash != null) ? equity + totalDebt - cash : null;
+  const returnOnCapital = (ttm && investedCapital != null && investedCapital > 0)
+    ? ttm.operatingIncome / investedCapital : null;
 
   // Financial Health
-  const currentRatio = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities !== 0)
+  const currentRatio = (totalCurrentAssets != null && totalCurrentLiabilities != null && totalCurrentLiabilities > 0)
     ? totalCurrentAssets / totalCurrentLiabilities : null;
-  const debtToEquity = (totalDebt != null && equity != null && equity !== 0) ? totalDebt / equity : null;
+  const debtToEquity = (totalDebt != null && equity != null && equity > 0) ? totalDebt / equity : null;
   const interestCoverage = (ttm && ttm.interestExpense != null && ttm.interestExpense !== 0)
     ? ttm.operatingIncome / Math.abs(ttm.interestExpense) : null;
   const netDebtToEBITDA = (totalDebt != null && cash != null && ttm?.ebitda > 0) ? (totalDebt - cash) / ttm.ebitda : null;

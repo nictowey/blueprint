@@ -89,7 +89,7 @@ const TECHNICAL_PCT = new Set([
   'priceVsMa50', 'priceVsMa200',
 ]);
 
-const MIN_OVERLAP_RATIO = 0.6;
+const MIN_OVERLAP_RATIO = 0.75; // 75%+ of template metrics must have data
 const EPSILON = 0.01;
 const SECTOR_MATCH_BONUS = 0.04; // 4% bonus for same-sector matches
 
@@ -477,10 +477,9 @@ function growthQualityPenalty(snapshot, stock) {
     if (stockRevG < 0 && stockEpsG > 1.0) {
       // Match has declining revenue but extreme EPS growth (>100%) — likely recovery, not breakout
       penalty *= 0.90; // 10% penalty
-    } else if (stockRevG > 0.03 && stockEpsG > 0.05) {
-      // Match also has balanced growth — small reward
-      penalty *= 1.03; // 3% bonus
     }
+    // No bonus for balanced growth — this is a penalty function only.
+    // Rewarding here inflates scores past 100 and creates a ceiling effect.
   }
 
   return penalty;
@@ -549,6 +548,12 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   // Normalize by the weight of categories that have data
   let baseScore = (weightedSum / totalCategoryWeight) * 100;
 
+  // --- Step 2b: Growth quality penalty ---
+  // Penalizes earnings-recovery companies (declining revenue + spiking EPS)
+  // that shouldn't match high-quality growth templates.
+  const gqPenalty = growthQualityPenalty(snapshot, stock);
+  baseScore *= gqPenalty;
+
   // --- Step 3: Overlap coverage adjustment ---
   // If the stock has data for most template metrics, full credit.
   // If sparse, reduce confidence proportionally.
@@ -562,7 +567,7 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
     baseScore *= (1 + sectorBonus);
   }
 
-  const finalScore = Math.max(0, Math.min(99, baseScore));
+  const finalScore = Math.max(0, Math.min(100, baseScore));
 
   // --- Confidence scoring ---
   const confidence = computeConfidence(metricScores, overlapCount, snapshotPopulatedCount, null, options.sectorStats, stock);

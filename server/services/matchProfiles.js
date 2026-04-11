@@ -270,7 +270,10 @@ function applyHardFilters(universe, filters) {
     let passes = true;
     for (const { metric, op, value } of filters) {
       const v = stock[metric];
-      if (v == null || !isFinite(v)) continue; // skip filter if data missing
+      // If the metric is null/missing, the stock FAILS the filter.
+      // A filter like "peRatio > 0" means "must be profitable" — a stock
+      // with no P/E data should not silently pass as if profitable.
+      if (v == null || !isFinite(v)) { passes = false; break; }
       switch (op) {
         case 'gte': if (!(v >= value)) passes = false; break;
         case 'lte': if (!(v <= value)) passes = false; break;

@@ -499,7 +499,7 @@ export default function TemplatePicker() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { value: '26', label: 'Comparison metrics', detail: 'Valuation, growth, profitability, momentum' },
+              { value: '28', label: 'Comparison metrics', detail: 'Valuation, growth, profitability, momentum' },
               { value: '8', label: 'Similarity functions', detail: 'Log-scale, sector-relative, directional' },
               { value: '5', label: 'Strategy profiles', detail: 'Growth, value, momentum, quality, GARP' },
               { value: '<5min', label: 'Universe refresh', detail: 'Live data across all stocks' },
