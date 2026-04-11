@@ -73,7 +73,6 @@ router.get('/', async (req, res) => {
 
     const profileOptions = {
       weights: profile.weights,
-      sectorBonus: profile.sectorBonus,
     };
 
     const matches = findMatches(snapshot, universe, 10, profileOptions);

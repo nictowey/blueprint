@@ -4,7 +4,6 @@
  * Each profile defines:
  *   - name / description: UI display
  *   - weights: override map for METRIC_WEIGHTS (missing keys fall back to defaults)
- *   - sectorBonus: override for SECTOR_MATCH_BONUS (default 0.06)
  *   - hardFilters: optional metric thresholds applied BEFORE similarity scoring
  *     { metric, op: 'gte'|'lte'|'gt'|'lt', value }
  *
@@ -51,7 +50,6 @@ const PROFILES = {
       currentRatio: 1.0,
       interestCoverage: 1.0,
     },
-    sectorBonus: 0.06,
     hardFilters: [],
   },
 
@@ -93,7 +91,6 @@ const PROFILES = {
       priceVsMa200: 0.5,
       beta: 0.5,
     },
-    sectorBonus: 0.08, // sector matters more for value comps
     hardFilters: [
       { metric: 'peRatio', op: 'gt', value: 0 },   // must be profitable
       { metric: 'peRatio', op: 'lte', value: 35 },  // not wildly expensive
@@ -139,7 +136,6 @@ const PROFILES = {
       priceToBook: 0.5,
       evToRevenue: 0.5,
     },
-    sectorBonus: 0.03, // sector less relevant for momentum
     hardFilters: [],
   },
 
@@ -182,7 +178,6 @@ const PROFILES = {
       priceVsMa200: 0.5,
       beta: 0.5,
     },
-    sectorBonus: 0.08, // quality is very sector-relative
     hardFilters: [
       { metric: 'returnOnEquity', op: 'gte', value: 0.05 }, // at least 5% ROE
     ],
@@ -228,7 +223,6 @@ const PROFILES = {
       priceVsMa200: 1.0,
       beta: 0.5,
     },
-    sectorBonus: 0.06,
     hardFilters: [
       { metric: 'revenueGrowthYoY', op: 'gt', value: 0 }, // must be growing
     ],

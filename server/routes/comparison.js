@@ -336,7 +336,7 @@ router.get('/', async (req, res) => {
       return (v != null && isFinite(v)) ? count + 1 : count;
     }, 0);
     const sectorStats = computeSectorStats(getCache());
-    const profileOptions = { weights: profile.weights, sectorBonus: profile.sectorBonus, sectorStats };
+    const profileOptions = { weights: profile.weights, sectorStats };
     const similarity = calculateSimilarity(templateResult.template, matchMetrics, snapshotPopulatedCount, profileOptions);
 
     // Extract top matches and differences

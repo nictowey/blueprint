@@ -91,7 +91,6 @@ const TECHNICAL_PCT = new Set([
 
 const MIN_OVERLAP_RATIO = 0.75; // 75%+ of template metrics must have data
 const EPSILON = 0.01;
-const SECTOR_MATCH_BONUS = 0.04; // 4% bonus for same-sector matches
 
 Object.freeze(MATCH_METRICS);
 
@@ -487,7 +486,6 @@ function growthQualityPenalty(snapshot, stock) {
 // ---------- Core similarity scoring ----------
 
 function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = {}) {
-  const sectorBonus = options.sectorBonus != null ? options.sectorBonus : SECTOR_MATCH_BONUS;
   const sectorStats = options.sectorStats || null;
 
   // Get sector-specific stats for each stock (may be different sectors)
@@ -577,11 +575,6 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   const allCategoryWeight = Object.values(METRIC_CATEGORIES).reduce((s, c) => s + c.weight, 0);
   const coveragePenalty = Math.min(1.0, representedWeight / allCategoryWeight);
   baseScore *= coveragePenalty;
-
-  // Sector match bonus: small boost for same-sector matches
-  if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
-    baseScore *= (1 + sectorBonus);
-  }
 
   const finalScore = Math.max(0, Math.min(100, baseScore));
 
