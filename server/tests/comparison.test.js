@@ -36,16 +36,15 @@ function setupMocks() {
   fmp.getKeyMetricsTTM.mockResolvedValue({});
   fmp.getRatiosTTM.mockResolvedValue({});
 
-  // getHistoricalPrices call order in the route:
-  //   [0] buildCurrentMetrics internal: getHistoricalPrices(matchSym, now-365d, now)
-  //   [1] Promise.allSettled slot 5: getHistoricalPrices(sym, fromStr, date) — template 1yr history
-  //   [2] Promise.allSettled slot 7: getHistoricalPrices(sym, date, sparklineEnd) — template sparkline
-  //   [3] Promise.allSettled slot 11: getHistoricalPrices(matchSym, matchSparklineFrom, matchSparklineTo) — match sparkline
-  fmp.getHistoricalPrices
-    .mockResolvedValueOnce(mockMatchHist)    // [0] buildCurrentMetrics internal
-    .mockResolvedValueOnce(mockTemplateHist) // [1] template 1yr historical
-    .mockResolvedValueOnce(mockTemplateHist) // [2] template sparkline
-    .mockResolvedValueOnce(mockMatchHist);   // [3] match sparkline
+  // After refactor, getHistoricalPrices is called by:
+  //   - buildSnapshot (via Promise.allSettled): template 1yr history
+  //   - fetchTemplate directly: short interest + sparkline
+  //   - buildCurrentMetrics: match 1yr history
+  //   - fetchMatchSparkline: match sparkline
+  // All three parallel tracks run concurrently via Promise.all, so ordering
+  // depends on internal scheduling. Use mockResolvedValue as default, then
+  // override specific calls with mockResolvedValueOnce where needed.
+  fmp.getHistoricalPrices.mockResolvedValue(mockTemplateHist);
 }
 
 beforeEach(setupMocks);
@@ -82,14 +81,21 @@ describe('GET /api/comparison', () => {
   });
 
   test('returns empty matchSparkline when match prices unavailable', async () => {
-    // beforeEach already called setupMocks(); we just need to replace the
-    // getHistoricalPrices queue so the match sparkline call rejects instead.
+    // Track calls to getHistoricalPrices for AMZN — the first is from
+    // buildCurrentMetrics (should succeed), the second is from
+    // fetchMatchSparkline (should fail).
+    let amznCallCount = 0;
     fmp.getHistoricalPrices.mockReset();
-    fmp.getHistoricalPrices
-      .mockResolvedValueOnce(mockMatchHist)    // buildCurrentMetrics internal
-      .mockResolvedValueOnce(mockTemplateHist) // template hist
-      .mockResolvedValueOnce(mockTemplateHist) // template sparkline
-      .mockRejectedValueOnce(new Error('FMP unavailable')); // match sparkline fails
+    fmp.getHistoricalPrices.mockImplementation((sym) => {
+      if (sym === 'AMZN') {
+        amznCallCount++;
+        if (amznCallCount >= 2) {
+          return Promise.reject(new Error('FMP unavailable'));
+        }
+        return Promise.resolve(mockMatchHist);
+      }
+      return Promise.resolve(mockTemplateHist);
+    });
     const res = await request(app)
       .get('/api/comparison?ticker=NVDA&date=2022-10-15&matchTicker=AMZN');
     expect(res.status).toBe(200);
