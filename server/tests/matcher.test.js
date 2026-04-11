@@ -32,6 +32,7 @@ const makeStock = (ticker, overrides = {}) => ({
   priceVsMa50: 2.0,
   priceVsMa200: 8.0,
   beta: 1.2,
+  relativeVolume: 1.0,
   marketCap: 10_000_000_000,
   ...overrides,
 });
@@ -159,8 +160,8 @@ describe('findMatches — percentage difference scoring', () => {
     // Only null out 2 metrics so the stock still passes the 75% overlap threshold
     universe.set('SPARSE', makeStock('SPARSE', { peRatio: null, grossMargin: null }));
     const results = findMatches(snapshot, universe);
-    // makeStock provides 27 of 28 MATCH_METRICS (no relativeVolume), minus 2 nulled = 25
-    expect(results[0].metricsCompared).toBe(25);
+    // makeStock provides all 28 MATCH_METRICS, minus 2 nulled = 26
+    expect(results[0].metricsCompared).toBe(26);
   });
 
   test('overlap penalty reduces score for sparse matches', () => {
@@ -198,6 +199,34 @@ describe('findMatches — percentage difference scoring', () => {
     const results = findMatches(snapshot, universe);
     const neg = results.find(r => r.ticker === 'NEG');
     expect(neg.topDifferences).toContain('revenueGrowthYoY');
+  });
+});
+
+describe('findMatches — category-aware overlap penalty', () => {
+  test('missing high-weight category penalizes more than missing low-weight category', () => {
+    const snapshot = makeStock('SNAP');
+    const universe = new Map();
+
+    // Stock missing all growth metrics (weight 0.25) — high-weight category
+    universe.set('NO_GROWTH', makeStock('NO_GROWTH', {
+      revenueGrowthYoY: null, revenueGrowth3yr: null, epsGrowthYoY: null,
+      sector: 'Healthcare',
+    }));
+
+    // Stock missing technical metrics except relativeVolume (weight 0.10) — low-weight category
+    universe.set('NO_TECH', makeStock('NO_TECH', {
+      rsi14: null, pctBelowHigh: null, priceVsMa50: null, priceVsMa200: null, beta: null,
+      sector: 'Healthcare',
+    }));
+
+    const results = findMatches(snapshot, universe);
+    const noGrowth = results.find(r => r.ticker === 'NO_GROWTH');
+    const noTech = results.find(r => r.ticker === 'NO_TECH');
+
+    // Missing growth (0.25 weight) should hurt more than missing technicals (0.10 weight)
+    expect(noTech).toBeDefined();
+    expect(noGrowth).toBeDefined();
+    expect(noTech.matchScore).toBeGreaterThan(noGrowth.matchScore);
   });
 });
 

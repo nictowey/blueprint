@@ -553,13 +553,30 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
   const gqPenalty = growthQualityPenalty(snapshot, stock);
   baseScore *= gqPenalty;
 
-  // --- Step 3: Overlap coverage adjustment ---
-  // If the stock has data for most template metrics, full credit.
-  // If sparse, reduce confidence proportionally.
+  // --- Step 3: Category-aware coverage penalty ---
+  // Instead of a blanket sqrt penalty, penalize based on which categories
+  // are missing data. Missing a high-weight category (growth, profitability)
+  // should hurt more than missing a low-weight category (technical).
   const overlapRatio = snapshotPopulatedCount > 0
     ? overlapCount / snapshotPopulatedCount
     : 0;
-  baseScore *= Math.sqrt(overlapRatio);
+
+  // Calculate what fraction of each category's weight is actually represented
+  let representedWeight = 0;
+  for (const [catName, { weight: catWeight }] of Object.entries(METRIC_CATEGORIES)) {
+    if (categoryScores[catName]) {
+      // Category has at least some data — scale by coverage within category
+      const catCoverage = categoryScores[catName].metricsAvailable / categoryScores[catName].metricsTotal;
+      representedWeight += catWeight * catCoverage;
+    }
+    // If category has no data, it contributes 0 to representedWeight
+  }
+
+  // Normalize by the sum of ALL category weights (not just those with data),
+  // so missing an entire category actually penalizes the score.
+  const allCategoryWeight = Object.values(METRIC_CATEGORIES).reduce((s, c) => s + c.weight, 0);
+  const coveragePenalty = Math.min(1.0, representedWeight / allCategoryWeight);
+  baseScore *= coveragePenalty;
 
   // Sector match bonus: small boost for same-sector matches
   if (snapshot.sector && stock.sector && snapshot.sector === stock.sector) {
