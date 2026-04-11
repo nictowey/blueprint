@@ -197,8 +197,8 @@ async function buildSnapshot(ticker, date, throttle = true) {
     : null;
 
   const computedMarketCap = (price != null && sharesOut != null) ? price * sharesOut : null;
-  const ev = computedMarketCap != null
-    ? computedMarketCap + (totalDebt ?? 0) - (cash ?? 0) : null;
+  const ev = (computedMarketCap != null && totalDebt != null && cash != null)
+    ? computedMarketCap + totalDebt - cash : null;
 
   // Valuation
   const peRatio = (price > 0 && ttm?.eps > 0) ? price / ttm.eps : null;

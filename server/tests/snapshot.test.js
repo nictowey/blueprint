@@ -2,6 +2,7 @@ jest.mock('../services/fmp');
 const fmp = require('../services/fmp');
 const request = require('supertest');
 const app = require('../index');
+const { snapshotCache } = require('../routes/snapshot');
 
 // 8 quarters of income data, newest first — simulating NVDA-like quarters
 const mockQuarterlyIncome = [
@@ -36,6 +37,7 @@ const mockHistorical = Array.from({ length: 250 }, (_, i) => ({
 }));
 
 beforeEach(() => {
+  snapshotCache.clear();
   fmp.getProfile.mockResolvedValue(mockProfile);
   fmp.getIncomeStatements.mockResolvedValue(mockQuarterlyIncome);
   fmp.getHistoricalPrices.mockResolvedValue(mockHistorical);
@@ -135,6 +137,14 @@ describe('GET /api/snapshot — TTM construction', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('dataAsOf');
     expect(res.body).toHaveProperty('ttmQuarters');
+  });
+
+  test('EV-based ratios are null when balance sheet data is missing', async () => {
+    fmp.getBalanceSheet.mockResolvedValue([]);
+    const res = await request(app).get('/api/snapshot?ticker=NVDA&date=2023-12-15');
+    expect(res.status).toBe(200);
+    expect(res.body.evToEBITDA).toBeNull();
+    expect(res.body.evToRevenue).toBeNull();
   });
 
   test('returns 404 when no price data available', async () => {
