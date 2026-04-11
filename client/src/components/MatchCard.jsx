@@ -126,7 +126,7 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
         ))}
         <span className="ml-auto flex items-center gap-2">
           <span className="text-[10px] text-warm-muted font-mono">
-            {match.metricsCompared}/28
+            {match.metricsCompared}/{match.totalMetrics || 28}
           </span>
           {match.confidence && (
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${

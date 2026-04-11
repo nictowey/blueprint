@@ -107,8 +107,8 @@ router.post('/', async (req, res) => {
     }
 
     // Also blend price (for display) and other non-metric fields
-    composite.price = median(snapshots.map(s => s.price).filter(v => v != null));
-    composite.ttmRevenue = median(snapshots.map(s => s.ttmRevenue).filter(v => v != null));
+    composite.price = median(snapshots.map(s => s.price).filter(v => v != null && isFinite(v)));
+    composite.ttmRevenue = median(snapshots.map(s => s.ttmRevenue).filter(v => v != null && isFinite(v)));
     composite.metricCoverage = metricCoverage;
 
     res.json(composite);

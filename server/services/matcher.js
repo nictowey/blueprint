@@ -673,6 +673,7 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
         _overlapRatio: overlapRatio,
         matchScore: Math.round(score * 10) / 10,
         metricsCompared: overlapCount,
+        totalMetrics: snapshotPopulatedCount,
         categoryScores,
         confidence,
         topMatches,
@@ -687,4 +688,13 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
   return results;
 }
 
-module.exports = { findMatches, calculateSimilarity, MATCH_METRICS, isSameCompany, baseTicker };
+module.exports = {
+  findMatches, calculateSimilarity, MATCH_METRICS, isSameCompany, baseTicker,
+  // Exported for testing only
+  _test: {
+    ratioSimilarity, marginSimilarity, growthSimilarity, boundedSimilarity,
+    technicalPctSimilarity, marketCapSimilarity, betaSimilarity,
+    debtToEquitySimilarity, relativeVolumeSimilarity, metricSimilarity,
+    growthQualityPenalty,
+  },
+};

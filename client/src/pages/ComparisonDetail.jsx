@@ -215,7 +215,7 @@ export default function ComparisonDetail() {
                     </span>
                   </div>
                   <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
-                    <span className="text-xs text-warm-muted font-mono">{data.metricsCompared}/28 metrics</span>
+                    <span className="text-xs text-warm-muted font-mono">{data.metricsCompared}/{data.totalMetrics || 28} metrics</span>
                     {data.confidence && (
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
                         data.confidence.level === 'high'

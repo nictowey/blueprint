@@ -302,11 +302,11 @@ async function fetchTemplate(sym, date) {
 // (used only when the match ticker is NOT in the universe cache)
 // ========================================================================
 async function buildCurrentMetrics(ticker) {
-  const [profile, ttmMetrics, ttmRatios, income, hist, balance, cashFlow] = await Promise.all([
+  const [profile, ttmMetrics, ttmRatios, incomeQ, hist, balance, cashFlow] = await Promise.all([
     fmp.getProfile(ticker, false),
     fmp.getKeyMetricsTTM(ticker, false),
     fmp.getRatiosTTM(ticker, false),
-    fmp.getIncomeStatements(ticker, 4, false),
+    fmp.getIncomeStatements(ticker, 16, false, 'quarter'),
     fmp.getHistoricalPrices(ticker,
       new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10),
       new Date().toISOString().slice(0, 10),
@@ -316,23 +316,42 @@ async function buildCurrentMetrics(ticker) {
     fmp.getCashFlowStatement(ticker, 2, false),
   ]);
 
-  const income0 = income[0] || {};
-  const income1 = income[1] || {};
-  const income3 = income[3] || {};
   const bal = Array.isArray(balance) ? balance[0] || {} : {};
   const cf  = Array.isArray(cashFlow) ? cashFlow[0] || {} : {};
 
+  // --- TTM growth from quarterly data (consistent with universe.js / snapshot.js) ---
+  function sumQuarters(quarters) {
+    return {
+      revenue:  quarters.reduce((s, q) => s + (q.revenue || 0), 0),
+      eps:      quarters.reduce((s, q) => s + (q.epsdiluted || q.eps || 0), 0),
+    };
+  }
+  function validTtmWindow(quarters) {
+    if (quarters.length < 4) return false;
+    const newest = new Date(quarters[0].date);
+    const oldest = new Date(quarters[3].date);
+    const spanMonths = (newest - oldest) / (30.44 * 24 * 60 * 60 * 1000);
+    return spanMonths >= 8 && spanMonths <= 15;
+  }
+
+  const ttmQ = (incomeQ || []).slice(0, 4);
+  const priorTtmQ = (incomeQ || []).slice(4, 8);
+  const ttm3yrAgoQ = (incomeQ || []).slice(12, 16);
+  const ttm = validTtmWindow(ttmQ) ? sumQuarters(ttmQ) : null;
+  const priorTtm = validTtmWindow(priorTtmQ) ? sumQuarters(priorTtmQ) : null;
+  const ttm3yrAgo = validTtmWindow(ttm3yrAgoQ) ? sumQuarters(ttm3yrAgoQ) : null;
+
   let revenueGrowthYoY = null;
-  if (income0.revenue != null && income1.revenue && income1.revenue !== 0)
-    revenueGrowthYoY = (income0.revenue - income1.revenue) / Math.abs(income1.revenue);
+  if (ttm && priorTtm && priorTtm.revenue !== 0)
+    revenueGrowthYoY = (ttm.revenue - priorTtm.revenue) / Math.abs(priorTtm.revenue);
 
   let revenueGrowth3yr = null;
-  if (income0.revenue != null && income3.revenue && income3.revenue !== 0)
-    revenueGrowth3yr = Math.pow(income0.revenue / income3.revenue, 1 / 3) - 1;
+  if (ttm && ttm.revenue > 0 && ttm3yrAgo && ttm3yrAgo.revenue > 0)
+    revenueGrowth3yr = Math.pow(ttm.revenue / ttm3yrAgo.revenue, 1 / 3) - 1;
 
   let epsGrowthYoY = null;
-  if (income0.eps != null && income1.eps && income1.eps !== 0)
-    epsGrowthYoY = (income0.eps - income1.eps) / Math.abs(income1.eps);
+  if (ttm && priorTtm && priorTtm.eps !== 0)
+    epsGrowthYoY = (ttm.eps - priorTtm.eps) / Math.abs(priorTtm.eps);
 
   const pricesAsc = [...hist].reverse().map(h => h.close);
   const currentPrice = hist[0]?.close ?? null;
@@ -353,7 +372,6 @@ async function buildCurrentMetrics(ticker) {
     if (currentPrice != null && ma200 > 0) priceVsMa200 = ((currentPrice - ma200) / ma200) * 100;
   }
 
-  const rev0 = income0.revenue;
   return {
     ticker,
     companyName:       profile?.companyName || ticker,
@@ -368,17 +386,17 @@ async function buildCurrentMetrics(ticker) {
     evToRevenue:       ttmMetrics.evToSalesTTM ?? null,
     pegRatio:          ttmRatios.priceToEarningsGrowthRatioTTM ?? null,
     earningsYield:     ttmMetrics.earningsYieldTTM ?? null,
-    // Profitability — prefer TTM ratios, fall back to annual-income-derived
-    grossMargin:       ttmRatios.grossProfitMarginTTM ?? (rev0 ? (income0.grossProfit / rev0) : null),
-    operatingMargin:   ttmRatios.operatingProfitMarginTTM ?? (rev0 ? (income0.operatingIncome / rev0) : null),
-    netMargin:         ttmRatios.netProfitMarginTTM ?? (rev0 ? (income0.netIncome / rev0) : null),
-    ebitdaMargin:      ttmRatios.ebitdaMarginTTM ?? (rev0 ? (income0.ebitda / rev0) : null),
+    // Profitability — prefer FMP TTM ratios
+    grossMargin:       ttmRatios.grossProfitMarginTTM ?? null,
+    operatingMargin:   ttmRatios.operatingProfitMarginTTM ?? null,
+    netMargin:         ttmRatios.netProfitMarginTTM ?? null,
+    ebitdaMargin:      ttmRatios.ebitdaMarginTTM ?? null,
     returnOnEquity:    ttmMetrics.returnOnEquityTTM ?? null,
     returnOnAssets:    ttmMetrics.returnOnAssetsTTM ?? null,
     returnOnCapital:   ttmMetrics.returnOnInvestedCapitalTTM ?? null,
-    // Growth
+    // Growth (TTM-based from quarterly data, consistent with universe.js)
     revenueGrowthYoY, revenueGrowth3yr, epsGrowthYoY,
-    eps:               income0.eps ?? null,
+    eps:               ttm ? ttm.eps : null,
     // Financial Health
     currentRatio:      ttmRatios.currentRatioTTM ?? ttmMetrics.currentRatioTTM ?? null,
     debtToEquity:      ttmRatios.debtToEquityRatioTTM ?? null,
