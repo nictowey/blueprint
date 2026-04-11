@@ -171,55 +171,76 @@ export default function ComparisonDetail() {
 
       {data && !loading && (
         <>
-        {/* Match score header */}
-        {data.matchScore != null && (
-          <div className="card mb-6 flex flex-col sm:flex-row items-center gap-4 sm:gap-8">
-            <div className="relative w-20 h-20 shrink-0 glow-gold">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="34" fill="none" stroke="#1c1c2e" strokeWidth="4" />
-                <circle
-                  cx="40" cy="40" r="34" fill="none"
-                  stroke={data.matchScore >= 70 ? '#22c55e' : data.matchScore >= 50 ? '#c9a84c' : '#ef4444'}
-                  strokeWidth="4" strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 34}
-                  strokeDashoffset={2 * Math.PI * 34 * (1 - data.matchScore / 100)}
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-xl font-bold font-mono text-warm-white">
-                {Math.round(data.matchScore)}
-              </span>
-            </div>
-            <div className="flex-1 text-center sm:text-left">
-              <p className="text-sm text-warm-gray mb-1 font-light">
-                <span className="font-mono font-bold text-warm-white">{data.template.ticker}</span>
-                <span className="text-warm-muted mx-2 font-display italic">vs</span>
-                <span className="font-mono font-bold text-warm-white">{data.match.ticker}</span>
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-xs text-warm-muted font-mono">{data.metricsCompared}/28 metrics compared</p>
-                {data.confidence && (
-                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                    data.confidence.level === 'high'
-                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                      : data.confidence.level === 'medium'
-                        ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-                        : 'border-red-500/20 bg-red-500/10 text-red-400'
-                  }`} title={`Confidence: ${data.confidence.score}% — Data coverage: ${data.confidence.coverageRatio}%`}>
-                    {data.confidence.level === 'high' ? 'High' : data.confidence.level === 'medium' ? 'Med' : 'Low'} confidence ({data.confidence.score}%)
-                  </span>
-                )}
+        {/* Match score header — premium layout */}
+        {data.matchScore != null && (() => {
+          const s = data.matchScore;
+          const scoreColor = s >= 70 ? '#22c55e' : s >= 55 ? '#c9a84c' : '#ef4444';
+          const gradeLabel = s >= 85 ? 'Excellent' : s >= 70 ? 'Strong' : s >= 55 ? 'Good' : 'Fair';
+          const circumference = 2 * Math.PI * 34;
+
+          return (
+            <div className="card mb-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                {/* Score ring */}
+                <div className="relative w-24 h-24 shrink-0 glow-gold">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="#1c1c2e" strokeWidth="5" />
+                    <circle
+                      cx="40" cy="40" r="34" fill="none"
+                      stroke={scoreColor} strokeWidth="5" strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={circumference * (1 - s / 100)}
+                      className="transition-all duration-700"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold font-mono" style={{ color: scoreColor, lineHeight: 1 }}>
+                      {Math.round(s)}
+                    </span>
+                    <span className="text-[8px] uppercase tracking-widest text-warm-muted mt-0.5">match</span>
+                  </div>
+                </div>
+
+                {/* Match info */}
+                <div className="flex-1 text-center sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mb-1.5 flex-wrap">
+                    <span className="font-mono font-bold text-lg text-warm-white">{data.template.ticker}</span>
+                    <span className="text-warm-muted font-display italic text-sm">vs</span>
+                    <span className="font-mono font-bold text-lg text-warm-white">{data.match.ticker}</span>
+                    <span
+                      className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                      style={{ color: scoreColor, background: `${scoreColor}10`, border: `1px solid ${scoreColor}30` }}
+                    >
+                      {gradeLabel} Match
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
+                    <span className="text-xs text-warm-muted font-mono">{data.metricsCompared}/28 metrics</span>
+                    {data.confidence && (
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                        data.confidence.level === 'high'
+                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                          : data.confidence.level === 'medium'
+                            ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
+                            : 'border-red-500/20 bg-red-500/10 text-red-400'
+                      }`} title={`Confidence: ${data.confidence.score}%`}>
+                        {data.confidence.level === 'high' ? 'High' : data.confidence.level === 'medium' ? 'Med' : 'Low'} confidence ({data.confidence.score}%)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 mt-2.5">
+                    {data.topMatches?.map(key => (
+                      <span key={key} className="tag-green">{METRIC_LABELS[key] || key} ✓</span>
+                    ))}
+                    {data.topDifferences?.map(key => (
+                      <span key={key} className="tag-yellow">{METRIC_LABELS[key] || key} ~</span>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {data.topMatches?.map(key => (
-                  <span key={key} className="tag-green">{METRIC_LABELS[key] || key} ✓</span>
-                ))}
-                {data.topDifferences?.map(key => (
-                  <span key={key} className="tag-yellow">{METRIC_LABELS[key] || key} ~</span>
-                ))}
-              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Investor insight */}
         {(() => {

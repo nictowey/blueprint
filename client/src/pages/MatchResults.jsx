@@ -312,25 +312,30 @@ export default function MatchResults() {
 
         return (
           <>
-            {/* Score interpretation */}
+            {/* Score interpretation — clear grading system */}
             <div className="card mb-6 border-dark-border/50">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0 mt-0.5">
                   <span className="text-accent text-sm font-display italic">i</span>
                 </div>
-                <div className="text-sm">
+                <div className="text-sm flex-1">
                   <p className="text-warm-white font-light">
                     Found <span className="font-semibold">{matches.length} matches</span> —
                     top score is <span className={`font-semibold font-mono ${scoreLabel(topScore).color}`}>{Math.round(topScore)}</span>
+                    {' '}(<span className={scoreLabel(topScore).color}>{scoreLabel(topScore).text}</span>)
                     {topScore >= 75
                       ? '. These stocks share very similar financial profiles to the template.'
                       : topScore >= 55
                         ? '. Decent similarity — review individual metrics for areas of divergence.'
                         : '. Moderate similarity — the template profile may be uncommon in today\'s market.'}
                   </p>
-                  <p className="text-warm-muted text-xs mt-1 font-mono">
-                    Avg score: {avgScore} · Scores above 70 indicate strong similarity across valuation, growth, profitability, and technicals.
-                  </p>
+                  <div className="flex items-center gap-4 mt-2 text-[10px] text-warm-muted">
+                    <span className="font-mono">Avg: {avgScore}</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> 85+ Excellent</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500/60 inline-block" /> 70+ Strong</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> 55+ Good</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> &lt;55 Fair</span>
+                  </div>
                 </div>
               </div>
             </div>

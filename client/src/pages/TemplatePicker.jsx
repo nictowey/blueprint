@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../components/TickerSearch';
 import SnapshotCard from '../components/SnapshotCard';
 import TopPairs from '../components/TopPairs';
+import ProvenResults from '../components/ProvenResults';
 import { httpError } from '../utils/httpError';
 
 // Yesterday as YYYY-MM-DD (max date for picker)
@@ -528,6 +529,9 @@ export default function TemplatePicker() {
           </div>
         </div>
       )}
+
+      {/* Track record — verified backtest results */}
+      {!snapshot && serverReady && <ProvenResults />}
 
       {/* Top pairs / Breakout Candidates */}
       {serverReady && <TopPairs />}
