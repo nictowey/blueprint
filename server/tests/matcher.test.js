@@ -1,4 +1,4 @@
-const { findMatches, MATCH_METRICS } = require('../services/matcher');
+const { findMatches, calculateSimilarity, MATCH_METRICS } = require('../services/matcher');
 
 const makeStock = (ticker, overrides = {}) => ({
   ticker,
@@ -241,5 +241,78 @@ describe('findMatches — MATCH_METRICS', () => {
 
   test('beta is included in MATCH_METRICS', () => {
     expect(MATCH_METRICS).toContain('beta');
+  });
+});
+
+describe('profile weight application', () => {
+  const template = {
+    ticker: 'TMPL', companyName: 'Template Co', sector: 'Technology',
+    peRatio: 25, priceToBook: 5, priceToSales: 8, evToEBITDA: 20, evToRevenue: 10, pegRatio: 1.5,
+    grossMargin: 0.60, operatingMargin: 0.25, netMargin: 0.20, ebitdaMargin: 0.30,
+    returnOnEquity: 0.25, returnOnAssets: 0.10, returnOnCapital: 0.15,
+    revenueGrowthYoY: 0.30, revenueGrowth3yr: 0.25, epsGrowthYoY: 0.35,
+    currentRatio: 2.0, debtToEquity: 0.5, interestCoverage: 15, netDebtToEBITDA: 1.0, freeCashFlowYield: 0.05,
+    marketCap: 50e9,
+    rsi14: 60, pctBelowHigh: 10, priceVsMa50: 5, priceVsMa200: 15, beta: 1.2, relativeVolume: 1.1,
+  };
+
+  const stockA = {
+    ...template,
+    ticker: 'STKA', companyName: 'Stock A', sector: 'Technology',
+    revenueGrowthYoY: 0.28, epsGrowthYoY: 0.33, revenueGrowth3yr: 0.23,
+    peRatio: 120, evToEBITDA: 80, pegRatio: 5.0, priceToBook: 25, priceToSales: 30, evToRevenue: 40,
+  };
+
+  const stockB = {
+    ...template,
+    ticker: 'STKB', companyName: 'Stock B', sector: 'Technology',
+    peRatio: 26, evToEBITDA: 21, pegRatio: 1.6,
+    revenueGrowthYoY: 0.15, epsGrowthYoY: 0.18, revenueGrowth3yr: 0.13,
+  };
+
+  const populatedCount = 28;
+
+  test('growth_breakout profile favors growth-aligned stock', () => {
+    const growthWeights = {
+      revenueGrowthYoY: 3.0, epsGrowthYoY: 3.0, pegRatio: 3.0, operatingMargin: 3.0,
+      peRatio: 2.5, evToEBITDA: 2.5, pctBelowHigh: 2.5, priceVsMa200: 2.5, marketCap: 2.5,
+      returnOnEquity: 2.0, revenueGrowth3yr: 2.0, freeCashFlowYield: 2.0, returnOnCapital: 2.0, priceVsMa50: 2.0,
+      debtToEquity: 1.5, netDebtToEBITDA: 1.5, rsi14: 1.5, grossMargin: 1.5,
+      beta: 1.0, netMargin: 1.0, ebitdaMargin: 1.0, returnOnAssets: 1.0,
+      priceToBook: 1.0, priceToSales: 1.0, evToRevenue: 1.0, currentRatio: 1.0, interestCoverage: 1.0,
+    };
+    const scoreA = calculateSimilarity(template, stockA, populatedCount, { weights: growthWeights });
+    const scoreB = calculateSimilarity(template, stockB, populatedCount, { weights: growthWeights });
+    expect(scoreA.score).toBeGreaterThan(scoreB.score);
+  });
+
+  test('value_inflection profile favors valuation-aligned stock', () => {
+    const valueWeights = {
+      peRatio: 3.0, evToEBITDA: 3.0, priceToBook: 3.0, freeCashFlowYield: 3.0, pegRatio: 2.5,
+      operatingMargin: 2.5, grossMargin: 2.5, returnOnEquity: 2.0, returnOnCapital: 2.0,
+      debtToEquity: 2.0, netDebtToEBITDA: 2.0,
+      revenueGrowthYoY: 1.5, epsGrowthYoY: 1.5, revenueGrowth3yr: 1.5,
+      priceToSales: 1.5, evToRevenue: 1.5, currentRatio: 1.5, interestCoverage: 1.5,
+      netMargin: 1.0, ebitdaMargin: 1.0, returnOnAssets: 1.0, marketCap: 1.0,
+      rsi14: 1.0, pctBelowHigh: 0.5, priceVsMa50: 0.5, priceVsMa200: 0.5, beta: 0.5,
+    };
+    const scoreA = calculateSimilarity(template, stockA, populatedCount, { weights: valueWeights });
+    const scoreB = calculateSimilarity(template, stockB, populatedCount, { weights: valueWeights });
+    expect(scoreB.score).toBeGreaterThan(scoreA.score);
+  });
+
+  test('metric with weight 3.0 contributes 3x to category average', () => {
+    const weights = { revenueGrowthYoY: 3.0, revenueGrowth3yr: 1.0, epsGrowthYoY: 1.0 };
+    const noWeights = {};
+    const scoreWeighted = calculateSimilarity(template, stockA, populatedCount, { weights });
+    const scoreEqual = calculateSimilarity(template, stockA, populatedCount, { weights: noWeights });
+    expect(scoreWeighted.score).not.toBeCloseTo(scoreEqual.score, 0);
+  });
+
+  test('missing weight defaults to 1.0 — no crash', () => {
+    const partialWeights = { revenueGrowthYoY: 5.0 };
+    const result = calculateSimilarity(template, stockA, populatedCount, { weights: partialWeights });
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.score).toBeLessThanOrEqual(100);
   });
 });

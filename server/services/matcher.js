@@ -510,7 +510,8 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
     }
 
     overlapCount++;
-    metricScores.push({ metric, similarity, weight: 1.0 });
+    const metricWeight = options.weights?.[metric] ?? 1.0;
+    metricScores.push({ metric, similarity, weight: metricWeight });
   }
 
   if (overlapCount === 0) {
@@ -528,14 +529,17 @@ function calculateSimilarity(snapshot, stock, snapshotPopulatedCount, options = 
     const catResults = metricScores.filter(ms => catMetrics.includes(ms.metric));
     if (catResults.length === 0) continue; // Skip categories with no data
 
-    const catAvg = catResults.reduce((sum, ms) => sum + ms.similarity, 0) / catResults.length;
+    const catWeightSum = catResults.reduce((sum, ms) => sum + ms.weight, 0);
+    const catAvg = catResults.reduce((sum, ms) => sum + ms.similarity * ms.weight, 0) / catWeightSum;
     categoryScores[catName] = {
       score: Math.round(catAvg * 1000) / 10, // e.g., 72.3%
       metricsAvailable: catResults.length,
       metricsTotal: catMetrics.length,
     };
-    weightedSum += catAvg * catWeight;
-    totalCategoryWeight += catWeight;
+    const avgMetricWeight = catWeightSum / catResults.length;
+    const effectiveCatWeight = catWeight * avgMetricWeight;
+    weightedSum += catAvg * effectiveCatWeight;
+    totalCategoryWeight += effectiveCatWeight;
   }
 
   if (totalCategoryWeight === 0) {
