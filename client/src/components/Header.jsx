@@ -24,6 +24,12 @@ export default function Header() {
         </span>
         <div className="ml-auto flex items-center gap-4">
           <Link
+            to="/proof"
+            className="text-sm text-warm-gray hover:text-accent transition-colors duration-200"
+          >
+            Methodology
+          </Link>
+          <Link
             to="/watchlist"
             className="flex items-center gap-2 text-sm text-warm-gray hover:text-accent transition-colors duration-200"
           >

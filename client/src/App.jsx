@@ -7,6 +7,7 @@ import MatchResults from './pages/MatchResults';
 import ComparisonDetail from './pages/ComparisonDetail';
 import BacktestResults from './pages/BacktestResults';
 import WatchlistPage from './pages/Watchlist';
+import Proof from './pages/Proof';
 import NotFound from './pages/NotFound';
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/matches"    element={<MatchResults />} />
           <Route path="/comparison" element={<ComparisonDetail />} />
           <Route path="/backtest"   element={<BacktestResults />} />
+          <Route path="/proof"      element={<Proof />} />
           <Route path="/watchlist"  element={<WatchlistPage />} />
           <Route path="*"           element={<NotFound />} />
         </Routes>
