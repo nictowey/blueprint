@@ -44,6 +44,7 @@ app.use('/api/status',     require('./routes/status'));
 app.use('/api/top-pairs',  apiLimiter, require('./routes/top-pairs'));
 app.use('/api/backtest',   apiLimiter, require('./routes/backtest'));
 app.use('/api/blend',      apiLimiter, require('./routes/blend'));
+app.use('/api/proof',      require('./routes/proof'));
 
 
 // Profiles endpoint — returns list of available match profiles for the UI
