@@ -66,24 +66,19 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const balanceCashLimit = Math.max(8, Math.ceil((yearsBack + 1) * 4) + 4);
   const annualLimit = Math.max(4, Math.ceil(yearsBack + 4) + 1);
 
-  const [profileData, incomeData, histData, balanceSheetData, cashFlowData, balanceSheetAnnualData, cashFlowAnnualData] =
-    await Promise.allSettled([
-      fmp.getProfile(sym, throttle),
-      fmp.getIncomeStatements(sym, incomeLimit, throttle, 'quarter'),
-      fmp.getHistoricalPrices(sym, fromStr, date, throttle),
-      fmp.getBalanceSheet(sym, balanceCashLimit, throttle, 'quarter'),
-      fmp.getCashFlowStatement(sym, balanceCashLimit, throttle, 'quarter'),
-      fmp.getBalanceSheet(sym, annualLimit, throttle),
-      fmp.getCashFlowStatement(sym, annualLimit, throttle),
-    ]);
+  // Sequential calls to respect FMP rate limits (300 calls/min on Starter plan).
+  // Each call uses the throttle parameter for inter-call delay during cache builds.
+  async function safeFmpCall(fn) {
+    try { return await fn(); } catch { return null; }
+  }
 
-  const profile     = profileData.status    === 'fulfilled' ? profileData.value    : {};
-  const income      = incomeData.status     === 'fulfilled' ? incomeData.value     : [];
-  const historical  = histData.status       === 'fulfilled' ? histData.value       : [];
-  const balanceSheetQ = balanceSheetData.status  === 'fulfilled' ? balanceSheetData.value  : [];
-  const cashFlowStmtQ = cashFlowData.status      === 'fulfilled' ? cashFlowData.value      : [];
-  const balanceSheetA = balanceSheetAnnualData.status === 'fulfilled' ? balanceSheetAnnualData.value : [];
-  const cashFlowStmtA = cashFlowAnnualData.status    === 'fulfilled' ? cashFlowAnnualData.value    : [];
+  const profile       = await safeFmpCall(() => fmp.getProfile(sym, throttle)) || {};
+  const income        = await safeFmpCall(() => fmp.getIncomeStatements(sym, incomeLimit, throttle, 'quarter')) || [];
+  const historical    = await safeFmpCall(() => fmp.getHistoricalPrices(sym, fromStr, date, throttle)) || [];
+  const balanceSheetQ = await safeFmpCall(() => fmp.getBalanceSheet(sym, balanceCashLimit, throttle, 'quarter')) || [];
+  const cashFlowStmtQ = await safeFmpCall(() => fmp.getCashFlowStatement(sym, balanceCashLimit, throttle, 'quarter')) || [];
+  const balanceSheetA = await safeFmpCall(() => fmp.getBalanceSheet(sym, annualLimit, throttle)) || [];
+  const cashFlowStmtA = await safeFmpCall(() => fmp.getCashFlowStatement(sym, annualLimit, throttle)) || [];
 
   // Merge quarterly + annual, dedupe by date, prefer quarterly
   const balanceSheet = [...balanceSheetQ, ...balanceSheetA.filter(a => !balanceSheetQ.some(q => q.date === a.date))];
@@ -189,10 +184,11 @@ async function buildSnapshot(ticker, date, throttle = true) {
   const cash = curBalance?.cashAndCashEquivalents ?? null;
 
   const ttmCashFlowQ = cashFlowQuarters.slice(0, 4);
-  const ttmFCF = ttmCashFlowQ.length >= 4
+  const cfTtmValid = validTtmWindow(ttmCashFlowQ);
+  const ttmFCF = cfTtmValid
     ? ttmCashFlowQ.reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
     : null;
-  const ttmOperatingCashFlow = ttmCashFlowQ.length >= 4
+  const ttmOperatingCashFlow = cfTtmValid
     ? ttmCashFlowQ.reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
     : null;
 

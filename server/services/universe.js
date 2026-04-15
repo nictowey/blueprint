@@ -173,12 +173,15 @@ async function enrichStock(entry) {
   }
 
   const incomeData   = await safeFmpCall(() => fmp.getIncomeStatements(symbol, 16, true, 'quarter')) || [];
-  const balanceData  = await safeFmpCall(() => fmp.getBalanceSheet(symbol, 1, true, 'quarter')) || [];
+  const balanceData  = await safeFmpCall(() => fmp.getBalanceSheet(symbol, 4, true, 'quarter')) || [];
   const cashFlowData = await safeFmpCall(() => fmp.getCashFlowStatement(symbol, 4, true, 'quarter')) || [];
   const historical   = await safeFmpCall(() => fmp.getHistoricalPrices(symbol, from, to)) || [];
   const profileData  = await safeFmpCall(() => fmp.getProfile(symbol)) || {};
 
   // --- TTM from 4 most recent quarters ---
+  // Sort newest-first defensively (FMP usually returns this order, but not guaranteed)
+  incomeData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
   // Validate that the 4 quarters span a ~12-month window to avoid
   // summing misaligned quarters (e.g., a missing quarter compressing to 9 months).
   const ttmQ = incomeData.slice(0, 4);
@@ -213,8 +216,12 @@ async function enrichStock(entry) {
   }
 
   // --- Balance sheet (latest quarterly) ---
+  // Sort newest-first defensively, then take the most recent quarter.
   // If FMP call failed (empty array), preserve existing cached values
   // rather than overwriting with null.
+  if (Array.isArray(balanceData) && balanceData.length > 1) {
+    balanceData.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }
   const balance = Array.isArray(balanceData) && balanceData.length > 0 ? balanceData[0] : null;
   const equity = balance?.totalStockholdersEquity ?? entry.equity ?? null;
   const totalAssets = balance?.totalAssets ?? entry.totalAssets ?? null;
@@ -224,12 +231,14 @@ async function enrichStock(entry) {
   const cash = balance?.cashAndCashEquivalents ?? entry.totalCash ?? null;
 
   // --- Cash flow TTM (sum 4 quarters — must have all 4 for accuracy) ---
-  const cfQuarters = Array.isArray(cashFlowData) ? cashFlowData : [];
-  const ttmFCF = cfQuarters.length >= 4
-    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
+  const cfQuarters = Array.isArray(cashFlowData) ? [...cashFlowData].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
+  const cfTtmQ = cfQuarters.slice(0, 4);
+  const cfTtmValid = validTtmWindow(cfTtmQ);
+  const ttmFCF = cfTtmValid
+    ? cfTtmQ.reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
     : null;
-  const ttmOperatingCF = cfQuarters.length >= 4
-    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
+  const ttmOperatingCF = cfTtmValid
+    ? cfTtmQ.reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
     : null;
 
   // --- Historical prices ---

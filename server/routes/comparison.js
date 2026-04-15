@@ -74,13 +74,12 @@ async function buildCurrentMetrics(ticker) {
   const fromDate = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
   const toDate = new Date().toISOString().slice(0, 10);
 
-  const [profileData, incomeData, balanceData, cashFlowData, historical] = await Promise.all([
-    fmp.getProfile(ticker, false),
-    fmp.getIncomeStatements(ticker, 16, false, 'quarter'),
-    fmp.getBalanceSheet(ticker, 1, false, 'quarter'),
-    fmp.getCashFlowStatement(ticker, 4, false, 'quarter'),
-    fmp.getHistoricalPrices(ticker, fromDate, toDate, false),
-  ]);
+  // Sequential calls to respect FMP rate limits (300 calls/min on Starter plan)
+  const profileData = await fmp.getProfile(ticker, false);
+  const incomeData  = await fmp.getIncomeStatements(ticker, 16, false, 'quarter');
+  const balanceData = await fmp.getBalanceSheet(ticker, 4, false, 'quarter');
+  const cashFlowData = await fmp.getCashFlowStatement(ticker, 4, false, 'quarter');
+  const historical  = await fmp.getHistoricalPrices(ticker, fromDate, toDate, false);
 
   // --- sumQuarters: identical to universe.js ---
   function sumQuarters(quarters) {
@@ -105,7 +104,7 @@ async function buildCurrentMetrics(ticker) {
     return spanMonths >= 8 && spanMonths <= 15;
   }
 
-  const incomeQ = incomeData || [];
+  const incomeQ = (incomeData || []).sort((a, b) => new Date(b.date) - new Date(a.date));
   const ttmQ = incomeQ.slice(0, 4);
   const priorTtmQ = incomeQ.slice(4, 8);
   const ttm3yrAgoQ = incomeQ.slice(12, 16);
@@ -136,12 +135,14 @@ async function buildCurrentMetrics(ticker) {
   const cash = balance?.cashAndCashEquivalents ?? null;
 
   // --- Cash flow TTM (sum 4 quarters — must have all 4 for accuracy) ---
-  const cfQuarters = Array.isArray(cashFlowData) ? cashFlowData : [];
-  const ttmFCF = cfQuarters.length >= 4
-    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
+  const cfQuarters = Array.isArray(cashFlowData) ? [...cashFlowData].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
+  const cfTtmQ = cfQuarters.slice(0, 4);
+  const cfTtmValid = validTtmWindow(cfTtmQ);
+  const ttmFCF = cfTtmValid
+    ? cfTtmQ.reduce((s, q) => s + (q.freeCashFlow ?? 0), 0)
     : null;
-  const ttmOperatingCF = cfQuarters.length >= 4
-    ? cfQuarters.slice(0, 4).reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
+  const ttmOperatingCF = cfTtmValid
+    ? cfTtmQ.reduce((s, q) => s + (q.operatingCashFlow ?? 0), 0)
     : null;
 
   // --- Historical prices & technicals ---
@@ -318,7 +319,9 @@ router.get('/', async (req, res) => {
     const matchMetricsPromise = cachedMatch
       ? Promise.resolve({
           ...cachedMatch,
-          date: new Date().toISOString().slice(0, 10),
+          date: cachedMatch.lastEnriched
+            ? new Date(cachedMatch.lastEnriched).toISOString().slice(0, 10)
+            : new Date().toISOString().slice(0, 10),
           shortInterestPct: null,
         })
       : buildCurrentMetrics(matchSym);

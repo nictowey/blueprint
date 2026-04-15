@@ -34,13 +34,12 @@ function setupMocks() {
   fmp.getBalanceSheet.mockResolvedValue([]);
   fmp.getCashFlowStatement.mockResolvedValue([]);
 
-  // After refactor, getHistoricalPrices is called by:
-  //   - buildSnapshot (via Promise.allSettled): template 1yr history
+  // getHistoricalPrices is called by:
+  //   - buildSnapshot (sequential): template 1yr history
   //   - fetchTemplate directly: short interest + sparkline
-  //   - buildCurrentMetrics: match 1yr history
+  //   - buildCurrentMetrics (sequential): match 1yr history
   //   - fetchMatchSparkline: match sparkline
-  // All three parallel tracks run concurrently via Promise.all, so ordering
-  // depends on internal scheduling. Use mockResolvedValue as default, then
+  // Use mockResolvedValue as default, then
   // override specific calls with mockResolvedValueOnce where needed.
   fmp.getHistoricalPrices.mockResolvedValue(mockTemplateHist);
 }
@@ -79,18 +78,15 @@ describe('GET /api/comparison', () => {
   });
 
   test('returns empty matchSparkline when match prices unavailable', async () => {
-    // Track calls to getHistoricalPrices for AMZN — the first is from
-    // buildCurrentMetrics (should succeed), the second is from
-    // fetchMatchSparkline (should fail).
-    let amznCallCount = 0;
+    // Put AMZN in the universe cache so buildCurrentMetrics is skipped entirely.
+    // This isolates the test to just fetchMatchSparkline, which we make fail.
+    universe.getCache.mockReturnValue(new Map([
+      ['AMZN', { ticker: 'AMZN', companyName: 'Amazon', sector: 'Technology', rsi14: 50, beta: 1.1 }],
+    ]));
     fmp.getHistoricalPrices.mockReset();
     fmp.getHistoricalPrices.mockImplementation((sym) => {
       if (sym === 'AMZN') {
-        amznCallCount++;
-        if (amznCallCount >= 2) {
-          return Promise.reject(new Error('FMP unavailable'));
-        }
-        return Promise.resolve(mockMatchHist);
+        return Promise.reject(new Error('FMP unavailable'));
       }
       return Promise.resolve(mockTemplateHist);
     });
