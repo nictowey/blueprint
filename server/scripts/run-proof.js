@@ -12,7 +12,7 @@
  * Requires: FMP_API_KEY, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 
 const fs = require('fs');
 const path = require('path');
@@ -134,7 +134,7 @@ function preFilterCandidates(universe, templateSnapshot) {
     // No market cap filter — just require positive revenue
     const filtered = new Map();
     for (const [ticker, stock] of universe) {
-      if (stock.revenue > 0) filtered.set(ticker, stock);
+      if (stock.revenueGrowthYoY != null) filtered.set(ticker, stock);
     }
     return filtered;
   }
@@ -146,7 +146,7 @@ function preFilterCandidates(universe, templateSnapshot) {
 
   for (const [ticker, stock] of universe) {
     const mcap = stock.marketCap;
-    if (mcap && mcap >= loTight && mcap <= hiTight && stock.revenue > 0) {
+    if (mcap && mcap >= loTight && mcap <= hiTight && stock.revenueGrowthYoY != null) {
       filtered.set(ticker, stock);
     }
   }
@@ -158,7 +158,7 @@ function preFilterCandidates(universe, templateSnapshot) {
     const hiWide = templateMcap * 100;
     for (const [ticker, stock] of universe) {
       const mcap = stock.marketCap;
-      if (mcap && mcap >= loWide && mcap <= hiWide && stock.revenue > 0) {
+      if (mcap && mcap >= loWide && mcap <= hiWide && stock.revenueGrowthYoY != null) {
         filtered.set(ticker, stock);
       }
     }
