@@ -54,20 +54,20 @@ function scoreProximityToHigh(pctBelowHigh) {
   ]);
 }
 
-// Price vs 50-day MA, percentage form (0.05 = 5% above).
+// Price vs 50-day MA, in percent (15 = 15% above MA — see computeTechnicals).
 function scorePriceVsMa50(pct) {
   if (pct == null || !isFinite(pct)) return null;
   // Below MA -> 0; 0–15% above ramps to peak; 15–40% tapers; >40% overextended.
   return piecewise(pct, [
-    [-0.20, 0.0], [0, 0.0], [0.15, 1.0], [0.40, 0.6], [0.80, 0.2],
+    [-20, 0.0], [0, 0.0], [15, 1.0], [40, 0.6], [80, 0.2],
   ]);
 }
 
-// Price vs 200-day MA, percentage form. More lenient on extension (longer trend).
+// Price vs 200-day MA, in percent. More lenient on extension (longer trend).
 function scorePriceVsMa200(pct) {
   if (pct == null || !isFinite(pct)) return null;
   return piecewise(pct, [
-    [-0.20, 0.0], [0, 0.0], [0.30, 1.0], [0.80, 0.5], [1.50, 0.2],
+    [-20, 0.0], [0, 0.0], [30, 1.0], [80, 0.5], [150, 0.2],
   ]);
 }
 

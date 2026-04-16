@@ -20,8 +20,8 @@ const makeStock = (ticker, overrides = {}) => ({
   marketCap: 10_000_000_000,
   rsi14: 65,
   pctBelowHigh: 5,
-  priceVsMa50: 0.15,
-  priceVsMa200: 0.30,
+  priceVsMa50: 15,
+  priceVsMa200: 30,
   relativeVolume: 1.8,
   ...overrides,
 });
@@ -61,26 +61,26 @@ describe('scoreProximityToHigh', () => {
 
 describe('scorePriceVsMa50', () => {
   test('below MA scores 0', () => {
-    expect(scorePriceVsMa50(-0.05)).toBe(0);
+    expect(scorePriceVsMa50(-5)).toBe(0);
   });
   test('15% above MA is the sweet spot', () => {
-    expect(scorePriceVsMa50(0.15)).toBeCloseTo(1.0);
+    expect(scorePriceVsMa50(15)).toBeCloseTo(1.0);
   });
   test('heavily extended tapers', () => {
-    expect(scorePriceVsMa50(0.60)).toBeLessThan(0.5);
+    expect(scorePriceVsMa50(60)).toBeLessThan(0.5);
   });
 });
 
 describe('scorePriceVsMa200', () => {
   test('below MA scores 0', () => {
-    expect(scorePriceVsMa200(-0.10)).toBe(0);
+    expect(scorePriceVsMa200(-10)).toBe(0);
   });
   test('30% above MA peaks at 1.0', () => {
-    expect(scorePriceVsMa200(0.30)).toBeCloseTo(1.0);
+    expect(scorePriceVsMa200(30)).toBeCloseTo(1.0);
   });
   test('tolerates larger extension than MA50', () => {
     // 60% above MA200 should still be strong; 60% above MA50 is penalized
-    expect(scorePriceVsMa200(0.60)).toBeGreaterThan(scorePriceVsMa50(0.60));
+    expect(scorePriceVsMa200(60)).toBeGreaterThan(scorePriceVsMa50(60));
   });
 });
 
@@ -151,10 +151,10 @@ describe('rank — engine integration', () => {
   test('ranks a strong breakout setup above a weak one', () => {
     const universe = new Map();
     universe.set('HOT', makeStock('HOT', {
-      rsi14: 68, pctBelowHigh: 2, priceVsMa50: 0.15, priceVsMa200: 0.30, relativeVolume: 2.0,
+      rsi14: 68, pctBelowHigh: 2, priceVsMa50: 15, priceVsMa200: 30, relativeVolume: 2.0,
     }));
     universe.set('COLD', makeStock('COLD', {
-      rsi14: 35, pctBelowHigh: 40, priceVsMa50: -0.10, priceVsMa200: -0.05, relativeVolume: 0.4,
+      rsi14: 35, pctBelowHigh: 40, priceVsMa50: -10, priceVsMa200: -5, relativeVolume: 0.4,
     }));
     const results = momentumBreakout.rank({ universe });
     // HOT should score above COLD; COLD may be excluded by coverage but if
