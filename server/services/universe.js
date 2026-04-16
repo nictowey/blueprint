@@ -225,6 +225,12 @@ async function enrichStock(entry) {
     const currentPrice = historical[0].close;
     const volumes = oldestFirst.map(d => d.volume).filter(v => v != null && v > 0);
 
+    // Check for stale price data — if the most recent price is >14 calendar days old,
+    // the stock may be delisted, halted, or no longer trading. Mark it.
+    const newestPriceDate = new Date(historical[0].date);
+    const daysSinceLastTrade = (Date.now() - newestPriceDate.getTime()) / (24 * 60 * 60 * 1000);
+    entry._priceStale = daysSinceLastTrade > 14;
+
     const technicals = computeTechnicals({ pricesAsc: closes, currentPrice, volumes });
     rsi14 = technicals.rsi14;
     pctBelowHigh = technicals.pctBelowHigh;

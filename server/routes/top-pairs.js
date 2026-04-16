@@ -321,6 +321,8 @@ function scoreStock(stock) {
   if (!stock.price || stock.price <= 0) return null;
   // Exclude preferred shares, warrants, units, rights
   if (/-(P[A-Z]?|WS|WT|U|UN|R|W)$|\.P$/i.test(stock.ticker)) return null;
+  // Exclude stocks with stale prices (likely delisted or halted)
+  if (stock._priceStale) return null;
 
   // --- Data quality filter: extreme revenue growth is almost always distortion ---
   // If revenue growth >500%, this is M&A, restatement, or from a tiny base.

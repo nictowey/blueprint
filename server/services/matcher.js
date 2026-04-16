@@ -599,6 +599,8 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
     // Must have a price and market cap
     if (!stock.price || stock.price <= 0) return false;
     if (!stock.marketCap || stock.marketCap <= 0) return false;
+    // Exclude stocks with stale prices (likely delisted or halted)
+    if (stock._priceStale) return false;
     return true;
   });
 
