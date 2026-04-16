@@ -7,6 +7,10 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 
+// Trust the first proxy (Render's reverse proxy) so express-rate-limit
+// correctly identifies users by their real IP via X-Forwarded-For header.
+app.set('trust proxy', 1);
+
 // Security headers — helmet sets sensible defaults (X-Content-Type-Options,
 // X-Frame-Options, Strict-Transport-Security, etc.)
 // Relaxed CSP for the SPA frontend to work with inline styles (Tailwind)
