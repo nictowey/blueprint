@@ -16,7 +16,7 @@ const { getCache, isReady } = require('../services/universe');
 //   5. Extreme value detection filters out M&A/restatement distortions
 // ---------------------------------------------------------------------------
 
-const MIN_MARKET_CAP = 300_000_000; // $300M
+const MIN_MARKET_CAP = 500_000_000; // $500M — filters micro-cap noise while keeping legitimate small-caps
 
 // ---------- Data quality: detect unrealistic growth ----------
 // Revenue growth >500% is almost always M&A, restatement, or tiny-base

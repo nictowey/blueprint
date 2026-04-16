@@ -123,6 +123,11 @@ export default function MatchResults() {
     if (activeProfile && activeProfile !== DEFAULT_PROFILE) {
       params.set('profile', activeProfile);
     }
+    // Pass sector filter to API so server returns sector-specific top 10
+    if (sectorFilter && sectorFilter !== 'all') {
+      const sectorValue = sectorFilter === 'same' ? snapshot.sector : sectorFilter;
+      if (sectorValue) params.set('sector', sectorValue);
+    }
     for (const metric of MATCH_METRICS) {
       if (snapshot[metric] != null) params.set(metric, snapshot[metric]);
     }
@@ -178,7 +183,7 @@ export default function MatchResults() {
     const data = await res.json();
     setMatches(data);
     setLoading(false);
-  }, [snapshot, activeProfile]);
+  }, [snapshot, activeProfile, sectorFilter]);
 
   useEffect(() => {
     // Clear any in-flight retry timers BEFORE starting new fetch
