@@ -45,6 +45,9 @@ export default function TemplatePicker() {
   const [activeBreakout, setActiveBreakout] = useState(0);
   const [fadeIn, setFadeIn] = useState(true);
 
+  // Dynamic gain calculation
+  const [breakoutGains, setBreakoutGains] = useState({});
+
   useEffect(() => {
     const interval = setInterval(() => {
       setFadeIn(false);
@@ -54,6 +57,45 @@ export default function TemplatePicker() {
       }, 300);
     }, 4500);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    async function fetchGains() {
+      const gains = {};
+      for (const b of FAMOUS_BREAKOUTS) {
+        try {
+          // Get snapshot price
+          const snapRes = await fetch(`/api/snapshot?ticker=${encodeURIComponent(b.ticker)}&date=${b.date}`);
+          if (!snapRes.ok) continue;
+          const snapData = await snapRes.json();
+          const snapshotPrice = snapData.price;
+          if (!snapshotPrice) continue;
+
+          // Rate limit pause
+          await new Promise(r => setTimeout(r, 250));
+
+          // Get current price
+          const searchRes = await fetch(`/api/search?q=${encodeURIComponent(b.ticker)}`);
+          if (!searchRes.ok) continue;
+          const searchData = await searchRes.json();
+          const match = Array.isArray(searchData) ? searchData.find(d => d.symbol === b.ticker) : null;
+          if (!match?.price) continue;
+
+          gains[b.ticker] = {
+            gain: ((match.price - snapshotPrice) / snapshotPrice * 100).toFixed(0),
+            currentPrice: match.price,
+            snapshotPrice,
+          };
+
+          // Rate limit pause
+          await new Promise(r => setTimeout(r, 250));
+        } catch {
+          // Skip this ticker on error
+        }
+      }
+      setBreakoutGains(gains);
+    }
+    fetchGains();
   }, []);
 
   const MAX_POLLS = 40;
@@ -189,6 +231,8 @@ export default function TemplatePicker() {
   }
 
   const currentBreakout = FAMOUS_BREAKOUTS[activeBreakout];
+  const dynamicGain = breakoutGains[currentBreakout.ticker];
+  const displayGain = dynamicGain ? `+${dynamicGain.gain}%` : currentBreakout.gain;
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 animate-fade-in">
@@ -248,7 +292,7 @@ export default function TemplatePicker() {
                   transition: 'opacity 0.3s ease, transform 0.3s ease',
                 }}
               >
-                {currentBreakout.gain}
+                {displayGain}
               </p>
               <p
                 className="text-text-secondary text-sm sm:text-base mt-2 font-light"
@@ -411,7 +455,7 @@ export default function TemplatePicker() {
                 }}
               >
                 <span className="font-bold">{s.ticker}</span>
-                <span className="text-gain text-xs font-semibold">{s.gain}</span>
+                <span className="text-gain text-xs font-semibold">{breakoutGains[s.ticker] ? `+${breakoutGains[s.ticker].gain}%` : s.gain}</span>
               </button>
             ))}
           </div>
