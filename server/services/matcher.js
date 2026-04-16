@@ -53,10 +53,6 @@ for (const [cat, { metrics }] of Object.entries(METRIC_CATEGORIES)) {
   for (const m of metrics) METRIC_TO_CATEGORY[m] = cat;
 }
 
-// Legacy weight map — still used by match profiles that override weights.
-const DEFAULT_METRIC_WEIGHTS = {};
-for (const metric of MATCH_METRICS) DEFAULT_METRIC_WEIGHTS[metric] = 1.0;
-const METRIC_WEIGHTS = DEFAULT_METRIC_WEIGHTS;
 
 // ---------- Metric classification for specialized similarity functions ----------
 
@@ -115,7 +111,6 @@ const DUAL_CLASS_MAP = {
   'VIACA': 'VIACA', 'VIACB': 'VIACA',
   'BF-A': 'BF', 'BF-B': 'BF', 'BF.A': 'BF', 'BF.B': 'BF',
   'MOG-A': 'MOG', 'MOG-B': 'MOG', 'MOG.A': 'MOG', 'MOG.B': 'MOG',
-  'LSXMA': 'LSXMA', 'LSXMK': 'LSXMA',
   'HEI': 'HEI', 'HEI-A': 'HEI', 'HEI.A': 'HEI',
   'LEN': 'LEN', 'LEN-B': 'LEN', 'LEN.B': 'LEN',
   'MKC': 'MKC', 'MKC-V': 'MKC', 'MKC.V': 'MKC',
@@ -134,6 +129,14 @@ const DUAL_CLASS_MAP = {
   'FHN': 'FHN', 'FHN-A': 'FHN', 'FHN-B': 'FHN', 'FHN-C': 'FHN', 'FHN-D': 'FHN', 'FHN-E': 'FHN',
   'ESBA': 'ESRT', 'ESRT': 'ESRT',  // Empire State Realty
 };
+
+// Generic company name words that shouldn't trigger same-company matching
+const GENERIC_WORDS = new Set([
+  'american', 'national', 'first', 'united', 'general', 'international',
+  'global', 'pacific', 'western', 'eastern', 'southern', 'northern',
+  'central', 'federal', 'royal', 'new', 'great', 'golden', 'silver',
+  'liberty', 'eagle', 'summit', 'premier', 'standard', 'advanced',
+]);
 
 function isSameCompany(tickerA, tickerB, nameA, nameB) {
   if (tickerA === tickerB) return true;
@@ -165,12 +168,6 @@ function isSameCompany(tickerA, tickerB, nameA, nameB) {
     // Check if one name's first distinctive word matches the other
     // (catches parent/subsidiary like "Entergy Corporation" / "Entergy Louisiana")
     // Skip generic words that appear across unrelated companies
-    const GENERIC_WORDS = new Set([
-      'american', 'national', 'first', 'united', 'general', 'international',
-      'global', 'pacific', 'western', 'eastern', 'southern', 'northern',
-      'central', 'federal', 'royal', 'new', 'great', 'golden', 'silver',
-      'liberty', 'eagle', 'summit', 'premier', 'standard', 'advanced',
-    ]);
     const firstWordA = cleanA.split(' ')[0];
     const firstWordB = cleanB.split(' ')[0];
     if (firstWordA.length > 5 && firstWordA === firstWordB && !GENERIC_WORDS.has(firstWordA)) {
@@ -399,46 +396,6 @@ function sectorRelativeSimilarity(metric, snapVal, stockVal, snapSectorStats, st
   // Compare z-scores: difference of 0 = identical positioning, 2+ = very different
   const zDiff = Math.abs(snapZ - stockZ);
   return Math.max(0, 1 - zDiff / 3); // 3 IQR difference = 0% similarity
-}
-
-// ---------- Momentum composite ----------
-
-/**
- * Compute a momentum similarity based on price trajectory.
- * Uses recentCloses (30 days) to derive short-term and medium-term momentum.
- * Two stocks with similar rate-of-change profiles are more likely to be
- * in the same phase of their price cycle.
- */
-function momentumSimilarity(snapCloses, stockCloses) {
-  if (!snapCloses || snapCloses.length < 20 || !stockCloses || stockCloses.length < 20) {
-    return null;
-  }
-
-  // 1-week rate of change (last 5 vs 5 before)
-  function roc(closes, lookback) {
-    const end = closes[closes.length - 1];
-    const start = closes[Math.max(0, closes.length - 1 - lookback)];
-    if (!start || start === 0) return null;
-    return (end - start) / start;
-  }
-
-  const snapRoc5 = roc(snapCloses, 5);
-  const snapRoc20 = roc(snapCloses, 20);
-  const stockRoc5 = roc(stockCloses, 5);
-  const stockRoc20 = roc(stockCloses, 20);
-
-  if (snapRoc5 == null || stockRoc5 == null || snapRoc20 == null || stockRoc20 == null) return null;
-
-  // Compare short-term momentum (5-day ROC)
-  const shortDiff = Math.abs(snapRoc5 - stockRoc5);
-  const shortSim = Math.max(0, 1 - shortDiff / 0.15); // 15% ROC diff = 0%
-
-  // Compare medium-term momentum (20-day ROC)
-  const medDiff = Math.abs(snapRoc20 - stockRoc20);
-  const medSim = Math.max(0, 1 - medDiff / 0.25); // 25% ROC diff = 0%
-
-  // Blend: medium-term gets more weight (more meaningful for breakout patterns)
-  return shortSim * 0.35 + medSim * 0.65;
 }
 
 // ---------- Growth quality check ----------
