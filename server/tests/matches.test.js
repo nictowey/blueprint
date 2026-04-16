@@ -90,3 +90,28 @@ describe('GET /api/matches', () => {
     expect(sectors.size).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('GET /api/matches?algo=ensembleConsensus', () => {
+  test('template-free invocation returns 200 with an array', async () => {
+    const res = await request(app).get('/api/matches?algo=ensembleConsensus');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    for (const item of res.body) {
+      expect(item.algorithm).toBe('ensembleConsensus');
+      expect(typeof item.matchScore).toBe('number');
+      expect(item.perEngineRanks).toBeDefined();
+      expect(item.consensusEngines).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  test('template-aware invocation (ticker+date supplied) returns 200', async () => {
+    const res = await request(app).get('/api/matches?algo=ensembleConsensus&ticker=NVDA&date=2019-06-15&peRatio=25&grossMargin=0.6&revenueGrowthYoY=0.2&rsi14=55');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  test('invalid ticker with ensembleConsensus returns 400', async () => {
+    const res = await request(app).get('/api/matches?algo=ensembleConsensus&ticker=not*valid&date=2019-06-15');
+    expect(res.status).toBe(400);
+  });
+});

@@ -19,11 +19,13 @@
 
 const templateMatch = require('./templateMatch');
 const momentumBreakout = require('./momentumBreakout');
+const ensembleConsensus = require('./ensembleConsensus');
 const { isInvestable } = require('./shared');
 
 const ENGINES = {
   [templateMatch.key]: templateMatch,
   [momentumBreakout.key]: momentumBreakout,
+  [ensembleConsensus.key]: ensembleConsensus,
 };
 
 const DEFAULT_ENGINE = templateMatch.key;

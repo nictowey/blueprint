@@ -6,6 +6,31 @@ const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
 const { getProfile, applyHardFilters, DEFAULT_PROFILE, PROFILE_KEYS } = require('../services/matchProfiles');
 const { getEngine, isValidEngineKey, DEFAULT_ENGINE } = require('../services/algorithms');
 
+// Build a template snapshot from the snapshot cache or URL query params.
+// Extracted for reuse across engines that optionally accept a template
+// (e.g. ensembleConsensus, which runs template-free by default but includes
+// templateMatch as a third lens when ticker+date are provided).
+function buildTemplateSnapshot(sym, date, query) {
+  const snapCacheKey = `${sym}:${date}`;
+  const snapCached = snapshotCache.get(snapCacheKey);
+  const snapshot = { ticker: sym };
+  if (snapCached && Date.now() - snapCached.ts < SNAPSHOT_CACHE_TTL) {
+    for (const metric of MATCH_METRICS) {
+      snapshot[metric] = snapCached.data[metric] ?? null;
+    }
+    snapshot.sector = snapCached.data.sector ?? null;
+    snapshot.companyName = snapCached.data.companyName ?? sym;
+  } else {
+    for (const metric of MATCH_METRICS) {
+      const val = query[metric];
+      snapshot[metric] = val !== undefined && val !== '' ? parseFloat(val) : null;
+    }
+    snapshot.sector = query.sector || null;
+    snapshot.companyName = query.companyName || sym;
+  }
+  return snapshot;
+}
+
 router.get('/', async (req, res) => {
   const { ticker, date, sector, profile: profileKey, algo: algoKey } = req.query;
 
@@ -18,6 +43,16 @@ router.get('/', async (req, res) => {
   if (engine.requiresTemplate) {
     if (!ticker || !date)
       return res.status(400).json({ error: 'ticker and date are required' });
+    if (!/^[A-Z0-9.]{1,10}$/i.test(ticker))
+      return res.status(400).json({ error: 'invalid ticker format' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime()))
+      return res.status(400).json({ error: 'invalid date format, expected YYYY-MM-DD' });
+  }
+  // Ensemble is template-OPTIONAL: template-free by default, but if the caller
+  // supplies ticker+date we validate them so we can build a template for the
+  // templateMatch component engine.
+  const ensembleWithTemplate = engine.key === 'ensembleConsensus' && ticker && date;
+  if (ensembleWithTemplate) {
     if (!/^[A-Z0-9.]{1,10}$/i.test(ticker))
       return res.status(400).json({ error: 'invalid ticker format' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime()))
@@ -48,27 +83,7 @@ router.get('/', async (req, res) => {
       const resolvedProfileKey = profileKey && PROFILE_KEYS.includes(profileKey) ? profileKey : DEFAULT_PROFILE;
       const profile = getProfile(resolvedProfileKey);
 
-      // Prefer snapshot cache (full-precision values) over URL params (truncated).
-      const snapCacheKey = `${sym}:${date}`;
-      const snapCached = snapshotCache.get(snapCacheKey);
-      let snapshot;
-      if (snapCached && Date.now() - snapCached.ts < SNAPSHOT_CACHE_TTL) {
-        snapshot = { ticker: sym };
-        for (const metric of MATCH_METRICS) {
-          snapshot[metric] = snapCached.data[metric] ?? null;
-        }
-        snapshot.sector = snapCached.data.sector ?? null;
-        snapshot.companyName = snapCached.data.companyName ?? sym;
-      } else {
-        // Fallback: parse from URL query params (first visit before snapshot is cached)
-        snapshot = { ticker: sym };
-        for (const metric of MATCH_METRICS) {
-          const val = req.query[metric];
-          snapshot[metric] = val !== undefined && val !== '' ? parseFloat(val) : null;
-        }
-        snapshot.sector = req.query.sector || null;
-        snapshot.companyName = req.query.companyName || sym;
-      }
+      const snapshot = buildTemplateSnapshot(sym, date, req.query);
 
       // Apply profile hard filters (e.g., value_inflection requires P/E > 0 and <= 35)
       universe = applyHardFilters(universe, profile.hardFilters);
@@ -82,12 +97,18 @@ router.get('/', async (req, res) => {
       return res.json(matches);
     }
 
-    // Template-free engine (e.g. momentumBreakout)
-    const matches = engine.rank({
-      universe,
-      topN: 10,
-      options: {},
-    });
+    // Template-free engine (e.g. momentumBreakout, ensembleConsensus).
+    // For ensembleConsensus specifically, build a template if ticker+date were
+    // provided so the templateMatch component engine joins the ensemble.
+    const rankArgs = { universe, topN: 10, options: {} };
+    if (ensembleWithTemplate) {
+      const sym = ticker.toUpperCase();
+      const resolvedProfileKey = profileKey && PROFILE_KEYS.includes(profileKey) ? profileKey : DEFAULT_PROFILE;
+      const profile = getProfile(resolvedProfileKey);
+      rankArgs.template = buildTemplateSnapshot(sym, date, req.query);
+      rankArgs.universe = applyHardFilters(universe, profile.hardFilters);
+    }
+    const matches = engine.rank(rankArgs);
     return res.json(matches);
   } catch (err) {
     console.error('[matches] Error:', err.message);
