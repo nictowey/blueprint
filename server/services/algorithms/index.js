@@ -18,9 +18,12 @@
  */
 
 const templateMatch = require('./templateMatch');
+const momentumBreakout = require('./momentumBreakout');
+const { isInvestable } = require('./shared');
 
 const ENGINES = {
   [templateMatch.key]: templateMatch,
+  [momentumBreakout.key]: momentumBreakout,
 };
 
 const DEFAULT_ENGINE = templateMatch.key;
@@ -48,4 +51,5 @@ module.exports = {
   getEngine,
   listEngines,
   isValidEngineKey,
+  isInvestable,
 };

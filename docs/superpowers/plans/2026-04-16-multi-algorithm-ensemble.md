@@ -84,20 +84,24 @@ Non-behavioral refactor. Current matcher becomes one engine among many, with zer
 
 Template-free engine ranking the universe by classical technical breakout setup. Academically grounded (Jegadeesh & Titman momentum literature). Uses snapshot data we already fetch.
 
-**Ranking signals:**
-- Proximity to 52-week high (`pctBelowHigh`) — prefer <10% below
-- Price above 50-day MA AND above 200-day MA (`priceVsMa50`, `priceVsMa200`)
-- RSI-14 in the 60–70 "strong but not overbought" band
-- Relative volume spike (`relativeVolume` > 1.5)
-- Low-volatility consolidation before move (measured over N-day window — may need new snapshot field)
+**Ranking signals (v1):**
+- Proximity to 52-week high (`pctBelowHigh`) — weight 0.25
+- Price vs. 50-day MA (`priceVsMa50`) — weight 0.20
+- Price vs. 200-day MA (`priceVsMa200`) — weight 0.20
+- RSI-14 in the 60–70 "strong but not overbought" band (`rsi14`) — weight 0.20
+- Relative volume spike (`relativeVolume` > 1.5×) — weight 0.15
 
-- [ ] Design scoring function — decide weighting among the 5 signals
-- [ ] Determine if consolidation detection needs a new snapshot field (stddev of daily returns over last 30 days); if so, extend `snapshotBuilder.js`
-- [ ] Implement `server/services/algorithms/momentumBreakout.js`
-- [ ] Register in engine registry; wire `/api/matches?algo=momentumBreakout`
-- [ ] UI affordance: on frontend, when `algo=momentumBreakout` is selected, hide template input (engine is template-free)
-- [ ] Unit tests with synthetic universes where expected rankings are known
-- [ ] Smoke test: run against current universe, manually sanity-check top 10 for recognizable momentum names
+Each signal is scored 0..1 via a piecewise-linear function tuned for breakout setups. Missing signals are excluded from the weighted average (partial coverage renormalizes over present signals). Stocks with <3 of 5 signals present are dropped. Consolidation/volatility as a 6th signal was scoped out of v1 — not needed for a decent first-pass ranker; reconsider after seeing live results.
+
+- [x] Design scoring function — piecewise-linear per signal, weighted average, coverage threshold
+- [x] Confirm no new snapshot fields needed — all 5 signals already on every universe entry (`universe.js:234–239`)
+- [x] Implement `server/services/algorithms/momentumBreakout.js`
+- [x] Extract shared `isInvestable` to `server/services/algorithms/shared.js` (avoid circular require with registry)
+- [x] Register in engine registry (`server/services/algorithms/index.js`)
+- [x] Update `server/routes/matches.js` to make ticker+date optional when engine.requiresTemplate === false
+- [x] Unit tests — piecewise helper, each signal scorer, combineScores, rank integration (investable filter, coverage threshold, topN, shape compat)
+- [ ] **(Run locally)** Smoke test against live universe: `curl http://localhost:3001/api/matches?algo=momentumBreakout` — manually sanity-check top 10 for recognizable momentum names (NVDA, PLTR, APP, etc. likely rank high in current market)
+- [ ] UI affordance: frontend needs an algorithm selector + template-free mode (deferred to Phase 6)
 
 ---
 
@@ -188,8 +192,18 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 ## Session Continuity Notes
 
 - **Branch:** `claude/resume-session-q0YTI` (development branch for this work)
-- **Last updated:** 2026-04-16 (initial roadmap creation, no implementation started)
-- **Next step when resuming:** Decide Phase 0 (data access verification) vs. Phase 1 (architectural refactor) as the first concrete increment. Phase 1 is pure refactoring with zero behavior change — low risk, unblocks everything. Phase 0 is reading API docs / making test calls.
+- **Last updated:** 2026-04-16 (Phases 1 + 2 backend complete, Phase 0 awaiting local FMP verification)
+- **To resume on desktop:**
+  ```bash
+  git fetch origin
+  git checkout claude/resume-session-q0YTI
+  git pull origin claude/resume-session-q0YTI
+  cd server && npm install      # if server deps changed
+  ```
+  Then:
+  1. **Phase 0 probe (blocking for Phase 3 scoping):** `node server/scripts/verify-fmp-endpoints.js` — paste the output into this Progress Log.
+  2. **Phase 2 smoke test:** start the dev server (`npm run dev` from repo root), then `curl 'http://localhost:3001/api/matches?algo=momentumBreakout' | jq '.[] | {ticker, matchScore, topMatches}'`. Confirm top 10 look plausible (NVDA, PLTR, APP, CLS, etc. likely rank high in momentum regimes).
+  3. **Next build increment (recommended):** Phase 4 (ensemble consensus layer). Only requires templateMatch + momentumBreakout which are both live. Phase 3 (catalyst engine) stays gated on Phase 0 data availability.
 - **How to update this file:** Tick checkboxes as steps complete. Add a dated entry at the bottom of this section when you finish a phase or make a significant decision.
 
 ### Progress log
@@ -197,3 +211,4 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 - `2026-04-16`: Roadmap created. No implementation work started. Strategic direction locked: pluggable architecture + ensemble consensus, template-match preserved as featured engine.
 - `2026-04-16`: **Phase 1 complete** (additive variant). Added `server/services/algorithms/{index.js, templateMatch.js}` with engine registry + shared `rank({ template, universe, topN, options })` contract. Wired `?algo=` query param with whitelist validation into `server/routes/matches.js`, defaulting to `templateMatch` when absent. All 86 existing tests across matcher/matches/similarity suites pass — zero behavior change. Live smoke test deferred (needs FMP API key in dev environment). **Next:** Phase 0 (verify FMP catalyst endpoints) or Phase 2 (momentum/volume engine). Phase 2 is buildable today because it only needs snapshot data we already have.
 - `2026-04-16`: **Phase 0 partially complete** — verification script `server/scripts/verify-fmp-endpoints.js` shipped. The web environment doesn't have access to the local `.env`/`FMP_API_KEY` so the script needs to be run from the desktop. Probes 7 candidate endpoints across the 3 catalyst signal groups (earnings surprises, analyst grades/estimates, insider trading). Once run, paste the output here so we know which signals Phase 3 can rely on.
+- `2026-04-16`: **Phase 2 complete (backend)** — momentum/volume breakout engine shipped at `server/services/algorithms/momentumBreakout.js`. Template-free; ranks the universe by 5 technical signals (52wk-high proximity, price vs. MA50/MA200, RSI-14, relative volume). Uses only data already on every universe entry — no snapshot extension needed. Shared `isInvestable` helper extracted to `server/services/algorithms/shared.js` to avoid circular requires with the registry. `routes/matches.js` updated so template-free engines don't require ticker+date. 33 new unit tests added; full server suite is 195 tests, all passing. **Next step:** run `curl http://localhost:3001/api/matches?algo=momentumBreakout` on desktop to smoke-test against the live universe. Or jump to Phase 4 (ensemble consensus layer) — it has enough component engines (templateMatch + momentumBreakout) to produce a meaningful v1 without blocking on catalyst data.
