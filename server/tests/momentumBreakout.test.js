@@ -210,7 +210,11 @@ describe('rank — engine integration', () => {
       metricsCompared: expect.any(Number),
       totalMetrics: expect.any(Number),
       categoryScores: expect.any(Object),
-      confidence: expect.any(Number),
+      confidence: expect.objectContaining({
+        level: expect.stringMatching(/^(complete|adequate|sparse)$/),
+        coverageRatio: expect.any(Number),
+        metricsAvailable: expect.any(Number),
+      }),
       topMatches: expect.any(Array),
       topDifferences: expect.any(Array),
       algorithm: 'momentumBreakout',

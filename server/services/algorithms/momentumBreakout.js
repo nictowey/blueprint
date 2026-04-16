@@ -177,7 +177,12 @@ function rank({ universe, topN = 10, options = {} } = {}) {
       .slice(0, 3)
       .map(c => c.signal);
 
-    const coverage = contributions.length / Object.keys(SIGNAL_WEIGHTS).length;
+    const totalSignals = Object.keys(SIGNAL_WEIGHTS).length;
+    const coverageRatio = Math.round((contributions.length / totalSignals) * 100);
+    let level;
+    if (contributions.length === totalSignals) level = 'complete';
+    else if (contributions.length / totalSignals >= 0.66) level = 'adequate';
+    else level = 'sparse';
 
     results.push({
       ...stock,
@@ -187,9 +192,9 @@ function rank({ universe, topN = 10, options = {} } = {}) {
       signalScores,
       // Fields reused from templateMatch shape so the UI card doesn't need branching:
       metricsCompared: contributions.length,
-      totalMetrics: Object.keys(SIGNAL_WEIGHTS).length,
+      totalMetrics: totalSignals,
       categoryScores: { technical: Math.round(rawScore * 10) / 10 },
-      confidence: coverage,
+      confidence: { level, coverageRatio, metricsAvailable: contributions.length },
       topMatches: topSignals,
       topDifferences: weakSignals,
     });
