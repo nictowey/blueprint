@@ -227,13 +227,13 @@ export default function ComparisonDetail() {
                     <span className="text-xs text-warm-muted font-mono">{data.metricsCompared}/{data.totalMetrics || 28} metrics</span>
                     {data.confidence && (
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                        data.confidence.level === 'high'
+                        data.confidence.level === 'complete'
                           ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                          : data.confidence.level === 'medium'
+                          : data.confidence.level === 'adequate'
                             ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
                             : 'border-red-500/20 bg-red-500/10 text-red-400'
-                      }`} title={`Confidence: ${data.confidence.score}%`}>
-                        {data.confidence.level === 'high' ? 'High' : data.confidence.level === 'medium' ? 'Med' : 'Low'} confidence ({data.confidence.score}%)
+                      }`} title={`Data coverage: ${data.confidence.coverageRatio}% (${data.confidence.metricsAvailable} metrics)`}>
+                        {data.confidence.coverageRatio}% data coverage
                       </span>
                     )}
                   </div>

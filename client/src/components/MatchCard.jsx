@@ -130,13 +130,13 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
           </span>
           {match.confidence && (
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-              match.confidence.level === 'high'
+              match.confidence.level === 'complete'
                 ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                : match.confidence.level === 'medium'
+                : match.confidence.level === 'adequate'
                   ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
                   : 'border-red-500/20 bg-red-500/10 text-red-400'
-            }`} title={`Confidence: ${match.confidence.score}% — Data coverage: ${match.confidence.coverageRatio}%`}>
-              {match.confidence.level === 'high' ? 'High' : match.confidence.level === 'medium' ? 'Med' : 'Low'} confidence
+            }`} title={`Data coverage: ${match.confidence.coverageRatio}% (${match.confidence.metricsAvailable} metrics)`}>
+              {match.confidence.coverageRatio}% data coverage
             </span>
           )}
           <svg className="w-4 h-4 text-warm-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
