@@ -589,7 +589,20 @@ function findMatches(snapshot, universe, limit = 10, profileOptions = {}) {
 
   const allStocks = Array.from(universe.values());
 
-  const results = allStocks
+  // Filter out non-investable securities before scoring
+  const NON_INVESTABLE = /-(P[A-Z]?|WS|WT|U|UN|R|W)$|\.P$/i;
+  const investable = allStocks.filter(stock => {
+    // Exclude preferred shares, warrants, units, rights
+    if (NON_INVESTABLE.test(stock.ticker)) return false;
+    // Exclude tickers ending in -UN (SPAC units)
+    if (stock.ticker.endsWith('-UN') || stock.ticker.endsWith('UN') && stock.ticker.length > 5) return false;
+    // Must have a price and market cap
+    if (!stock.price || stock.price <= 0) return false;
+    if (!stock.marketCap || stock.marketCap <= 0) return false;
+    return true;
+  });
+
+  const results = investable
     .filter(stock => !isSameCompany(
       stock.ticker, snapshot.ticker,
       stock.companyName, snapshot.companyName
