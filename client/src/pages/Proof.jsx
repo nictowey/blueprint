@@ -14,20 +14,52 @@ export default function Proof() {
         </p>
       </div>
 
+      {/* Visual process flow */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div className="card text-center py-6">
+          <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-3">
+            <span className="text-accent font-display text-lg">1</span>
+          </div>
+          <p className="text-warm-white font-medium text-sm mb-1">Capture the fingerprint</p>
+          <p className="text-warm-muted text-xs font-light">
+            Pick a stock that broke out. Blueprint extracts its exact financial profile at that moment — 28 metrics across valuation, growth, profitability, and more.
+          </p>
+        </div>
+        <div className="card text-center py-6">
+          <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-3">
+            <span className="text-accent font-display text-lg">2</span>
+          </div>
+          <p className="text-warm-white font-medium text-sm mb-1">Scan for lookalikes</p>
+          <p className="text-warm-muted text-xs font-light">
+            The algorithm compares that fingerprint against 3,500+ current stocks using specialized similarity functions tuned to each metric type.
+          </p>
+        </div>
+        <div className="card text-center py-6">
+          <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-3">
+            <span className="text-accent font-display text-lg">3</span>
+          </div>
+          <p className="text-warm-white font-medium text-sm mb-1">Investigate matches</p>
+          <p className="text-warm-muted text-xs font-light">
+            Compare side-by-side, drill into individual metrics, check historical backtests, and build your watchlist of candidates.
+          </p>
+        </div>
+      </div>
+
       {/* The concept */}
       <div className="card mb-6">
-        <p className="section-label mb-3">The Idea</p>
+        <p className="section-label mb-3">Why This Approach</p>
         <div className="divider-gold mb-4" />
         <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
           <p>
-            Every stock that has a massive breakout run — 200%, 500%, 1000% — had a specific financial
-            profile right before it happened. Revenue was growing at a certain rate. Margins were at a certain
-            level. Valuation was at a specific multiple. Technical indicators were positioned a certain way.
+            Traditional stock screeners require you to manually define criteria — "show me stocks with P/E under 20
+            and revenue growth above 15%." But what criteria should you use? How do you know what mattered for a
+            stock like CLS before its +490% run?
           </p>
           <p>
-            <span className="text-warm-white font-medium">Blueprint captures that exact profile</span> and scans
-            thousands of stocks to find companies that look the same way right now. Instead of manually entering
-            screener criteria, you point at a winner and let the algorithm find the lookalikes.
+            <span className="text-warm-white font-medium">Blueprint flips the approach.</span> Instead of defining
+            criteria, you point at a company that already worked and the algorithm extracts the criteria from it.
+            CLS had a P/E of 16.1, revenue growth of 17%, operating margin of 4.4% — Blueprint finds
+            current stocks that match all 28 of those metrics simultaneously.
           </p>
         </div>
       </div>
