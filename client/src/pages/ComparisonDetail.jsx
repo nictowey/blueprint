@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
@@ -94,15 +94,6 @@ export default function ComparisonDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [watchlisted, setWatchlisted] = useState(() => matchTicker ? isOnWatchlist(matchTicker) : false);
-  const [proofData, setProofData] = useState(null);
-
-  // Fetch proof data for trust signals (silently fails)
-  useEffect(() => {
-    fetch('/api/proof')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => setProofData(data))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (!ticker || !date || !matchTicker) navigate('/', { replace: true });
@@ -251,14 +242,6 @@ export default function ComparisonDetail() {
           );
         })()}
 
-        {/* Trust signal — score-return correlation */}
-        {proofData?.aggregate?.correlation?.['12m']?.rho != null && proofData.aggregate.correlation['12m'].rho > 0.10 && (
-          <p className="text-xs text-warm-muted mt-2">
-            Higher scores have historically correlated with stronger forward returns
-            <span className="text-warm-muted/60 font-mono ml-1">(rho: {proofData.aggregate.correlation['12m'].rho.toFixed(2)})</span>
-            {' '}<Link to="/proof" className="text-accent hover:underline">Learn more</Link>
-          </p>
-        )}
 
         {/* Investor insight */}
         {(() => {

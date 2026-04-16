@@ -1,311 +1,222 @@
-import { useEffect, useState } from 'react';
-import { httpError } from '../utils/httpError';
-
-const PERIODS = ['1m', '3m', '6m', '12m'];
-const PERIOD_LABELS = { '1m': '1 Month', '3m': '3 Months', '6m': '6 Months', '12m': '12 Months' };
-
-function correlationLabel(rho) {
-  if (rho > 0.15) return { text: 'Positive', color: 'text-emerald-400' };
-  if (rho > 0.05) return { text: 'Weak positive', color: 'text-emerald-400/70' };
-  if (rho > -0.05) return { text: 'No correlation', color: 'text-warm-muted' };
-  if (rho > -0.15) return { text: 'Weak negative', color: 'text-red-400/70' };
-  return { text: 'Negative', color: 'text-red-400' };
-}
-
-function SignedPct({ value, className = '' }) {
-  if (value == null) return <span className="text-warm-muted/40 font-mono">—</span>;
-  const positive = value > 0;
-  const color = positive ? 'text-emerald-400' : value < 0 ? 'text-red-400' : 'text-warm-gray';
-  return (
-    <span className={`font-mono font-semibold ${color} ${className}`}>
-      {positive ? '+' : ''}{value.toFixed(1)}%
-    </span>
-  );
-}
-
-function StatCard({ label, children }) {
-  return (
-    <div className="card flex-1 min-w-[160px] text-center">
-      <p className="section-label mb-2">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function CaseCard({ c }) {
-  const [expanded, setExpanded] = useState(false);
-  const matches = c.matches || [];
-  const displayMatches = expanded ? matches : matches.slice(0, 3);
-
-  // Compute alpha: avg match 12m return minus benchmark 12m return
-  const match12mReturns = matches.map(m => m.forwardReturns?.['12m']).filter(r => r != null);
-  const avgMatch12m = match12mReturns.length > 0 ? match12mReturns.reduce((s, r) => s + r, 0) / match12mReturns.length : null;
-  const bench12m = c.benchmark?.['12m'] ?? null;
-  const alpha12 = (avgMatch12m != null && bench12m != null) ? avgMatch12m - bench12m : null;
-
-  const ticker = c.templateTicker || c.ticker || '?';
-  const date = c.templateDate || c.date || '';
-  const companyName = c.templateCompanyName || c.companyName || '';
-  const sector = c.templateSector || c.sector || '';
-
-  return (
-    <div className="card">
-      {/* Case header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono font-bold text-warm-white">{ticker}</span>
-            {sector && <span className="text-[10px] text-warm-muted border border-dark-border/50 rounded-full px-2 py-0.5">{sector}</span>}
-            <span className="text-warm-muted text-xs font-mono">{date}</span>
-            {alpha12 != null && (
-              <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${alpha12 > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                {alpha12 > 0 ? '+' : ''}{alpha12.toFixed(1)}% alpha
-              </span>
-            )}
-          </div>
-          {companyName && (
-            <p className="text-sm text-warm-gray font-light mt-0.5">{companyName}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Matches table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-dark-border/50">
-              <th className="px-2 py-1.5 section-label">#</th>
-              <th className="px-2 py-1.5 section-label">Match</th>
-              <th className="px-2 py-1.5 section-label text-center">Score</th>
-              {PERIODS.map(p => (
-                <th key={p} className="px-2 py-1.5 section-label text-center">{p}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {displayMatches.map((m, i) => (
-              <tr key={m.ticker + i} className="border-b border-dark-border/20">
-                <td className="px-2 py-2 text-warm-muted text-xs font-mono">{m.rank ?? i + 1}</td>
-                <td className="px-2 py-2">
-                  <span className="font-mono font-semibold text-warm-white text-sm">{m.ticker}</span>
-                  {m.companyName && (
-                    <span className="block text-xs text-warm-muted truncate max-w-[140px] font-light">{m.companyName}</span>
-                  )}
-                </td>
-                <td className="px-2 py-2 text-center">
-                  <span className={`text-sm font-semibold font-mono ${m.matchScore >= 70 ? 'text-emerald-400' : m.matchScore >= 55 ? 'text-accent' : 'text-red-400'}`}>
-                    {Math.round(m.matchScore)}
-                  </span>
-                </td>
-                {PERIODS.map(p => (
-                  <td key={p} className="px-2 py-2 text-center text-sm">
-                    <SignedPct value={m.forwardReturns?.[p]} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Expand toggle */}
-      {c.matches.length > 3 && (
-        <button
-          className="mt-3 text-xs text-accent hover:text-accent-dim transition-colors duration-200 font-mono"
-          onClick={() => setExpanded(e => !e)}
-        >
-          {expanded ? 'Show fewer' : `Show all ${c.matches.length} matches`}
-        </button>
-      )}
-    </div>
-  );
-}
+import { Link } from 'react-router-dom';
 
 export default function Proof() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/proof')
-      .then(async res => {
-        if (!res.ok) throw new Error(await httpError(res, 'Failed to load proof data'));
-        return res.json();
-      })
-      .then(d => { setData(d); setLoading(false); })
-      .catch(err => { setError(err.message); setLoading(false); });
-  }, []);
-
-  if (loading) {
-    return (
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
-          <p className="text-warm-gray text-sm animate-pulse font-light">Loading performance data...</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-        <div className="card border-red-500/20 text-red-400 text-sm">{error}</div>
-      </main>
-    );
-  }
-
-  if (!data) return null;
-
-  const { cases = [], aggregate = {}, disclaimers = [] } = data;
-  const periods = aggregate.periods || {};
-  const correlation = aggregate.correlation || {};
-  const p12 = periods['12m'] || {};
-  const totalMatches = cases.reduce((sum, c) => sum + (c.matches?.length || 0), 0);
-  const rho12 = correlation['12m']?.rho ?? null;
-  const corrLabel = correlationLabel(rho12 ?? 0);
-
   return (
-    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
-      {/* A. Hero */}
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+      {/* Hero */}
       <div className="text-center mb-10">
         <h1 className="text-2xl sm:text-3xl font-display text-warm-white mb-2">
-          Methodology
+          How Blueprint Works
         </h1>
         <p className="text-warm-gray text-sm font-light max-w-xl mx-auto">
-          How Blueprint finds stocks with similar financial DNA to proven breakout winners.
+          Blueprint finds stocks with similar financial DNA to proven breakout winners
+          by comparing 28 metrics across 6 categories.
         </p>
       </div>
 
-      {/* B. Methodology — FIRST, before data */}
-      <div className="card mb-8">
-        <p className="section-label mb-3">How It Works</p>
+      {/* The concept */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">The Idea</p>
         <div className="divider-gold mb-4" />
         <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
           <p>
-            Blueprint compares stocks across <span className="text-warm-white font-medium">28 financial metrics</span> organized into
-            6 categories: valuation, profitability, growth, financial health, size, and technical indicators.
+            Every stock that has a massive breakout run — 200%, 500%, 1000% — had a specific financial
+            profile right before it happened. Revenue was growing at a certain rate. Margins were at a certain
+            level. Valuation was at a specific multiple. Technical indicators were positioned a certain way.
           </p>
           <p>
-            Each category uses <span className="text-warm-white font-medium">specialized similarity functions</span> tuned
-            to the metric type — log-ratio for valuations and market caps, hybrid absolute/relative for margins,
-            dampened comparison for growth rates, and bounded scales for technical indicators.
-          </p>
-          <p>
-            Categories are weighted by relevance to breakout detection: <span className="text-warm-white font-medium">Growth and Profitability (25% each)</span> are
-            the strongest signals, followed by Valuation (22%), Financial Health and Technical (10% each), and Size (8%).
-          </p>
-          <p>
-            <span className="text-warm-white font-medium">5 strategy profiles</span> shift these weights to match different investing styles —
-            Growth Breakout emphasizes revenue acceleration, Value Inflection prioritizes cheap valuations,
-            and Quality Compounder focuses on returns on capital.
+            <span className="text-warm-white font-medium">Blueprint captures that exact profile</span> and scans
+            thousands of stocks to find companies that look the same way right now. Instead of manually entering
+            screener criteria, you point at a winner and let the algorithm find the lookalikes.
           </p>
         </div>
       </div>
 
-      {/* C. Key stats — honest, framed as validation context */}
-      <p className="section-label mb-4">Walk-Forward Validation</p>
-      <p className="text-sm text-warm-gray font-light mb-4 max-w-2xl">
-        We tested the algorithm against {cases.length} historical breakout cases using reconstructed point-in-time financial data.
-        Here's how the top matches performed.
-      </p>
-      <div className="flex flex-wrap gap-3 mb-8">
-        <StatCard label="Avg 12-Month Return">
-          <p className={`text-2xl font-bold font-mono ${(p12.avgReturn ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {p12.avgReturn != null ? `${p12.avgReturn > 0 ? '+' : ''}${p12.avgReturn.toFixed(1)}%` : '—'}
-          </p>
-          <p className="text-xs text-warm-muted mt-1 font-light">Across all matches</p>
-        </StatCard>
-
-        <StatCard label="12-Month Win Rate">
-          <p className={`text-2xl font-bold font-mono ${(p12.winRate ?? 0) >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {p12.winRate != null ? `${p12.winRate.toFixed(0)}%` : '—'}
-          </p>
-          <p className="text-xs text-warm-muted mt-1 font-light">% of matches with positive returns</p>
-        </StatCard>
-
-        <StatCard label="SPY Benchmark">
-          <p className="text-2xl font-bold font-mono text-warm-gray">
-            {p12.benchmarkReturn != null ? `+${p12.benchmarkReturn.toFixed(1)}%` : '—'}
-          </p>
-          <p className="text-xs text-warm-muted mt-1 font-light">Same period average</p>
-        </StatCard>
-
-        <StatCard label="Cases Tested">
-          <p className="text-2xl font-bold font-mono text-warm-white">{cases.length}</p>
-          <p className="text-xs text-warm-muted mt-1 font-light">{totalMatches.toLocaleString()} total matches</p>
-        </StatCard>
-      </div>
-
-      {/* C. Period breakdown table */}
-      <div className="card mb-8 overflow-x-auto">
-        <p className="section-label mb-3">Performance by Period</p>
+      {/* 28 Metrics */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">28 Financial Metrics</p>
         <div className="divider-gold mb-4" />
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-dark-border/50">
-              <th className="px-3 py-2 section-label">Period</th>
-              <th className="px-3 py-2 section-label text-center">Avg Return</th>
-              <th className="px-3 py-2 section-label text-center">SPY Return</th>
-              <th className="px-3 py-2 section-label text-center">Alpha</th>
-              <th className="px-3 py-2 section-label text-center">Win Rate</th>
-              <th className="px-3 py-2 section-label text-center">Cases</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PERIODS.map(p => {
-              const pd = periods[p] || {};
-              return (
-                <tr key={p} className="border-b border-dark-border/20 hover:bg-dark-card-hover transition-colors duration-150">
-                  <td className="px-3 py-2.5 text-warm-white text-sm font-medium">{PERIOD_LABELS[p]}</td>
-                  <td className="px-3 py-2.5 text-center text-sm">
-                    <SignedPct value={pd.avgReturn} />
-                  </td>
-                  <td className="px-3 py-2.5 text-center text-sm">
-                    <SignedPct value={pd.benchmarkReturn} />
-                  </td>
-                  <td className="px-3 py-2.5 text-center text-sm">
-                    <SignedPct value={pd.alpha} />
-                  </td>
-                  <td className="px-3 py-2.5 text-center">
-                    {pd.winRate != null ? (
-                      <span className={`text-sm font-mono font-semibold ${pd.winRate >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {pd.winRate.toFixed(0)}%
-                      </span>
-                    ) : <span className="text-warm-muted/40 font-mono">—</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-center text-sm text-warm-gray font-mono">{pd.caseCount ?? '—'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div>
+            <p className="text-warm-white font-medium mb-2">Valuation (6)</p>
+            <ul className="text-warm-gray font-light space-y-1">
+              <li>P/E Ratio</li>
+              <li>Price-to-Book</li>
+              <li>Price-to-Sales</li>
+              <li>EV/EBITDA</li>
+              <li>EV/Revenue</li>
+              <li>PEG Ratio</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-warm-white font-medium mb-2">Profitability (7)</p>
+            <ul className="text-warm-gray font-light space-y-1">
+              <li>Gross Margin</li>
+              <li>Operating Margin</li>
+              <li>Net Margin</li>
+              <li>EBITDA Margin</li>
+              <li>Return on Equity</li>
+              <li>Return on Assets</li>
+              <li>Return on Capital</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-warm-white font-medium mb-2">Growth (3)</p>
+            <ul className="text-warm-gray font-light space-y-1">
+              <li>Revenue Growth YoY</li>
+              <li>Revenue 3yr CAGR</li>
+              <li>EPS Growth YoY</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-warm-white font-medium mb-2">Financial Health (5)</p>
+            <ul className="text-warm-gray font-light space-y-1">
+              <li>Current Ratio</li>
+              <li>Debt-to-Equity</li>
+              <li>Interest Coverage</li>
+              <li>Net Debt / EBITDA</li>
+              <li>Free Cash Flow Yield</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-warm-white font-medium mb-2">Technical (6)</p>
+            <ul className="text-warm-gray font-light space-y-1">
+              <li>RSI (14-day)</li>
+              <li>% Below 52-Week High</li>
+              <li>Price vs 50-Day MA</li>
+              <li>Price vs 200-Day MA</li>
+              <li>Beta</li>
+              <li>Relative Volume</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-warm-white font-medium mb-2">Size (1)</p>
+            <ul className="text-warm-gray font-light space-y-1">
+              <li>Market Cap</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
-      {/* D. Individual case cards */}
-      {cases.length > 0 && (
-        <div className="mb-8">
-          <p className="section-label mb-4">Individual Cases</p>
-          <div className="divider-gold mb-4" />
-          <div className="flex flex-col gap-4">
-            {cases.map((c, i) => (
-              <CaseCard key={`${c.ticker}-${c.date}-${i}`} c={c} />
+      {/* How similarity is calculated */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">Similarity Scoring</p>
+        <div className="divider-gold mb-4" />
+        <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
+          <p>
+            Each metric type uses a <span className="text-warm-white font-medium">specialized comparison function</span> tuned
+            to how that metric actually behaves:
+          </p>
+          <ul className="space-y-2 pl-4">
+            <li><span className="text-warm-white font-medium">Valuation ratios</span> (P/E, EV/EBITDA) — log-scale comparison, because a P/E of 15 vs 30 is more meaningful than 150 vs 165</li>
+            <li><span className="text-warm-white font-medium">Margins</span> (gross, operating, net) — hybrid absolute/relative, so 3% vs 0.5% FCF yield is recognized as fundamentally different even though the point gap is small</li>
+            <li><span className="text-warm-white font-medium">Growth rates</span> — dampened comparison with direction penalty, because +20% vs -10% growth are opposite stories regardless of the 30-point gap</li>
+            <li><span className="text-warm-white font-medium">Technical indicators</span> — bounded scales matched to each indicator's natural range (RSI 0-100, % below high 0-100)</li>
+            <li><span className="text-warm-white font-medium">Market cap</span> — log-scale, so two $5B companies are "similar size" but a $500M and $50B company are not</li>
+          </ul>
+          <p>
+            Metrics are grouped into 6 categories, each with its own weight reflecting importance to breakout detection:
+          </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {[
+              { name: 'Growth', weight: '25%' },
+              { name: 'Profitability', weight: '25%' },
+              { name: 'Valuation', weight: '22%' },
+              { name: 'Financial Health', weight: '10%' },
+              { name: 'Technical', weight: '10%' },
+              { name: 'Size', weight: '8%' },
+            ].map(c => (
+              <span key={c.name} className="text-xs border border-dark-border/50 rounded-full px-3 py-1">
+                <span className="text-warm-white font-medium">{c.name}</span>
+                <span className="text-warm-muted ml-1">{c.weight}</span>
+              </span>
             ))}
           </div>
+          <p className="mt-2">
+            This category-first architecture prevents any single metric from dominating. Technical indicators
+            can only contribute 10% of the score regardless of how many individual technicals look similar.
+          </p>
         </div>
-      )}
+      </div>
 
-      {/* E. Disclaimers */}
-      {disclaimers.length > 0 && (
-        <div className="card border-amber-500/15 bg-amber-500/5">
-          <p className="section-label mb-3">Disclaimers</p>
-          <div className="space-y-2">
-            {disclaimers.map((d, i) => (
-              <p key={i} className="text-xs text-amber-400/80 leading-relaxed font-light">{d}</p>
-            ))}
+      {/* Strategy profiles */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">Strategy Profiles</p>
+        <div className="divider-gold mb-4" />
+        <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
+          <p>
+            <span className="text-warm-white font-medium">5 strategy profiles</span> shift the metric weights
+            to match different investing styles. The same two stocks can score differently depending on
+            what you're looking for:
+          </p>
+          <div className="space-y-3 mt-3">
+            <div>
+              <p className="text-warm-white font-medium">Growth Breakout</p>
+              <p className="text-warm-muted text-xs">Emphasizes revenue/EPS acceleration, PEG ratio, and momentum near highs</p>
+            </div>
+            <div>
+              <p className="text-warm-white font-medium">Value Inflection</p>
+              <p className="text-warm-muted text-xs">Prioritizes cheap valuations (P/E, EV/EBITDA, P/B) with improving cash flow</p>
+            </div>
+            <div>
+              <p className="text-warm-white font-medium">Momentum / Technical</p>
+              <p className="text-warm-muted text-xs">Matches on RSI, moving average positioning, proximity to highs, and volatility</p>
+            </div>
+            <div>
+              <p className="text-warm-white font-medium">Quality Compounder</p>
+              <p className="text-warm-muted text-xs">Focuses on return on capital, strong margins, consistent multi-year growth</p>
+            </div>
+            <div>
+              <p className="text-warm-white font-medium">GARP</p>
+              <p className="text-warm-muted text-xs">Growth at a Reasonable Price — balances PEG ratio with revenue growth and valuation</p>
+            </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Data sources */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">Data & Accuracy</p>
+        <div className="divider-gold mb-4" />
+        <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
+          <p>
+            All financial data comes from <span className="text-warm-white font-medium">Financial Modeling Prep (FMP)</span>.
+            Metrics are computed from trailing twelve months (TTM) of quarterly reports, validated to ensure the
+            4 most recent quarters span an 8-15 month window.
+          </p>
+          <p>
+            Historical snapshots reconstruct what a company looked like at any past date using only data
+            that was actually filed as of that date — no look-ahead bias.
+          </p>
+          <p>
+            The stock universe is refreshed continuously, with approximately <span className="text-warm-white font-medium">3,500+
+            stocks</span> across all sectors on NASDAQ and NYSE.
+          </p>
+        </div>
+      </div>
+
+      {/* Disclaimers */}
+      <div className="card border-dark-border/30">
+        <p className="section-label mb-3">Disclaimers</p>
+        <div className="space-y-2">
+          <p className="text-xs text-warm-muted leading-relaxed font-light">
+            Blueprint is a screening tool that identifies stocks with similar financial profiles. It does not
+            predict future stock performance or provide investment recommendations. All investment decisions
+            should be made based on your own research and risk tolerance.
+          </p>
+          <p className="text-xs text-warm-muted leading-relaxed font-light">
+            Data sourced from Financial Modeling Prep. While we validate data quality, we cannot guarantee
+            100% accuracy of third-party financial data. Not financial advice.
+          </p>
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="text-center mt-10">
+        <Link to="/" className="btn-primary px-6 py-3 text-sm">
+          Start Screening →
+        </Link>
+      </div>
     </main>
   );
 }

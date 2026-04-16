@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { httpError } from '../utils/httpError';
 import { toCSV, downloadCSV } from '../utils/export';
 import ShareBar from '../components/ShareBar';
@@ -181,13 +181,6 @@ export default function BacktestResults() {
           This backtest finds stocks that currently resemble the historical template, then measures their actual price
           changes from the template date. Matches are based on today's fundamentals, not what these companies looked like
           at the template date. Survivorship bias may affect results. Past performance does not guarantee future results.
-        </p>
-        <p className="text-xs text-warm-muted mt-2">
-          This backtest uses current fundamentals compared to the historical template.
-          {' '}
-          <Link to="/proof" className="text-accent hover:underline">
-            View backtests using reconstructed historical fundamentals →
-          </Link>
         </p>
       </div>
 

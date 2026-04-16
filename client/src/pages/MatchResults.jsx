@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
 import { httpError } from '../utils/httpError';
@@ -48,8 +48,6 @@ export default function MatchResults() {
   const [error, setError] = useState(null);
   const [msgIdx, setMsgIdx] = useState(0);
 
-  // Proof data for trust signals
-  const [proofData, setProofData] = useState(null);
   const [universeSize, setUniverseSize] = useState(null);
 
   // Filter state
@@ -68,12 +66,8 @@ export default function MatchResults() {
   const countdownRef = useRef(null);
   const retriesLeft = useRef(MAX_RETRIES);
 
-  // Fetch proof data for trust signals (silently fails)
+  // Fetch universe size for results context
   useEffect(() => {
-    fetch('/api/proof')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => setProofData(data))
-      .catch(() => {});
     fetch('/api/status')
       .then(res => res.ok ? res.json() : null)
       .then(data => { if (data?.stockCount) setUniverseSize(data.stockCount); })
@@ -355,21 +349,6 @@ export default function MatchResults() {
                 </div>
               </div>
             </div>
-
-            {/* Trust signal banner */}
-            {proofData?.aggregate?.periods?.['12m']?.alpha > 0 && (
-              <div className="card bg-emerald-500/5 border-emerald-500/15 mb-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <p className="text-sm text-warm-gray">
-                    <span className="text-emerald-400 font-semibold font-mono">
-                      +{proofData.aggregate.periods['12m'].alpha.toFixed(1)}% alpha
-                    </span>
-                    {' '}vs SPY across {proofData.aggregate.totalCases} historical breakouts over 12 months
-                  </p>
-                  <Link to="/proof" className="text-xs text-accent hover:underline">See methodology →</Link>
-                </div>
-              </div>
-            )}
 
             {/* Backtest button */}
             {(() => {
