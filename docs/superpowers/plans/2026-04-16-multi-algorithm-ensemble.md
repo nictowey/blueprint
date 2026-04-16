@@ -56,11 +56,11 @@ The script probes each candidate endpoint, reports HTTP status + response shape,
 **To extend coverage:** edit the `ENDPOINTS_TO_PROBE` (i.e. `buildEndpoints()`) array at the top of `server/scripts/verify-fmp-endpoints.js` to add new endpoints. The script auto-handles auth, status codes, and shape checks.
 
 - [x] Verification script created (`server/scripts/verify-fmp-endpoints.js`)
-- [ ] **(Run locally)** Verify FMP `earnings-surprises` (or `/earnings`) availability at current plan tier
-- [ ] **(Run locally)** Verify FMP `analyst-estimates`, `grades-consensus`, or `grades-historical` availability
-- [ ] **(Run locally)** Verify FMP `insider-trading/latest` or `insider-trading-statistics` availability
-- [ ] **(Run locally)** Paste the script output into the Progress Log below so future sessions know which signals are usable
-- [ ] If a critical signal has no available path, decide: upgrade FMP plan, substitute alternative data source, or scope catalyst engine down to available signals only
+- [x] **(Run locally)** Verify FMP `earnings-surprises` (or `/earnings`) availability at current plan tier — `/earnings-surprises` 404, `/earnings` ✓ (use `epsActual` vs `epsEstimated` to compute surprise)
+- [x] **(Run locally)** Verify FMP `analyst-estimates`, `grades-consensus`, or `grades-historical` availability — all three ✓; `grades-historical` preferred (30 rows of dated rating breakdowns)
+- [x] **(Run locally)** Verify FMP `insider-trading/latest` or `insider-trading-statistics` availability — `/insider-trading/latest` ✓ (30 rows), `/insider-trading-statistics` 404
+- [x] **(Run locally)** Paste the script output into the Progress Log below so future sessions know which signals are usable
+- [x] If a critical signal has no available path, decide: upgrade FMP plan, substitute alternative data source, or scope catalyst engine down to available signals only — **Decision:** all 3 catalyst signals are buildable on the current plan via the working paths above; no plan upgrade needed for v1
 
 ---
 
@@ -212,3 +212,14 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 - `2026-04-16`: **Phase 1 complete** (additive variant). Added `server/services/algorithms/{index.js, templateMatch.js}` with engine registry + shared `rank({ template, universe, topN, options })` contract. Wired `?algo=` query param with whitelist validation into `server/routes/matches.js`, defaulting to `templateMatch` when absent. All 86 existing tests across matcher/matches/similarity suites pass — zero behavior change. Live smoke test deferred (needs FMP API key in dev environment). **Next:** Phase 0 (verify FMP catalyst endpoints) or Phase 2 (momentum/volume engine). Phase 2 is buildable today because it only needs snapshot data we already have.
 - `2026-04-16`: **Phase 0 partially complete** — verification script `server/scripts/verify-fmp-endpoints.js` shipped. The web environment doesn't have access to the local `.env`/`FMP_API_KEY` so the script needs to be run from the desktop. Probes 7 candidate endpoints across the 3 catalyst signal groups (earnings surprises, analyst grades/estimates, insider trading). Once run, paste the output here so we know which signals Phase 3 can rely on.
 - `2026-04-16`: **Phase 2 complete (backend)** — momentum/volume breakout engine shipped at `server/services/algorithms/momentumBreakout.js`. Template-free; ranks the universe by 5 technical signals (52wk-high proximity, price vs. MA50/MA200, RSI-14, relative volume). Uses only data already on every universe entry — no snapshot extension needed. Shared `isInvestable` helper extracted to `server/services/algorithms/shared.js` to avoid circular requires with the registry. `routes/matches.js` updated so template-free engines don't require ticker+date. 33 new unit tests added; full server suite is 195 tests, all passing. **Next step:** run `curl http://localhost:3001/api/matches?algo=momentumBreakout` on desktop to smoke-test against the live universe. Or jump to Phase 4 (ensemble consensus layer) — it has enough component engines (templateMatch + momentumBreakout) to produce a meaningful v1 without blocking on catalyst data.
+- `2026-04-16`: **Phase 0 verified on desktop** — ran `node server/scripts/verify-fmp-endpoints.js` against AAPL on the local FMP key. Results:
+  ```
+  ✗ /earnings-surprises                 HTTP 404 (endpoint missing on plan)
+  ✓ /earnings                           10 rows; symbol, date, epsActual, epsEstimated, revenueActual, revenueEstimated
+  ✓ /analyst-estimates                  10 rows; revenueLow/High/Avg, ebitdaLow/High/Avg, ...
+  ✓ /grades-consensus                   1 row; strongBuy, buy, hold, sell, strongSell, consensus
+  ✓ /grades-historical                  30 rows; analystRatingsStrongBuy/Buy/Hold/Sell/StrongSell by date
+  ✓ /insider-trading/latest             30 rows; filingDate, transactionDate, transactionType, securitiesOwned, reportingName
+  ✗ /insider-trading-statistics         HTTP 404 (endpoint missing on plan)
+  ```
+  **Verdict:** all 3 catalyst signals (earnings-surprise, estimate-revisions, insider-buying) are buildable. Earnings-surprise must be computed client-side from `epsActual` vs `epsEstimated` on `/earnings` rather than served pre-packaged. Insider-buying uses `/insider-trading/latest` and aggregates client-side (no `/insider-trading-statistics`). Estimate-revisions has 3 working paths; `/grades-historical` is preferred for trend computation. **Phase 3 unblocked — proceeding.**
