@@ -29,7 +29,7 @@ function getInsight(data) {
   let tier;
   if (s >= 85) tier = { label: 'Excellent Match', color: 'text-emerald-400', borderColor: 'border-emerald-500/15', bgColor: 'bg-emerald-500/5', desc: 'These two stocks share remarkably similar financial profiles. The current stock mirrors the template across nearly all key metrics.' };
   else if (s >= 70) tier = { label: 'Strong Match', color: 'text-emerald-400', borderColor: 'border-emerald-500/15', bgColor: 'bg-emerald-500/5', desc: 'A strong resemblance. Most valuation, profitability, and growth metrics align well, though a few areas diverge.' };
-  else if (s >= 55) tier = { label: 'Moderate Match', color: 'text-accent', borderColor: 'border-accent/15', bgColor: 'bg-accent/5', desc: 'A partial match. Some key metrics align, but there are notable differences in certain areas worth investigating.' };
+  else if (s >= 55) tier = { label: 'Moderate Match', color: 'text-brand', borderColor: 'border-brand/15', bgColor: 'bg-brand/5', desc: 'A partial match. Some key metrics align, but there are notable differences in certain areas worth investigating.' };
   else tier = { label: 'Weak Match', color: 'text-red-400', borderColor: 'border-red-500/15', bgColor: 'bg-red-500/5', desc: 'Limited similarity. These stocks share some characteristics but differ substantially across multiple dimensions.' };
 
   // Build specific observations
@@ -141,7 +141,7 @@ export default function ComparisonDetail() {
   if (!ticker || !date || !matchTicker) return null;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* Nav */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-6 sm:mb-8">
         <button className="btn-secondary" onClick={() => navigate(-1)}>← Back to Results</button>
@@ -149,7 +149,7 @@ export default function ComparisonDetail() {
           <ShareBar />
           {data && (
             <button
-              className={`btn-secondary text-xs ${watchlisted ? 'text-emerald-400 border-emerald-500/20' : 'hover:border-accent/30 hover:text-accent'}`}
+              className={`btn-secondary text-xs ${watchlisted ? 'text-emerald-400 border-emerald-500/20' : 'hover:border-brand/30 hover:text-brand'}`}
               onClick={handleAddToWatchlist}
               disabled={watchlisted}
           >
@@ -160,8 +160,8 @@ export default function ComparisonDetail() {
       </div>
 
       {loading && (
-        <div className="flex justify-center py-24">
-          <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
+        <div className="flex justify-center py-14">
+          <div className="w-8 h-8 border-3 border-border border-t-brand rounded-full animate-spin" />
         </div>
       )}
 
@@ -182,7 +182,7 @@ export default function ComparisonDetail() {
             <div className="card mb-6">
               <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                 {/* Score ring */}
-                <div className="relative w-24 h-24 shrink-0 glow-gold">
+                <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
                     <circle cx="40" cy="40" r="34" fill="none" stroke="#1c1c2e" strokeWidth="5" />
                     <circle
@@ -193,20 +193,19 @@ export default function ComparisonDetail() {
                       className="transition-all duration-700"
                     />
                   </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold font-mono" style={{ color: scoreColor, lineHeight: 1 }}>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl sm:text-3xl font-bold font-mono" style={{ color: scoreColor, lineHeight: 1 }}>
                       {Math.round(s)}
                     </span>
-                    <span className="text-[8px] uppercase tracking-widest text-warm-muted mt-0.5">match</span>
                   </div>
                 </div>
 
                 {/* Match info */}
                 <div className="flex-1 text-center sm:text-left">
                   <div className="flex items-center justify-center sm:justify-start gap-2 mb-1.5 flex-wrap">
-                    <span className="font-mono font-bold text-lg text-warm-white">{data.template.ticker}</span>
-                    <span className="text-warm-muted font-display italic text-sm">vs</span>
-                    <span className="font-mono font-bold text-lg text-warm-white">{data.match.ticker}</span>
+                    <span className="font-mono font-bold text-lg text-text-primary">{data.template.ticker}</span>
+                    <span className="text-text-muted font-display italic text-sm">vs</span>
+                    <span className="font-mono font-bold text-lg text-text-primary">{data.match.ticker}</span>
                     <span
                       className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
                       style={{ color: scoreColor, background: `${scoreColor}10`, border: `1px solid ${scoreColor}30` }}
@@ -215,7 +214,7 @@ export default function ComparisonDetail() {
                     </span>
                   </div>
                   <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
-                    <span className="text-xs text-warm-muted font-mono">{data.metricsCompared}/{data.totalMetrics || 28} metrics</span>
+                    <span className="text-xs text-text-muted font-mono">{data.metricsCompared}/{data.totalMetrics || 28} metrics</span>
                     {data.confidence && (
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
                         data.confidence.level === 'complete'
@@ -249,20 +248,17 @@ export default function ComparisonDetail() {
           if (!insight) return null;
           const { tier, observations } = insight;
           return (
-            <div className={`card mb-6 ${tier.borderColor} ${tier.bgColor}`}>
-              <div className="flex items-start gap-3">
-                <div className={`text-lg font-display ${tier.color} shrink-0`}>
-                  {data.matchScore >= 70 ? '✦' : data.matchScore >= 55 ? '◆' : '○'}
-                </div>
+            <div className={`card mb-6 ${tier.bgColor} border-l-2 ${data.matchScore >= 70 ? 'border-l-emerald-500' : data.matchScore >= 55 ? 'border-l-brand' : 'border-l-red-500'}`}>
+              <div>
                 <div>
-                  <p className="text-sm text-warm-white mb-1">
+                  <p className="text-sm text-text-primary mb-1">
                     <span className={`font-semibold ${tier.color}`}>{tier.label}</span>
-                    <span className="text-warm-gray font-light ml-2">— {tier.desc}</span>
+                    <span className="text-text-secondary font-light ml-2">— {tier.desc}</span>
                   </p>
                   {observations.length > 0 && (
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
                       {observations.map((obs, i) => (
-                        <span key={i} className="text-xs text-warm-gray font-light">• {obs}</span>
+                        <span key={i} className="text-xs text-text-secondary font-light">• {obs}</span>
                       ))}
                     </div>
                   )}
@@ -274,7 +270,7 @@ export default function ComparisonDetail() {
 
         {/* Price overlay chart */}
         {data?.sparkline?.length > 1 && data?.matchSparkline?.length > 1 && (
-          <div className="card mb-6 bg-dark-bg">
+          <div className="card mb-6 bg-surface">
             <PriceOverlayChart
               templateData={data.sparkline}
               matchData={data.matchSparkline}
@@ -292,14 +288,14 @@ export default function ComparisonDetail() {
             <div className="mb-4 min-h-[72px]">
               <p className="section-label mb-1">Template · {data.template.date}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono font-bold text-lg sm:text-xl text-warm-white">{data.template.ticker}</span>
-                <a href={`https://finance.yahoo.com/quote/${data.template.ticker}`} target="_blank" rel="noopener noreferrer" className="text-warm-muted/40 hover:text-accent transition-colors" title="View on Yahoo Finance">
+                <span className="font-mono font-bold text-lg sm:text-xl text-text-primary">{data.template.ticker}</span>
+                <a href={`https://finance.yahoo.com/quote/${data.template.ticker}`} target="_blank" rel="noopener noreferrer" className="text-text-muted/40 hover:text-brand transition-colors" title="View on Yahoo Finance">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8M7 1h4v4M5 7l6-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </a>
-                <span className="text-warm-gray text-xs sm:text-sm font-light">{data.template.companyName}</span>
+                <span className="text-text-secondary text-xs sm:text-sm font-light">{data.template.companyName}</span>
               </div>
               {data.template.sector && (
-                <span className="text-xs border border-dark-border text-warm-muted px-2 py-0.5 rounded-full mt-1 inline-block">
+                <span className="text-xs border border-border text-text-muted px-2 py-0.5 rounded-full mt-1 inline-block">
                   {data.template.sector}
                 </span>
               )}
@@ -307,27 +303,27 @@ export default function ComparisonDetail() {
 
             {/* Sparkline — what happened after the snapshot */}
             {data.sparklineGainPct != null && (
-              <p className="text-xs text-warm-muted mb-1 font-light">
+              <p className="text-xs text-text-muted mb-1 font-light">
                 What happened after this snapshot
                 <span className={`ml-1 font-mono font-semibold ${data.sparklineGainPct > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {data.sparklineGainPct > 0 ? '+' : ''}{data.sparklineGainPct.toFixed(1)}% over 18 months
                 </span>
               </p>
             )}
-            <div className="bg-dark-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-dark-border/30">
+            <div className="bg-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-border/30">
               <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
             </div>
 
             {/* TTM Data Provenance */}
             {data.template.ttmBreakdown && data.template.ttmBreakdown.length > 0 && (
               <details className="mb-4 text-xs">
-                <summary className="text-warm-muted/60 cursor-pointer hover:text-warm-muted transition-colors">
+                <summary className="text-text-muted/60 cursor-pointer hover:text-text-muted transition-colors">
                   Show quarterly data behind TTM calculations
                 </summary>
-                <div className="mt-2 bg-dark-bg rounded-lg p-3 border border-dark-border/30">
+                <div className="mt-2 bg-bg rounded-lg p-3 border border-border/30">
                   <table className="w-full">
                     <thead>
-                      <tr className="text-warm-muted/60">
+                      <tr className="text-text-muted/60">
                         <th className="text-left pb-1 font-normal">Quarter</th>
                         <th className="text-right pb-1 font-normal">Revenue</th>
                         <th className="text-right pb-1 font-normal">EPS</th>
@@ -335,26 +331,26 @@ export default function ComparisonDetail() {
                     </thead>
                     <tbody>
                       {data.template.ttmBreakdown.map(q => (
-                        <tr key={q.date} className="border-t border-dark-border/20">
-                          <td className="py-1 text-warm-gray font-mono">{q.date}</td>
-                          <td className="py-1 text-right text-warm-white font-mono">${(q.revenue / 1e9).toFixed(2)}B</td>
-                          <td className="py-1 text-right text-warm-white font-mono">${q.eps?.toFixed(2)}</td>
+                        <tr key={q.date} className="border-t border-border/20">
+                          <td className="py-1 text-text-secondary font-mono">{q.date}</td>
+                          <td className="py-1 text-right text-text-primary font-mono">${(q.revenue / 1e9).toFixed(2)}B</td>
+                          <td className="py-1 text-right text-text-primary font-mono">${q.eps?.toFixed(2)}</td>
                         </tr>
                       ))}
-                      <tr className="border-t border-dark-border/50 font-semibold">
-                        <td className="py-1 text-warm-muted">TTM Total</td>
-                        <td className="py-1 text-right text-accent font-mono">
+                      <tr className="border-t border-border/50 font-semibold">
+                        <td className="py-1 text-text-muted">TTM Total</td>
+                        <td className="py-1 text-right text-brand font-mono">
                           ${(data.template.ttmBreakdown.reduce((s, q) => s + (q.revenue || 0), 0) / 1e9).toFixed(2)}B
                         </td>
-                        <td className="py-1 text-right text-accent font-mono">
+                        <td className="py-1 text-right text-brand font-mono">
                           ${data.template.ttmBreakdown.reduce((s, q) => s + (q.eps || 0), 0).toFixed(2)}
                         </td>
                       </tr>
                     </tbody>
                   </table>
                   {data.template.priorTtmRevenue != null && (
-                    <p className="text-warm-muted/60 mt-2">
-                      Prior TTM Revenue: <span className="text-warm-gray font-mono">${(data.template.priorTtmRevenue / 1e9).toFixed(2)}B</span>
+                    <p className="text-text-muted/60 mt-2">
+                      Prior TTM Revenue: <span className="text-text-secondary font-mono">${(data.template.priorTtmRevenue / 1e9).toFixed(2)}B</span>
                       {' → '}Revenue Growth: <span className="text-emerald-400 font-mono">
                         {((data.template.ttmBreakdown.reduce((s, q) => s + (q.revenue || 0), 0) / data.template.priorTtmRevenue - 1) * 100).toFixed(1)}%
                       </span>
@@ -365,9 +361,9 @@ export default function ComparisonDetail() {
             )}
 
             {/* Price */}
-            <div className="flex items-center justify-between py-3 border-b border-dark-border mb-1">
+            <div className="flex items-center justify-between py-3 border-b border-border mb-1">
               <span className="section-label">Price</span>
-              <span className="text-sm font-semibold text-warm-white font-mono">
+              <span className="text-sm font-semibold text-text-primary font-mono">
                 {formatMetric('price', data.template.price)}
               </span>
             </div>
@@ -375,13 +371,13 @@ export default function ComparisonDetail() {
             {/* Metrics */}
             {METRIC_GROUPS.map(group => (
               <div key={group.label}>
-                <div className="section-label pt-4 pb-1 border-b border-dark-border/50">
+                <div className="section-label pt-4 pb-1 border-b border-border/50">
                   {group.label}
                 </div>
                 {group.metrics.map(key => (
-                  <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 border-b border-dark-border/30 last:border-0">
-                    <span className="text-xs text-warm-muted uppercase tracking-wider">{METRIC_LABELS[key]}</span>
-                    <span className={`text-sm font-semibold font-mono ${data.template[key] == null ? 'text-warm-muted/40' : 'text-warm-white'}`}>
+                  <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 hover:bg-surface/40 rounded px-1 -mx-1 transition-colors">
+                    <span className="text-xs text-text-muted uppercase tracking-wider">{METRIC_LABELS[key]}</span>
+                    <span className={`text-sm font-semibold font-mono ${data.template[key] == null ? 'text-text-muted/40' : 'text-text-primary'}`}>
                       {formatMetric(key, data.template[key])}
                     </span>
                   </div>
@@ -397,21 +393,21 @@ export default function ComparisonDetail() {
                 Current · {data.match.date}
               </p>
               <div className="flex items-center gap-2">
-                <span className="font-mono font-bold text-xl text-warm-white">{data.match.ticker}</span>
-                <a href={`https://finance.yahoo.com/quote/${data.match.ticker}`} target="_blank" rel="noopener noreferrer" className="text-warm-muted/40 hover:text-accent transition-colors" title="View on Yahoo Finance">
+                <span className="font-mono font-bold text-xl text-text-primary">{data.match.ticker}</span>
+                <a href={`https://finance.yahoo.com/quote/${data.match.ticker}`} target="_blank" rel="noopener noreferrer" className="text-text-muted/40 hover:text-brand transition-colors" title="View on Yahoo Finance">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8M7 1h4v4M5 7l6-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </a>
-                <span className="text-warm-gray text-sm font-light">{data.match.companyName}</span>
+                <span className="text-text-secondary text-sm font-light">{data.match.companyName}</span>
               </div>
               {data.match.sector && (
-                <span className="text-xs border border-dark-border text-warm-muted px-2 py-0.5 rounded-full mt-1 inline-block">
+                <span className="text-xs border border-border text-text-muted px-2 py-0.5 rounded-full mt-1 inline-block">
                   {data.match.sector}
                 </span>
               )}
             </div>
 
             {/* Match sparkline */}
-            <div className="bg-dark-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-dark-border/30">
+            <div className="bg-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-border/30">
               <Sparkline
                 data={data.matchSparkline}
                 gainPct={data.matchSparklineGainPct}
@@ -421,20 +417,20 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Price */}
-            <div className="flex items-center justify-between py-3 border-b border-dark-border mb-1">
+            <div className="flex items-center justify-between py-3 border-b border-border mb-1">
               <span className="section-label">Price</span>
-              <span className="text-sm font-semibold text-warm-white font-mono">
+              <span className="text-sm font-semibold text-text-primary font-mono">
                 {formatMetric('price', data.match.price)}
               </span>
             </div>
 
             {/* Metrics with similarity bars */}
-            <p className="text-[10px] text-warm-muted/60 mt-3 mb-1 font-light">
+            <p className="text-[10px] text-text-muted/60 mt-3 mb-1 font-light">
               Bars show how similar each metric is to the template (hover for details)
             </p>
             {METRIC_GROUPS.map(group => (
               <div key={group.label}>
-                <div className="section-label pt-4 pb-1 border-b border-dark-border/50">
+                <div className="section-label pt-4 pb-1 border-b border-border/50">
                   {group.label}
                 </div>
                 {group.metrics.map(key => {
@@ -444,15 +440,15 @@ export default function ComparisonDetail() {
                   const sim = metricScore ? Math.round(metricScore.similarity * 100) : null;
                   const colorClass = metricScore ? getMetricColorFromScore(metricScore.similarity) : getMetricColor(key, leftVal, rightVal);
                   return (
-                    <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 border-b border-dark-border/30 last:border-0 gap-2">
-                      <span className="text-xs text-warm-muted uppercase tracking-wider flex-shrink-0">{METRIC_LABELS[key]}</span>
+                    <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 hover:bg-surface/40 rounded px-1 -mx-1 transition-colors gap-2">
+                      <span className="text-xs text-text-muted uppercase tracking-wider flex-shrink-0">{METRIC_LABELS[key]}</span>
                       <div className="flex items-center gap-2">
                         {sim != null && (
                           <div
-                            className="w-12 flex items-center gap-1 cursor-help"
+                            className="w-16 flex items-center cursor-help"
                             title={`${sim}% similarity — Template: ${formatMetric(key, leftVal)} vs Match: ${formatMetric(key, rightVal)}. ${sim >= 75 ? 'Strong match' : sim >= 40 ? 'Partial match' : 'Weak match'} on this metric.`}
                           >
-                            <div className="w-8 h-1.5 bg-dark-bg rounded-full overflow-hidden">
+                            <div className="w-16 h-1.5 bg-bg rounded-full overflow-hidden">
                               <div
                                 className="h-full rounded-full transition-all duration-500"
                                 style={{
@@ -461,7 +457,6 @@ export default function ComparisonDetail() {
                                 }}
                               />
                             </div>
-                            <span className="text-[9px] text-warm-muted w-8 text-right font-mono">{sim}%</span>
                           </div>
                         )}
                         <span className={`text-sm font-semibold font-mono ${colorClass}`}>
