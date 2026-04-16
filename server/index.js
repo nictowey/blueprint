@@ -93,7 +93,8 @@ function scheduleCatalystWarm() {
     ? parseInt(configured, 10)
     : 200;
   if (!Number.isFinite(topN) || topN <= 0) {
-    console.log(`[server] Catalyst warm skipped (CATALYST_WARM_TOP_N=${configured ?? 'unset'})`);
+    const display = configured && configured !== '' ? configured : 'unset';
+    console.log(`[server] Catalyst warm skipped (CATALYST_WARM_TOP_N=${display})`);
     return;
   }
 
@@ -114,7 +115,8 @@ function scheduleCatalystWarm() {
         console.warn('[server] Catalyst warm gave up — universe not ready after 30min');
         return;
       }
-      setTimeout(waitForUniverseThenWarm, POLL_INTERVAL_MS);
+      // .unref() so the timer doesn't keep the event loop alive on shutdown
+      setTimeout(waitForUniverseThenWarm, POLL_INTERVAL_MS).unref();
       return;
     }
 

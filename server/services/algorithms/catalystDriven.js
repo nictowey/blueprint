@@ -172,8 +172,10 @@ function rank({ universe, topN = 10 } = {}) {
 
     // Worst weighted shortfall = (1 - contribution) * weight, highest first.
     // Exclude anything that's already in topMatches to avoid duplicates.
+    // Idiom mirrors momentumBreakout.js — ascending then reverse.
     const topDifferences = [...presentContributions]
-      .sort((a, b) => ((1 - b.contribution) * b.weight) - ((1 - a.contribution) * a.weight))
+      .sort((a, b) => ((1 - a.contribution) * a.weight) - ((1 - b.contribution) * b.weight))
+      .reverse()
       .filter(c => !topMatchSet.has(c.signal))
       .slice(0, 3)
       .map(c => c.signal);
