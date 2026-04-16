@@ -369,6 +369,9 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Metrics with similarity bars */}
+            <p className="text-[10px] text-warm-muted/60 mt-3 mb-1 font-light">
+              Bars show how similar each metric is to the template (hover for details)
+            </p>
             {METRIC_GROUPS.map(group => (
               <div key={group.label}>
                 <div className="section-label pt-4 pb-1 border-b border-dark-border/50">
@@ -385,7 +388,10 @@ export default function ComparisonDetail() {
                       <span className="text-xs text-warm-muted uppercase tracking-wider flex-shrink-0">{METRIC_LABELS[key]}</span>
                       <div className="flex items-center gap-2">
                         {sim != null && (
-                          <div className="w-12 flex items-center gap-1" title={`${sim}% similar`}>
+                          <div
+                            className="w-12 flex items-center gap-1 cursor-help"
+                            title={`${sim}% similarity — Template: ${formatMetric(key, leftVal)} vs Match: ${formatMetric(key, rightVal)}. ${sim >= 75 ? 'Strong match' : sim >= 40 ? 'Partial match' : 'Weak match'} on this metric.`}
+                          >
                             <div className="w-8 h-1.5 bg-dark-bg rounded-full overflow-hidden">
                               <div
                                 className="h-full rounded-full transition-all duration-500"
