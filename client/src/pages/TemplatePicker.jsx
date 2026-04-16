@@ -13,12 +13,12 @@ function yesterday() {
 }
 
 const FAMOUS_BREAKOUTS = [
-  { ticker: 'CLS',  date: '2023-12-01', label: 'Celestica',   gain: '+490%',  period: 'Dec 2023' },
-  { ticker: 'NVDA', date: '2023-01-03', label: 'NVIDIA',      gain: '+800%',  period: 'Jan 2023' },
-  { ticker: 'SMCI', date: '2023-06-01', label: 'Super Micro', gain: '+320%',  period: 'Jun 2023' },
-  { ticker: 'PLTR', date: '2023-05-01', label: 'Palantir',    gain: '+350%',  period: 'May 2023' },
-  { ticker: 'META', date: '2023-02-01', label: 'Meta',         gain: '+430%',  period: 'Feb 2023' },
-  { ticker: 'AVGO', date: '2023-06-01', label: 'Broadcom',    gain: '+180%',  period: 'Jun 2023' },
+  { ticker: 'PLTR', date: '2023-05-01', label: 'Palantir',    gain: '+1,500%', period: 'May 2023' },
+  { ticker: 'NVDA', date: '2023-01-03', label: 'NVIDIA',      gain: '+1,280%', period: 'Jan 2023' },
+  { ticker: 'CLS',  date: '2023-12-01', label: 'Celestica',   gain: '+1,120%', period: 'Dec 2023' },
+  { ticker: 'META', date: '2023-02-01', label: 'Meta',         gain: '+340%',  period: 'Feb 2023' },
+  { ticker: 'AVGO', date: '2023-06-01', label: 'Broadcom',    gain: '+360%',  period: 'Jun 2023' },
+  { ticker: 'APP',  date: '2024-01-02', label: 'AppLovin',    gain: '+580%',  period: 'Jan 2024' },
 ];
 
 export default function TemplatePicker() {
