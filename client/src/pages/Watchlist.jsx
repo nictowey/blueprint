@@ -155,12 +155,17 @@ export default function WatchlistPage() {
             </svg>
           </div>
           <p className="text-warm-white text-lg mb-2 font-display">Your watchlist is empty</p>
-          <p className="text-warm-muted text-sm mb-6 max-w-sm mx-auto font-light">
+          <p className="text-warm-muted text-sm mb-4 max-w-sm mx-auto font-light">
             Find matching stocks and add them to your watchlist from the comparison page to track their performance.
           </p>
-          <button className="btn-primary" onClick={() => navigate('/')}>
+          <button className="btn-primary mb-4" onClick={() => navigate('/')}>
             Start screening →
           </button>
+          <p className="text-warm-muted text-xs font-light">
+            Or try a quick example: <button className="text-accent hover:underline" onClick={() => navigate('/matches?ticker=CLS&date=2023-12-01')}>CLS Dec 2023</button>
+            {' · '}
+            <button className="text-accent hover:underline" onClick={() => navigate('/matches?ticker=NVDA&date=2023-01-03')}>NVDA Jan 2023</button>
+          </p>
         </div>
       )}
 
