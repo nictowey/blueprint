@@ -252,7 +252,7 @@ export default function ComparisonDetail() {
         })()}
 
         {/* Trust signal — score-return correlation */}
-        {proofData?.aggregate?.correlation?.['12m']?.rho != null && (
+        {proofData?.aggregate?.correlation?.['12m']?.rho != null && proofData.aggregate.correlation['12m'].rho > 0.10 && (
           <p className="text-xs text-warm-muted mt-2">
             Higher scores have historically correlated with stronger forward returns
             <span className="text-warm-muted/60 font-mono ml-1">(rho: {proofData.aggregate.correlation['12m'].rho.toFixed(2)})</span>

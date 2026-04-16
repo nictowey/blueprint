@@ -352,13 +352,12 @@ export default function MatchResults() {
             </div>
 
             {/* Trust signal banner */}
-            {proofData?.aggregate?.periods?.['12m']?.alpha != null && (
+            {proofData?.aggregate?.periods?.['12m']?.alpha > 0 && (
               <div className="card bg-emerald-500/5 border-emerald-500/15 mb-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <p className="text-sm text-warm-gray">
                     <span className="text-emerald-400 font-semibold font-mono">
-                      {proofData.aggregate.periods['12m'].alpha > 0 ? '+' : ''}
-                      {proofData.aggregate.periods['12m'].alpha.toFixed(1)}% alpha
+                      +{proofData.aggregate.periods['12m'].alpha.toFixed(1)}% alpha
                     </span>
                     {' '}vs SPY across {proofData.aggregate.totalCases} historical breakouts over 12 months
                   </p>

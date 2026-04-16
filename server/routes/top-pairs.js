@@ -115,6 +115,12 @@ function scorePEG(stock) {
   // If growth is capped due to extreme values, PEG is distorted — skip
   if (stock.epsGrowthYoY != null && stock.epsGrowthYoY > MAX_EPS_GROWTH_FOR_SCORING) return null;
 
+  // If EPS growth is wildly outpacing revenue growth, PEG reflects recovery not growth — skip
+  if (stock.epsGrowthYoY != null && stock.revenueGrowthYoY != null && stock.revenueGrowthYoY > 0) {
+    const epsToRevRatio = stock.epsGrowthYoY / stock.revenueGrowthYoY;
+    if (epsToRevRatio > 5 && stock.epsGrowthYoY > 1.0) return null;
+  }
+
   let score;
   if (v <= 0.5) score = 0.90;                                   // <0.5: extremely attractive
   else if (v <= 1.0) score = 0.90 - (v - 0.5) / 0.5 * 0.15;   // 0.5-1.0: 0.75-0.90 (CLS at 0.30 → 0.90)
@@ -352,6 +358,22 @@ function scoreStock(stock) {
   // Growth quality penalty: strong revenue but negative earnings
   if (stock.revenueGrowthYoY > 0.15 && stock.epsGrowthYoY != null && stock.epsGrowthYoY < -0.10) {
     finalScore *= 0.92;
+  }
+
+  // Earnings recovery penalty: EPS growth vastly outpacing revenue growth
+  // indicates margin recovery or cost-cutting, not genuine breakout growth.
+  // A real breakout like CLS had 54% EPS / 17% rev = 3.2x ratio.
+  // An earnings recovery bank might have 250% EPS / 30% rev = 8.3x ratio.
+  // Penalize when EPS growth is >5x revenue growth AND EPS growth >100%.
+  if (stock.epsGrowthYoY != null && stock.revenueGrowthYoY > 0) {
+    const epsToRevRatio = stock.epsGrowthYoY / stock.revenueGrowthYoY;
+    if (epsToRevRatio > 5 && stock.epsGrowthYoY > 1.0) {
+      // Severe: EPS spiking 5x+ revenue with >100% EPS growth — likely recovery
+      finalScore *= 0.82;
+    } else if (epsToRevRatio > 3 && stock.epsGrowthYoY > 0.80) {
+      // Moderate: EPS growing 3x+ revenue with >80% EPS growth
+      finalScore *= 0.92;
+    }
   }
 
   finalScore = Math.min(99, Math.max(0, finalScore));

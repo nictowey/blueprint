@@ -258,7 +258,7 @@ export default function Proof() {
         <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
           <p>
             Blueprint compares stocks across <span className="text-warm-white font-medium">28 financial metrics</span> organized into
-            6 categories: valuation, profitability, growth, financial health, market dynamics, and size.
+            6 categories: valuation, profitability, growth, financial health, size, and technical indicators.
           </p>
           <p>
             Each category uses <span className="text-warm-white font-medium">specialized similarity functions</span> tuned

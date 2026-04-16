@@ -518,7 +518,7 @@ export default function TemplatePicker() {
               'Sector-relative scoring',
               'Momentum matching',
               'Forward backtesting vs SPY',
-              'Confidence scoring',
+              'Data coverage tracking',
               'CSV export',
               'Multi-template blending',
             ].map(f => (
