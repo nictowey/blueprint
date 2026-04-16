@@ -67,6 +67,16 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 sm:gap-2.5 mb-0.5 flex-wrap">
             <span className="font-mono font-bold text-warm-white text-base sm:text-lg group-hover:text-accent transition-colors duration-200">{match.ticker}</span>
+            <a
+              href={`https://finance.yahoo.com/quote/${match.ticker}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-warm-muted/40 hover:text-accent transition-colors"
+              title={`View ${match.ticker} on Yahoo Finance`}
+              onClick={e => e.stopPropagation()}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8M7 1h4v4M5 7l6-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </a>
             <span className="text-warm-gray text-sm truncate font-light">{match.companyName}</span>
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
