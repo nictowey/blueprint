@@ -25,11 +25,13 @@
 const registry = require('./registry');
 const templateMatch = require('./templateMatch');
 const momentumBreakout = require('./momentumBreakout');
+const catalystDriven = require('./catalystDriven');
 const ensembleConsensus = require('./ensembleConsensus');
 const { isInvestable } = require('./shared');
 
 registry.register(templateMatch);
 registry.register(momentumBreakout);
+registry.register(catalystDriven);
 registry.register(ensembleConsensus);
 
 const DEFAULT_ENGINE = templateMatch.key;

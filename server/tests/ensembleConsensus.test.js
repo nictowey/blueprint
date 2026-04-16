@@ -66,7 +66,7 @@ function fakeEngine(key, orderedTickers, { requiresTemplate = false } = {}) {
  * ensembleConsensus itself stays registered — we want the SUT untouched.
  */
 function withFakeRegistry(fakeEngines) {
-  const REAL_ENGINE_KEYS = ['templateMatch', 'momentumBreakout'];
+  const REAL_ENGINE_KEYS = ['templateMatch', 'momentumBreakout', 'catalystDriven'];
   const snapshot = {};
   for (const key of REAL_ENGINE_KEYS) {
     if (registry.ENGINES[key]) {

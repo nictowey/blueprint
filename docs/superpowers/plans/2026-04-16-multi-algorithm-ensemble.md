@@ -115,12 +115,12 @@ Each signal is scored 0..1 via a piecewise-linear function tuned for breakout se
 - Insider buying clusters — net share acquisition by insiders over trailing 90 days, normalized by market cap
 - Optional: relative-strength vs. sector over last 3 months
 
-- [ ] Extend `server/services/fmp.js` with the endpoints verified in Phase 0
-- [ ] Extend or create snapshot fields for catalyst signals (likely separate from the historical snapshot — these are current-state only for v1; historical backtesting gated on data availability)
-- [ ] Implement `server/services/algorithms/catalystDriven.js`
-- [ ] Register in engine registry; wire `/api/matches?algo=catalystDriven`
+- [x] Extend `server/services/fmp.js` with the endpoints verified in Phase 0
+- [x] Extend or create snapshot fields for catalyst signals (likely separate from the historical snapshot — these are current-state only for v1; historical backtesting gated on data availability)
+- [x] Implement `server/services/algorithms/catalystDriven.js`
+- [x] Register in engine registry; wire `/api/matches?algo=catalystDriven`
 - [ ] UI affordance: template-free mode
-- [ ] Unit tests
+- [x] Unit tests
 - [ ] Smoke test against live universe
 
 ---
@@ -223,3 +223,4 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
   ✗ /insider-trading-statistics         HTTP 404 (endpoint missing on plan)
   ```
   **Verdict:** all 3 catalyst signals (earnings-surprise, estimate-revisions, insider-buying) are buildable. Earnings-surprise must be computed client-side from `epsActual` vs `epsEstimated` on `/earnings` rather than served pre-packaged. Insider-buying uses `/insider-trading/latest` and aggregates client-side (no `/insider-trading-statistics`). Estimate-revisions has 3 working paths; `/grades-historical` is preferred for trend computation. **Phase 3 unblocked — proceeding.**
+- `2026-04-16`: **Phase 3 complete** (data layer 3a + engine 3b). Data layer shipped at `server/services/catalystSnapshot.js` — 24h in-memory cache, sequential FMP population, emits `{ earningsSurprise, estimateRevisions, insiderBuying }` in [-1, +1]. Engine shipped at `server/services/algorithms/catalystDriven.js` — template-free composite ranker with weights 0.40 / 0.35 / 0.25, `(s+1)/2` contribution mapping, MIN_SIGNALS_REQUIRED=2, same UI output shape as momentumBreakout. Registered in the engine registry; ensembleConsensus now picks it up automatically as a 3rd independent lens. Added startup hook in `server/index.js` that warms the catalyst cache for the top `CATALYST_WARM_TOP_N` tickers by market cap (default 200, non-blocking, skipped in tests). Route wiring required no changes — `/api/matches?algo=catalystDriven` already works through the existing template-free dispatch. 34 new unit tests (full suite 316, up from 282). **Still deferred:** smoke test against live universe (requires running server with warmed cache on desktop). **Next:** Phase 5 validation, or Phase 6 UI affordance for template-free mode.
