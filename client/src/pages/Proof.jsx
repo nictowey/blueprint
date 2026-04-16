@@ -150,17 +150,19 @@ export default function Proof() {
   const correlation = aggregate.correlation || {};
   const p12 = periods['12m'] || {};
   const totalMatches = cases.reduce((sum, c) => sum + (c.matches?.length || 0), 0);
-  const corrLabel = correlationLabel(correlation.rho ?? 0);
+  const rho12 = correlation['12m']?.rho ?? null;
+  const corrLabel = correlationLabel(rho12 ?? 0);
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* A. Hero */}
       <div className="text-center mb-10">
         <h1 className="text-2xl sm:text-3xl font-display text-warm-white mb-2">
-          How Blueprint Performs
+          Methodology & Validation
         </h1>
-        <p className="text-warm-gray text-sm font-light">
-          Walk-forward validation across {cases.length} historical case{cases.length !== 1 ? 's' : ''}
+        <p className="text-warm-gray text-sm font-light max-w-xl mx-auto">
+          Blueprint's matching algorithm tested against {cases.length} historical breakout cases using
+          reconstructed point-in-time financial data.
         </p>
       </div>
 
@@ -182,7 +184,7 @@ export default function Proof() {
 
         <StatCard label="Score-Return Correlation">
           <p className={`text-2xl font-bold font-mono ${corrLabel.color}`}>
-            {correlation.rho != null ? correlation.rho.toFixed(3) : '—'}
+            {rho12 != null ? rho12.toFixed(3) : '—'}
           </p>
           <p className={`text-xs mt-1 font-light ${corrLabel.color}`}>{corrLabel.text}</p>
         </StatCard>
@@ -218,7 +220,7 @@ export default function Proof() {
                     <SignedPct value={pd.avgReturn} />
                   </td>
                   <td className="px-3 py-2.5 text-center text-sm">
-                    <SignedPct value={pd.spyReturn} />
+                    <SignedPct value={pd.benchmarkReturn} />
                   </td>
                   <td className="px-3 py-2.5 text-center text-sm">
                     <SignedPct value={pd.alpha} />
@@ -230,7 +232,7 @@ export default function Proof() {
                       </span>
                     ) : <span className="text-warm-muted/40 font-mono">—</span>}
                   </td>
-                  <td className="px-3 py-2.5 text-center text-sm text-warm-gray font-mono">{pd.cases ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-center text-sm text-warm-gray font-mono">{pd.caseCount ?? '—'}</td>
                 </tr>
               );
             })}
