@@ -152,7 +152,7 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 - [x] Report hit rate, median forward return, and max drawdown at 1/3/6/12 months per engine
 - [x] Enforce **walk-forward construction** — only data available at template date is used (verify no peek-ahead in any engine); catalystDriven excluded (peek-ahead) + momentum/template confirmed safe
 - [x] Report consensus-top-N vs. individual-engine-top-N vs. random control side by side (fixture JSON v2; surfaced in aggregate.engines)
-- [ ] Update `client/src/pages/Proof.jsx` with per-engine methodology + backtest numbers *(Phase 5b)*
+- [x] Update `client/src/pages/Proof.jsx` with per-engine methodology + backtest numbers *(Phase 5b)*
 - [ ] Commit pre-computed proof data following the `2026-04-14-trustworthiness-proof-system` pattern (JSON fallback + Redis cache) *(requires fresh fixture regeneration — FMP API + ~30 min)*
 
 ---
@@ -161,7 +161,7 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 
 - [ ] Update `client/src/pages/TemplatePicker.jsx` — add algorithm selector; keep template input visible in templateMatch mode (preserves "find the next NVDA" hook)
 - [ ] Update homepage hero copy to support ensemble narrative without abandoning the NVDA/SMCI/PLTR rotating gains
-- [ ] Update `client/src/pages/Proof.jsx` methodology page with 3-engine explanation
+- [x] Update `client/src/pages/Proof.jsx` methodology page with 3-engine explanation
 - [ ] Update `README.md` with new architecture overview
 
 ---
@@ -234,3 +234,10 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
   - 24 new tests (16 in `tests/backtest.test.js`, 5 additional proof cases in `tests/proof.test.js`). Full suite 340 tests, up from 316. `proof-results.json` fixture intentionally NOT regenerated — the migration shim keeps the existing v1 fixture serving the UI until a real run-proof.js invocation produces v2.
   - **Deferred to Phase 5b:** `client/src/pages/Proof.jsx` update for per-engine methodology + per-engine rows.
   - **Deferred to Phase 5c:** regenerate the fixture (requires FMP API + long runtime) to produce real per-engine + random numbers.
+- `2026-04-16`: **Phase 5b complete + Phase 6 Proof methodology piece.** `client/src/pages/Proof.jsx` upgraded from a static marketing page to a data-driven surface.
+  - Adds `useState`/`useEffect` fetch of `/api/proof` with four display states: `loading` (shimmer skeleton), `success` (per-engine tables), `notReady` (404 → "results will appear after the next data run"), and `error` (network failure → quiet unavailable notice). Static methodology sections render identically in all states.
+  - New "Backtest Results" card rendered after "Why This Approach" and before "28 Financial Metrics". Iterates `ENGINE_ORDER = ['templateMatch', 'momentumBreakout', 'ensembleConsensus', 'random']` and only renders engines actually present in `aggregate.engines` — no empty boxes for the v1-shimmed fixture where only `templateMatch` exists. Null cells (`hitRateVsBenchmark`, `maxDrawdownPct`) render as `—`. `random` engine styled muted (`opacity-80`, `text-text-muted` label, lighter border) to emphasize it's a control group, not a strategy. Migration banner surfaces when `_migratedFromV1: true`. Catalyst-exclusion honesty note rendered below the tables.
+  - Methodology copy refreshed for the multi-engine story: hero subtitle now names the three active engines; stats row gains a 4th block ("4 ranking algorithms") alongside the existing 28/8/5; new "The Four Algorithms" card explains Template Match / Momentum Breakout / Catalyst Driven / Ensemble Consensus in 2-3 sentences each. "28 Financial Metrics" gains a scope clarifier ("these metrics drive the Template Match engine specifically"). Disclaimers card gains a third bullet about backtest interpretation + random control.
+  - Mobile-layout fix: added `w-full min-w-0` to the `<main>` element. Without it, the table's intrinsic min-content (~317px) combined with `<body>`'s flex-column parent forced main to 425px at 375px viewport, causing horizontal overflow. `min-w-0` lets main shrink to viewport and the inner `overflow-x-auto` table wrapper takes the horizontal scroll instead.
+  - All four display states visually verified via puppeteer against a local dev server (vite on 5174 + express on 3001). Success state verified by seeding a v1-shape `server/.cache/proof-results.json` that the migration shim expands to v2 — rendered as expected with `—` for null cells and migration banner showing. `notReady` verified by removing the fixture and restarting. `error` verified by killing the server. Console error-free in all states.
+  - No server-side changes, no new tests. Full suite still 338/338 passing across 15 suites.

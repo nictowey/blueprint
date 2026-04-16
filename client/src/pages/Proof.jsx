@@ -1,17 +1,262 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import WaitlistForm from '../components/WaitlistForm';
 
-export default function Proof() {
+// Engines we know how to render. Order matters — drives the display order.
+const ENGINE_ORDER = ['templateMatch', 'momentumBreakout', 'ensembleConsensus', 'random'];
+
+const ENGINE_LABELS = {
+  templateMatch: 'Template Match',
+  momentumBreakout: 'Momentum Breakout',
+  ensembleConsensus: 'Ensemble Consensus',
+  random: 'Random (control)',
+};
+
+const ENGINE_BLURBS = {
+  templateMatch:
+    'Finds companies whose 28-metric financial fingerprint resembles a historical breakout winner.',
+  momentumBreakout:
+    'Template-free technical scanner — 52-week-high proximity, MA50/MA200 positioning, RSI sweet spot, relative volume.',
+  ensembleConsensus:
+    'Orchestrator — runs the others and surfaces stocks ranked highly by multiple engines via Reciprocal Rank Fusion.',
+  random:
+    'Random-ticker baseline drawn from the same pre-filter pool. Not a strategy — the comparison point.',
+};
+
+const PERIODS = ['1m', '3m', '6m', '12m'];
+
+// "—" for missing values; consistent number formatting.
+function fmtPct(v, opts = {}) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  const decimals = opts.decimals ?? 1;
+  const sign = opts.signed && v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(decimals)}%`;
+}
+
+function fmtRate(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  // Rate fields on the server come as 0..1 (winRate, hitRateVsBenchmark).
+  return `${(v * 100).toFixed(0)}%`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return null;
+  }
+}
+
+function EngineTable({ engineKey, engineData }) {
+  const muted = engineKey === 'random';
+  const label = ENGINE_LABELS[engineKey] || engineKey;
+  const blurb = ENGINE_BLURBS[engineKey];
+  const periods = engineData?.periods || {};
+  const totalMatches = engineData?.totalMatches ?? null;
+  const totalCases = engineData?.totalCases ?? null;
+
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+    <div
+      className={
+        muted
+          ? 'border border-border/30 rounded-md p-4 mb-4 opacity-80'
+          : 'border border-border/50 rounded-md p-4 mb-4'
+      }
+    >
+      <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
+        <div>
+          <p
+            className={
+              muted
+                ? 'text-text-muted text-sm font-medium'
+                : 'text-text-primary text-sm font-medium'
+            }
+          >
+            {label}
+          </p>
+          {blurb && (
+            <p className="text-text-muted text-xs font-light mt-0.5">{blurb}</p>
+          )}
+        </div>
+        {(totalMatches !== null || totalCases !== null) && (
+          <p className="text-text-muted text-xs font-light">
+            {totalMatches ?? 0} matches across {totalCases ?? 0} cases
+          </p>
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-text-muted font-light border-b border-border/50">
+              <th className="text-left py-2 pr-3 font-light">Period</th>
+              <th className="text-right py-2 px-2 font-light">Avg Return</th>
+              <th className="text-right py-2 px-2 font-light">Median</th>
+              <th className="text-right py-2 px-2 font-light">Win Rate</th>
+              <th className="text-right py-2 px-2 font-light">Beat SPY</th>
+              <th className="text-right py-2 px-2 font-light">Alpha</th>
+              <th className="text-right py-2 pl-2 font-light">Max DD</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PERIODS.map((p) => {
+              const s = periods[p];
+              return (
+                <tr key={p} className="border-b border-border/30 last:border-0">
+                  <td className="py-2 pr-3 text-text-secondary">{p}</td>
+                  <td className="py-2 px-2 text-right text-text-primary font-medium">
+                    {fmtPct(s?.avgReturn, { signed: true })}
+                  </td>
+                  <td className="py-2 px-2 text-right text-text-secondary">
+                    {fmtPct(s?.medianReturn, { signed: true })}
+                  </td>
+                  <td className="py-2 px-2 text-right text-text-secondary">
+                    {fmtRate(s?.winRate)}
+                  </td>
+                  <td className="py-2 px-2 text-right text-text-secondary">
+                    {fmtRate(s?.hitRateVsBenchmark)}
+                  </td>
+                  <td className="py-2 px-2 text-right text-text-secondary">
+                    {fmtPct(s?.alpha, { signed: true })}
+                  </td>
+                  <td className="py-2 pl-2 text-right text-text-secondary">
+                    {fmtPct(s?.maxDrawdownPct)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BacktestResults({ state, data }) {
+  // Always render the same card shell so layout doesn't jump.
+  const generatedAt = fmtDate(data?.generatedAt);
+  const totalCases = data?.aggregate?.totalCases ?? null;
+  const totalMatches = data?.aggregate?.totalMatches ?? null;
+  const engineResults = data?.aggregate?.engines || {};
+  const migrated = !!data?._migratedFromV1;
+
+  // Preserve display order while only rendering engines actually present.
+  const presentEngines = ENGINE_ORDER.filter((k) => engineResults[k]);
+
+  return (
+    <div className="card mb-6">
+      <p className="section-label mb-3">Backtest Results</p>
+      <div className="divider-gold mb-4" />
+
+      {state === 'loading' && (
+        <div className="space-y-3">
+          <div className="h-4 bg-surface-hover rounded animate-shimmer w-2/3" />
+          <div className="h-20 bg-surface-hover rounded animate-shimmer" />
+          <div className="h-20 bg-surface-hover rounded animate-shimmer" />
+        </div>
+      )}
+
+      {state === 'notReady' && (
+        <p className="text-sm text-text-secondary font-light">
+          Backtest results will appear after the next data run. The engines are implemented and tested;
+          the historical fixture is regenerated separately.
+        </p>
+      )}
+
+      {state === 'error' && (
+        <p className="text-sm text-text-secondary font-light">
+          Backtest data unavailable right now. Methodology below still applies; historical numbers will
+          return once the proof service is reachable.
+        </p>
+      )}
+
+      {state === 'success' && (
+        <div className="text-sm font-light">
+          <div className="flex items-baseline justify-between gap-3 mb-4 flex-wrap">
+            <p className="text-text-secondary">
+              Per-engine performance vs SPY benchmark at 1/3/6/12-month horizons.
+            </p>
+            <p className="text-text-muted text-xs">
+              {totalCases !== null ? `${totalCases} test cases` : null}
+              {totalCases !== null && totalMatches !== null ? ' · ' : null}
+              {totalMatches !== null ? `${totalMatches} total matches` : null}
+              {generatedAt ? ` · generated ${generatedAt}` : null}
+            </p>
+          </div>
+
+          {migrated && (
+            <p className="text-xs text-text-muted font-light border border-border/30 rounded-md px-3 py-2 mb-4 bg-brand/5">
+              Current fixture carries only the Template Match engine. Momentum, Ensemble, and the
+              random control populate on the next regeneration of the proof run.
+            </p>
+          )}
+
+          {presentEngines.length === 0 && (
+            <p className="text-sm text-text-secondary">
+              No per-engine aggregates available in this fixture.
+            </p>
+          )}
+
+          {presentEngines.map((k) => (
+            <EngineTable key={k} engineKey={k} engineData={engineResults[k]} />
+          ))}
+
+          <p className="text-xs text-text-muted font-light mt-3 leading-relaxed">
+            Note: the Catalyst Driven engine is excluded from historical backtests because its data
+            sources (earnings surprises, analyst revisions, insider filings) reflect current
+            conditions — retroactive scores would peek ahead. Live performance will be tracked going
+            forward.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Proof() {
+  const [proofState, setProofState] = useState('loading'); // loading | success | error | notReady
+  const [proofData, setProofData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch('/api/proof');
+        if (!res.ok) {
+          if (cancelled) return;
+          if (res.status === 404) setProofState('notReady');
+          else setProofState('error');
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        setProofData(data);
+        setProofState('success');
+      } catch {
+        if (!cancelled) setProofState('error');
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <main className="max-w-4xl w-full min-w-0 mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* Hero */}
       <div className="text-center mb-10">
         <h1 className="text-2xl sm:text-3xl font-display text-text-primary mb-2">
           How Blueprint Works
         </h1>
         <p className="text-text-secondary text-sm font-light max-w-xl mx-auto">
-          Blueprint finds stocks with similar financial DNA to proven breakout winners
-          by comparing 28 metrics across 6 categories.
+          Blueprint runs multiple independent algorithms — template-matching on 28 financial metrics,
+          technical breakout detection, and live catalyst signals — then surfaces the stocks they
+          agree on. Each engine carries its own backtest record below.
         </p>
       </div>
 
@@ -47,10 +292,14 @@ export default function Proof() {
       </div>
 
       {/* Stats row */}
-      <div className="flex flex-wrap justify-center gap-6 mb-10 text-center">
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-3 sm:gap-6 mb-10 text-center">
+        <div>
+          <p className="text-xl font-display text-brand">4</p>
+          <p className="text-text-muted text-xs font-light">ranking algorithms</p>
+        </div>
         <div>
           <p className="text-xl font-display text-brand">28</p>
-          <p className="text-text-muted text-xs font-light">comparison metrics</p>
+          <p className="text-text-muted text-xs font-light">template metrics</p>
         </div>
         <div>
           <p className="text-xl font-display text-brand">8</p>
@@ -107,15 +356,66 @@ export default function Proof() {
             <span className="text-text-primary font-medium">Blueprint flips the approach.</span> Instead of defining
             criteria, you point at a company that already worked and the algorithm extracts the criteria from it.
             CLS had a P/E of 16.1, revenue growth of 17%, operating margin of 4.4% — Blueprint finds
-            current stocks that match all 28 of those metrics simultaneously.
+            current stocks that match all 28 of those metrics simultaneously. Three other engines then ask different
+            questions of the same universe (technical setup, catalyst signals, cross-engine consensus) so you don't
+            bet on one lens alone.
           </p>
         </div>
       </div>
 
-      {/* 28 Metrics */}
+      {/* Backtest Results — data-driven */}
+      <BacktestResults state={proofState} data={proofData} />
+
+      {/* Four Algorithms explanation */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">The Four Algorithms</p>
+        <div className="divider-gold mb-4" />
+        <div className="text-sm text-text-secondary leading-relaxed space-y-4 font-light">
+          <div>
+            <p className="text-text-primary font-medium">Template Match</p>
+            <p className="text-text-muted text-xs mt-1">
+              The original engine. Extracts a 28-metric financial fingerprint from a historical breakout
+              winner and ranks current stocks by fingerprint similarity, weighted by strategy profile
+              (growth, value, momentum, quality, GARP).
+            </p>
+          </div>
+          <div>
+            <p className="text-text-primary font-medium">Momentum Breakout</p>
+            <p className="text-text-muted text-xs mt-1">
+              Template-free technical scanner. Ranks by 5 price/volume signals — distance from 52-week
+              high, positioning vs 50-day and 200-day moving averages, RSI in the 60-70 sweet spot, and
+              relative volume. Answers "which stocks look coiled for a breakout right now."
+            </p>
+          </div>
+          <div>
+            <p className="text-text-primary font-medium">Catalyst Driven</p>
+            <p className="text-text-muted text-xs mt-1">
+              Template-free event scanner. Earnings surprises, analyst-revision breadth, and insider-buying
+              clusters combine into a composite catalyst score. Forward-looking only — excluded from
+              historical backtests because the source data reflects current conditions and any retroactive
+              score would peek ahead.
+            </p>
+          </div>
+          <div>
+            <p className="text-text-primary font-medium">Ensemble Consensus</p>
+            <p className="text-text-muted text-xs mt-1">
+              Orchestrator. Runs the other engines and fuses their rankings via Reciprocal Rank Fusion (RRF)
+              so stocks flagged by multiple lenses rise to the top. The backtest restricts consensus to the
+              two historically safe engines (Template Match + Momentum Breakout); live mode includes
+              Catalyst Driven as well.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 28 Metrics — scope clarified to Template Match engine */}
       <div className="card mb-6">
         <p className="section-label mb-3">28 Financial Metrics</p>
         <div className="divider-gold mb-4" />
+        <p className="text-xs text-text-muted font-light mb-4">
+          These metrics drive the Template Match engine specifically. Momentum Breakout and Catalyst Driven
+          use their own signal sets — see Backtest Results above.
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
           <div>
             <p className="text-text-primary font-medium mb-2">Valuation (6)</p>
@@ -226,8 +526,8 @@ export default function Proof() {
         <div className="text-sm text-text-secondary leading-relaxed space-y-3 font-light">
           <p>
             <span className="text-text-primary font-medium">5 strategy profiles</span> shift the metric weights
-            to match different investing styles. The same two stocks can score differently depending on
-            what you're looking for:
+            to match different investing styles within the Template Match engine. The same two stocks can score
+            differently depending on what you're looking for:
           </p>
           <div className="space-y-3 mt-3">
             <div>
@@ -287,6 +587,11 @@ export default function Proof() {
           <p className="text-xs text-text-muted leading-relaxed font-light">
             Data sourced from Financial Modeling Prep. While we validate data quality, we cannot guarantee
             100% accuracy of third-party financial data. Not financial advice.
+          </p>
+          <p className="text-xs text-text-muted leading-relaxed font-light">
+            Backtest results show retrospective performance of historical template-matching and
+            momentum-breakout selections. Past performance does not guarantee future results. A random-ticker
+            control group is included for comparison.
           </p>
         </div>
       </div>
