@@ -153,6 +153,52 @@ async function getShortInterest(ticker, throttle = true) {
   }
 }
 
+/**
+ * Recent quarterly earnings history for a ticker. Rows include actual and estimated
+ * EPS/revenue. FMP returns rows most-recent-first by `date`.
+ *
+ * Row shape: { symbol, date, epsActual, epsEstimated, revenueActual,
+ *              revenueEstimated, lastUpdated }
+ *
+ * Errors from `fmpGet` (HTTP failures, rate-limit exhaustion) propagate; the
+ * wrapper does not swallow them. Empty-but-successful responses return `[]`.
+ */
+async function getEarnings(ticker, limit = 8, throttle = true) {
+  const data = await fmpGet(`/earnings`, { symbol: ticker, limit }, throttle);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Historical analyst rating snapshots for a ticker. Each row is a point-in-time
+ * count of analyst ratings across five buckets.
+ *
+ * Row shape: { symbol, date, analystRatingsStrongBuy, analystRatingsBuy,
+ *              analystRatingsHold, analystRatingsSell, analystRatingsStrongSell }
+ *
+ * Used to compute estimate-revision deltas over time (today vs. ~90 days ago).
+ */
+async function getGradesHistorical(ticker, limit = 100, throttle = true) {
+  const data = await fmpGet(`/grades-historical`, { symbol: ticker, limit }, throttle);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * Recent insider-trading filings (Form 4) for a ticker. Rows include transaction
+ * type, buyer identity, shares transacted, and dates.
+ *
+ * Row shape: { symbol, filingDate, transactionDate, reportingCik, companyCik,
+ *              transactionType, securitiesOwned, securitiesTransacted,
+ *              reportingName, ... }
+ *
+ * Note: `transactionType` strings follow SEC Form 4 codes — e.g. "P-Purchase",
+ * "S-Sale", "A-Award", "M-Exercise". Buys vs. sells are detected via substring
+ * match on that code.
+ */
+async function getInsiderTradingLatest(ticker, limit = 100, throttle = true) {
+  const data = await fmpGet(`/insider-trading/latest`, { symbol: ticker, limit }, throttle);
+  return Array.isArray(data) ? data : [];
+}
+
 module.exports = {
   searchTickers,
   getProfile,
@@ -166,4 +212,7 @@ module.exports = {
   getShortInterest,
   getBalanceSheet,
   getCashFlowStatement,
+  getEarnings,
+  getGradesHistorical,
+  getInsiderTradingLatest,
 };
