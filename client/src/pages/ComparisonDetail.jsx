@@ -307,6 +307,52 @@ export default function ComparisonDetail() {
               <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
             </div>
 
+            {/* TTM Data Provenance */}
+            {data.template.ttmBreakdown && data.template.ttmBreakdown.length > 0 && (
+              <details className="mb-4 text-xs">
+                <summary className="text-warm-muted/60 cursor-pointer hover:text-warm-muted transition-colors">
+                  Show quarterly data behind TTM calculations
+                </summary>
+                <div className="mt-2 bg-dark-bg rounded-lg p-3 border border-dark-border/30">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-warm-muted/60">
+                        <th className="text-left pb-1 font-normal">Quarter</th>
+                        <th className="text-right pb-1 font-normal">Revenue</th>
+                        <th className="text-right pb-1 font-normal">EPS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.template.ttmBreakdown.map(q => (
+                        <tr key={q.date} className="border-t border-dark-border/20">
+                          <td className="py-1 text-warm-gray font-mono">{q.date}</td>
+                          <td className="py-1 text-right text-warm-white font-mono">${(q.revenue / 1e9).toFixed(2)}B</td>
+                          <td className="py-1 text-right text-warm-white font-mono">${q.eps?.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t border-dark-border/50 font-semibold">
+                        <td className="py-1 text-warm-muted">TTM Total</td>
+                        <td className="py-1 text-right text-accent font-mono">
+                          ${(data.template.ttmBreakdown.reduce((s, q) => s + (q.revenue || 0), 0) / 1e9).toFixed(2)}B
+                        </td>
+                        <td className="py-1 text-right text-accent font-mono">
+                          ${data.template.ttmBreakdown.reduce((s, q) => s + (q.eps || 0), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {data.template.priorTtmRevenue != null && (
+                    <p className="text-warm-muted/60 mt-2">
+                      Prior TTM Revenue: <span className="text-warm-gray font-mono">${(data.template.priorTtmRevenue / 1e9).toFixed(2)}B</span>
+                      {' → '}Revenue Growth: <span className="text-emerald-400 font-mono">
+                        {((data.template.ttmBreakdown.reduce((s, q) => s + (q.revenue || 0), 0) / data.template.priorTtmRevenue - 1) * 100).toFixed(1)}%
+                      </span>
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
+
             {/* Price */}
             <div className="flex items-center justify-between py-3 border-b border-dark-border mb-1">
               <span className="section-label">Price</span>

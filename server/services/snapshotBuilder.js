@@ -202,6 +202,13 @@ async function buildSnapshot(ticker, date, throttle = true) {
     // Metadata
     dataAsOf:          mostRecentQuarterDate,
     ttmQuarters:       ttmQuarterCount,
+    // Data provenance — quarterly figures behind key TTM metrics
+    ttmBreakdown: ttmIncomeQ.length >= 4 ? ttmIncomeQ.slice(0, 4).map(q => ({
+      date: q.date,
+      revenue: q.revenue,
+      eps: q.eps,
+    })) : null,
+    priorTtmRevenue: priorTtm ? priorTtm.revenue : null,
   };
 }
 
