@@ -28,7 +28,12 @@ const INSIDER_LIMIT = 100;
 const INSIDER_WINDOW_DAYS = 90;
 const REVISION_WINDOW_DAYS = 90;
 const REVISION_MIN_GAP_DAYS = 30;
+const REVISION_MAX_GAP_DAYS = 180;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Avoid div-by-zero / surprise% explosion when consensus EPS estimate is near zero.
+// 0.01 = $0.01 per share — anything below this and "% surprise" is meaningless noise.
+const EARNINGS_MIN_DENOMINATOR = 0.01;
 
 const state = {
   cache: new Map(),
@@ -83,7 +88,7 @@ function scoreEarningsSurprise(earnings) {
 
   const recent = usable.slice(0, 2);
   const surprises = recent.map(r => {
-    const denom = Math.max(Math.abs(r.epsEstimated), 0.01);
+    const denom = Math.max(Math.abs(r.epsEstimated), EARNINGS_MIN_DENOMINATOR);
     return (r.epsActual - r.epsEstimated) / denom;
   });
 
@@ -144,6 +149,7 @@ function scoreEstimateRevisions(grades) {
 
   const gapDays = (latestDate.getTime() - new Date(older.date).getTime()) / DAY_MS;
   if (gapDays < REVISION_MIN_GAP_DAYS) return null;
+  if (gapDays > REVISION_MAX_GAP_DAYS) return null;
 
   const bullLatest = gradeRowBullishness(latest);
   const bullOlder = gradeRowBullishness(older);
@@ -157,6 +163,7 @@ function scoreEstimateRevisions(grades) {
 // Signal: insiderBuying
 // ---------------------------------------------------------------------------
 
+// TODO(phase-3c): calibrate breakpoints against historical winners — values are pre-calibration heuristics
 const INSIDER_BUYERS_POINTS = [
   [0, 0],
   [1, 0.3],
@@ -175,6 +182,14 @@ function isBuyTransaction(row) {
  * Maps the count of distinct insider buyers to [0, 1]. Insider sales are not
  * currently scored (future work could net them out). Returns `null` if no
  * insider rows fall in the window.
+ *
+ * Spec deviation: the spec called for net share volume normalized by market
+ * cap. We use distinct-buyer count instead — Lakonishok & Lee (2001) show
+ * cluster buying (multiple insiders, regardless of dollar amount) is a
+ * stronger forward-return predictor than dollar volume, which is dominated
+ * by 1-2 large CEO stakes. Tradeoff: small companies and large companies
+ * score on the same scale, but we already filter non-investable on
+ * isInvestable.
  */
 function scoreInsiderBuying(insiderRows) {
   if (!Array.isArray(insiderRows) || insiderRows.length === 0) return null;
@@ -196,20 +211,6 @@ function scoreInsiderBuying(insiderRows) {
     buys.map(r => r.reportingName).filter(Boolean)
   ).size;
 
-  // Sum shares bought; rows without securitiesTransacted fall back to 0
-  // (we don't substitute securitiesOwned — that's post-trade holdings, not
-  // trade size). Kept here in case a future caller wants the aggregate.
-  let sharesBought = 0;
-  for (const r of buys) {
-    if (r.securitiesTransacted != null && isFinite(r.securitiesTransacted)) {
-      sharesBought += Number(r.securitiesTransacted);
-    } else if (process.env.CATALYST_DEBUG) {
-      console.debug(
-        `[catalystSnapshot] missing securitiesTransacted for ${r.symbol} ${r.transactionDate} ${r.reportingName}`
-      );
-    }
-  }
-
   return piecewise(distinctBuyers, INSIDER_BUYERS_POINTS);
 }
 
@@ -226,10 +227,29 @@ function deriveSignals({ earnings, gradesHistorical, insiderTrading }) {
 }
 
 async function fetchCatalystData(ticker) {
-  // Strictly sequential — FMP 220ms/call rate limit, never parallel batches
-  const earnings = await fmp.getEarnings(ticker, EARNINGS_LIMIT);
-  const gradesHistorical = await fmp.getGradesHistorical(ticker, GRADES_LIMIT);
-  const insiderTrading = await fmp.getInsiderTradingLatest(ticker, INSIDER_LIMIT);
+  // Strictly sequential — FMP 220ms/call rate limit, never parallel batches.
+  // Each call is wrapped so a failure can identify which endpoint broke.
+  let earnings;
+  try {
+    earnings = await fmp.getEarnings(ticker, EARNINGS_LIMIT);
+  } catch (err) {
+    err.endpoint = 'getEarnings';
+    throw err;
+  }
+  let gradesHistorical;
+  try {
+    gradesHistorical = await fmp.getGradesHistorical(ticker, GRADES_LIMIT);
+  } catch (err) {
+    err.endpoint = 'getGradesHistorical';
+    throw err;
+  }
+  let insiderTrading;
+  try {
+    insiderTrading = await fmp.getInsiderTradingLatest(ticker, INSIDER_LIMIT);
+  } catch (err) {
+    err.endpoint = 'getInsiderTradingLatest';
+    throw err;
+  }
   return { earnings, gradesHistorical, insiderTrading };
 }
 
@@ -268,21 +288,31 @@ async function populateCatalystCache(tickers, options = {}) {
       } else {
         const raw = await fetchCatalystData(ticker);
         const signals = deriveSignals(raw);
-        state.cache.set(ticker, {
+        // Freeze the entry and all nested structures so downstream engines
+        // can't corrupt cached data by mutating `snap.signals` or pushing
+        // into `snap.earnings`. Shallow freezes on arrays of API objects are
+        // sufficient — we don't deep-clone (wasteful) and mutation attempts
+        // on frozen structures surface as TypeError in strict mode.
+        const entry = {
           ticker,
           fetchedAt: Date.now(),
-          earnings: raw.earnings,
-          gradesHistorical: raw.gradesHistorical,
-          insiderTrading: raw.insiderTrading,
-          signals,
-        });
+          earnings: Object.freeze(raw.earnings),
+          gradesHistorical: Object.freeze(raw.gradesHistorical),
+          insiderTrading: Object.freeze(raw.insiderTrading),
+          signals: Object.freeze(signals),
+        };
+        state.cache.set(ticker, Object.freeze(entry));
         summary.fetched += 1;
         status = 'fetched';
       }
     } catch (err) {
       summary.failed += 1;
       status = 'failed';
-      console.warn(`[catalystSnapshot] Failed ${ticker}: ${err.message}`);
+      const endpoint = err && err.endpoint ? err.endpoint : 'unknown';
+      const progress = `${i + 1}/${list.length}`;
+      console.warn(
+        `[catalystSnapshot] Failed ${progress} ${ticker} (${endpoint}): ${err.message}\n${err.stack || ''}`
+      );
     }
     if (typeof onProgress === 'function') {
       try {

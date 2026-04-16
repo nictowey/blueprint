@@ -461,11 +461,20 @@ describe('populateCatalystCache', () => {
   test('expired TTL entries are refetched', async () => {
     await catalyst.populateCatalystCache(['AAPL']);
     const snap = catalyst.getCatalystSnapshot('AAPL');
-    // Manually backdate fetchedAt beyond the 24h TTL
-    snap.fetchedAt = Date.now() - (catalyst.CATALYST_CACHE_TTL_MS + 1000);
+    expect(snap).not.toBeNull();
 
-    const summary = await catalyst.populateCatalystCache(['AAPL']);
-    expect(summary).toEqual({ fetched: 1, failed: 0, skipped: 0 });
+    // Advance Date.now past the TTL so the next populate sees the entry as stale.
+    // The entry is frozen, so we can't backdate fetchedAt directly; moving
+    // "now" forward is equivalent and exercises the same code path.
+    const originalNow = Date.now;
+    const advanceMs = catalyst.CATALYST_CACHE_TTL_MS + 1000;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => originalNow() + advanceMs);
+    try {
+      const summary = await catalyst.populateCatalystCache(['AAPL']);
+      expect(summary).toEqual({ fetched: 1, failed: 0, skipped: 0 });
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   test('an error on one ticker does not kill the loop', async () => {
