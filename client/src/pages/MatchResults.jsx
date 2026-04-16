@@ -273,8 +273,15 @@ export default function MatchResults() {
 
       {/* Error state */}
       {error && !loading && (
-        <div className="card border-red-500/20 text-red-400 text-sm">
-          {error}
+        <div className="card border-red-500/20 bg-red-500/5 text-center py-6">
+          <p className="text-red-400 text-sm font-medium mb-2">Something went wrong</p>
+          <p className="text-warm-muted text-xs mb-4 font-light max-w-md mx-auto">{error}</p>
+          <button
+            className="btn-secondary text-xs px-4 py-1.5"
+            onClick={() => { setError(null); setLoading(true); retriesLeft.current = MAX_RETRIES; fetchMatches(); }}
+          >
+            Try again
+          </button>
         </div>
       )}
 
