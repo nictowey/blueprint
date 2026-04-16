@@ -301,22 +301,47 @@ export default function ComparisonDetail() {
               )}
             </div>
 
-            {/* Sparkline — what happened after the snapshot */}
+            {/* Sparkline */}
+            <div className="bg-bg rounded-lg p-3 sm:p-4 mb-4 h-[120px] sm:h-[140px] border border-border/30">
+              <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
+            </div>
+
+            {/* Price */}
+            <div className="flex items-center justify-between py-3 border-b border-border mb-1">
+              <span className="section-label">Price</span>
+              <span className="text-sm font-semibold text-text-primary font-mono">
+                {formatMetric('price', data.template.price)}
+              </span>
+            </div>
+
+            {/* Metrics */}
+            {METRIC_GROUPS.map(group => (
+              <div key={group.label}>
+                <div className="section-label pt-4 pb-1 border-b border-border/50">
+                  {group.label}
+                </div>
+                {group.metrics.map(key => (
+                  <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 hover:bg-surface/40 rounded px-1 -mx-1 transition-colors">
+                    <span className="text-xs text-text-muted uppercase tracking-wider">{METRIC_LABELS[key]}</span>
+                    <span className={`text-sm font-semibold font-mono ${data.template[key] == null ? 'text-text-muted/40' : 'text-text-primary'}`}>
+                      {formatMetric(key, data.template[key])}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            {/* Post-snapshot performance + TTM breakdown (after metrics to keep alignment) */}
             {data.sparklineGainPct != null && (
-              <p className="text-xs text-text-muted mb-1 font-light">
-                What happened after this snapshot
+              <p className="text-xs text-text-muted mt-6 pt-4 border-t border-border/30 font-light">
+                Post-snapshot performance:
                 <span className={`ml-1 font-mono font-semibold ${data.sparklineGainPct > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {data.sparklineGainPct > 0 ? '+' : ''}{data.sparklineGainPct.toFixed(1)}% over 18 months
                 </span>
               </p>
             )}
-            <div className="bg-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-border/30">
-              <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
-            </div>
-
-            {/* TTM Data Provenance */}
             {data.template.ttmBreakdown && data.template.ttmBreakdown.length > 0 && (
-              <details className="mb-4 text-xs">
+              <details className="mt-3 text-xs">
                 <summary className="text-text-muted/60 cursor-pointer hover:text-text-muted transition-colors">
                   Show quarterly data behind TTM calculations
                 </summary>
@@ -359,31 +384,6 @@ export default function ComparisonDetail() {
                 </div>
               </details>
             )}
-
-            {/* Price */}
-            <div className="flex items-center justify-between py-3 border-b border-border mb-1">
-              <span className="section-label">Price</span>
-              <span className="text-sm font-semibold text-text-primary font-mono">
-                {formatMetric('price', data.template.price)}
-              </span>
-            </div>
-
-            {/* Metrics */}
-            {METRIC_GROUPS.map(group => (
-              <div key={group.label}>
-                <div className="section-label pt-4 pb-1 border-b border-border/50">
-                  {group.label}
-                </div>
-                {group.metrics.map(key => (
-                  <div key={key} className="flex items-center justify-between py-2 sm:py-2.5 hover:bg-surface/40 rounded px-1 -mx-1 transition-colors">
-                    <span className="text-xs text-text-muted uppercase tracking-wider">{METRIC_LABELS[key]}</span>
-                    <span className={`text-sm font-semibold font-mono ${data.template[key] == null ? 'text-text-muted/40' : 'text-text-primary'}`}>
-                      {formatMetric(key, data.template[key])}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ))}
           </div>
 
           {/* RIGHT PANEL — Match (current) */}
@@ -407,7 +407,7 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Match sparkline */}
-            <div className="bg-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-border/30">
+            <div className="bg-bg rounded-lg p-3 sm:p-4 mb-4 h-[120px] sm:h-[140px] border border-border/30">
               <Sparkline
                 data={data.matchSparkline}
                 gainPct={data.matchSparklineGainPct}
@@ -425,9 +425,6 @@ export default function ComparisonDetail() {
             </div>
 
             {/* Metrics with similarity bars */}
-            <p className="text-[10px] text-text-muted/60 mt-3 mb-1 font-light">
-              Bars show how similar each metric is to the template (hover for details)
-            </p>
             {METRIC_GROUPS.map(group => (
               <div key={group.label}>
                 <div className="section-label pt-4 pb-1 border-b border-border/50">
