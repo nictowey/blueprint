@@ -43,11 +43,24 @@ Each engine exports a common interface — roughly `rank({ template?, universe, 
 
 Catalyst-driven engine depends on FMP endpoints we don't currently consume. Confirm availability and plan-tier access **before** scoping Phase 3.
 
-- [ ] Verify FMP `earnings-surprises` endpoint availability at current plan tier
-- [ ] Verify FMP `analyst-estimates` (or `upgrades-downgrades-consensus`) availability
-- [ ] Verify FMP `insider-trading` endpoint availability
-- [ ] Document which endpoints are missing and whether an alternative data source is needed
-- [ ] If a critical endpoint is missing, decide: upgrade plan, substitute algorithm, or defer catalyst engine
+**Run on local desktop (FMP_API_KEY required, lives in local `.env` only):**
+
+```bash
+node server/scripts/verify-fmp-endpoints.js
+# or with a different ticker:
+node server/scripts/verify-fmp-endpoints.js --ticker NVDA
+```
+
+The script probes each candidate endpoint, reports HTTP status + response shape, then groups results by catalyst signal (earnings surprise, estimate revisions, insider buying) and prints a verdict.
+
+**To extend coverage:** edit the `ENDPOINTS_TO_PROBE` (i.e. `buildEndpoints()`) array at the top of `server/scripts/verify-fmp-endpoints.js` to add new endpoints. The script auto-handles auth, status codes, and shape checks.
+
+- [x] Verification script created (`server/scripts/verify-fmp-endpoints.js`)
+- [ ] **(Run locally)** Verify FMP `earnings-surprises` (or `/earnings`) availability at current plan tier
+- [ ] **(Run locally)** Verify FMP `analyst-estimates`, `grades-consensus`, or `grades-historical` availability
+- [ ] **(Run locally)** Verify FMP `insider-trading/latest` or `insider-trading-statistics` availability
+- [ ] **(Run locally)** Paste the script output into the Progress Log below so future sessions know which signals are usable
+- [ ] If a critical signal has no available path, decide: upgrade FMP plan, substitute alternative data source, or scope catalyst engine down to available signals only
 
 ---
 
@@ -183,3 +196,4 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 
 - `2026-04-16`: Roadmap created. No implementation work started. Strategic direction locked: pluggable architecture + ensemble consensus, template-match preserved as featured engine.
 - `2026-04-16`: **Phase 1 complete** (additive variant). Added `server/services/algorithms/{index.js, templateMatch.js}` with engine registry + shared `rank({ template, universe, topN, options })` contract. Wired `?algo=` query param with whitelist validation into `server/routes/matches.js`, defaulting to `templateMatch` when absent. All 86 existing tests across matcher/matches/similarity suites pass — zero behavior change. Live smoke test deferred (needs FMP API key in dev environment). **Next:** Phase 0 (verify FMP catalyst endpoints) or Phase 2 (momentum/volume engine). Phase 2 is buildable today because it only needs snapshot data we already have.
+- `2026-04-16`: **Phase 0 partially complete** — verification script `server/scripts/verify-fmp-endpoints.js` shipped. The web environment doesn't have access to the local `.env`/`FMP_API_KEY` so the script needs to be run from the desktop. Probes 7 candidate endpoints across the 3 catalyst signal groups (earnings surprises, analyst grades/estimates, insider trading). Once run, paste the output here so we know which signals Phase 3 can rely on.
