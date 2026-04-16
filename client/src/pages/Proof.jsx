@@ -170,35 +170,65 @@ export default function Proof() {
       {/* A. Hero */}
       <div className="text-center mb-10">
         <h1 className="text-2xl sm:text-3xl font-display text-warm-white mb-2">
-          Methodology & Validation
+          Methodology
         </h1>
         <p className="text-warm-gray text-sm font-light max-w-xl mx-auto">
-          Blueprint's matching algorithm tested against {cases.length} historical breakout cases using
-          reconstructed point-in-time financial data.
+          How Blueprint finds stocks with similar financial DNA to proven breakout winners.
         </p>
       </div>
 
-      {/* B. Aggregate stat cards */}
-      <div className="flex flex-wrap gap-3 mb-8">
-        <StatCard label="12-Month Alpha vs SPY">
-          <p className={`text-2xl font-bold font-mono ${(p12.alpha ?? 0) > 0 ? 'text-emerald-400' : (p12.alpha ?? 0) < 0 ? 'text-red-400' : 'text-warm-white'}`}>
-            {p12.alpha != null ? `${p12.alpha > 0 ? '+' : ''}${p12.alpha.toFixed(1)}%` : '—'}
+      {/* B. Methodology — FIRST, before data */}
+      <div className="card mb-8">
+        <p className="section-label mb-3">How It Works</p>
+        <div className="divider-gold mb-4" />
+        <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
+          <p>
+            Blueprint compares stocks across <span className="text-warm-white font-medium">28 financial metrics</span> organized into
+            6 categories: valuation, profitability, growth, financial health, size, and technical indicators.
           </p>
-          <p className="text-xs text-warm-muted mt-1 font-light">Average excess return</p>
+          <p>
+            Each category uses <span className="text-warm-white font-medium">specialized similarity functions</span> tuned
+            to the metric type — log-ratio for valuations and market caps, hybrid absolute/relative for margins,
+            dampened comparison for growth rates, and bounded scales for technical indicators.
+          </p>
+          <p>
+            Categories are weighted by relevance to breakout detection: <span className="text-warm-white font-medium">Growth and Profitability (25% each)</span> are
+            the strongest signals, followed by Valuation (22%), Financial Health and Technical (10% each), and Size (8%).
+          </p>
+          <p>
+            <span className="text-warm-white font-medium">5 strategy profiles</span> shift these weights to match different investing styles —
+            Growth Breakout emphasizes revenue acceleration, Value Inflection prioritizes cheap valuations,
+            and Quality Compounder focuses on returns on capital.
+          </p>
+        </div>
+      </div>
+
+      {/* C. Key stats — honest, framed as validation context */}
+      <p className="section-label mb-4">Walk-Forward Validation</p>
+      <p className="text-sm text-warm-gray font-light mb-4 max-w-2xl">
+        We tested the algorithm against {cases.length} historical breakout cases using reconstructed point-in-time financial data.
+        Here's how the top matches performed.
+      </p>
+      <div className="flex flex-wrap gap-3 mb-8">
+        <StatCard label="Avg 12-Month Return">
+          <p className={`text-2xl font-bold font-mono ${(p12.avgReturn ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {p12.avgReturn != null ? `${p12.avgReturn > 0 ? '+' : ''}${p12.avgReturn.toFixed(1)}%` : '—'}
+          </p>
+          <p className="text-xs text-warm-muted mt-1 font-light">Across all matches</p>
         </StatCard>
 
         <StatCard label="12-Month Win Rate">
           <p className={`text-2xl font-bold font-mono ${(p12.winRate ?? 0) >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
             {p12.winRate != null ? `${p12.winRate.toFixed(0)}%` : '—'}
           </p>
-          <p className="text-xs text-warm-muted mt-1 font-light">% beating SPY</p>
+          <p className="text-xs text-warm-muted mt-1 font-light">% of matches with positive returns</p>
         </StatCard>
 
-        <StatCard label="Score-Return Correlation">
-          <p className={`text-2xl font-bold font-mono ${corrLabel.color}`}>
-            {rho12 != null ? rho12.toFixed(3) : '—'}
+        <StatCard label="SPY Benchmark">
+          <p className="text-2xl font-bold font-mono text-warm-gray">
+            {p12.benchmarkReturn != null ? `+${p12.benchmarkReturn.toFixed(1)}%` : '—'}
           </p>
-          <p className={`text-xs mt-1 font-light ${corrLabel.color}`}>{corrLabel.text}</p>
+          <p className="text-xs text-warm-muted mt-1 font-light">Same period average</p>
         </StatCard>
 
         <StatCard label="Cases Tested">
@@ -265,32 +295,7 @@ export default function Proof() {
         </div>
       )}
 
-      {/* E. Methodology */}
-      <div className="card mb-8">
-        <p className="section-label mb-3">Methodology</p>
-        <div className="divider-gold mb-4" />
-        <div className="text-sm text-warm-gray leading-relaxed space-y-3 font-light">
-          <p>
-            Blueprint compares stocks across <span className="text-warm-white font-medium">28 financial metrics</span> organized into
-            6 categories: valuation, profitability, growth, financial health, size, and technical indicators.
-          </p>
-          <p>
-            Each category uses <span className="text-warm-white font-medium">specialized similarity functions</span> tuned
-            to the metric type — log-ratio for valuations and market caps, absolute difference for margins and ratios,
-            and proportional scaling for growth rates.
-          </p>
-          <p>
-            Historical snapshots are <span className="text-warm-white font-medium">reconstructed from point-in-time data</span>,
-            using only financials that were actually reported as of the template date, preventing look-ahead bias.
-          </p>
-          <p>
-            Walk-forward validation tests each case by running the matching algorithm on a historical date, then measuring
-            how the top matches performed over the following 1, 3, 6, and 12 months versus SPY.
-          </p>
-        </div>
-      </div>
-
-      {/* F. Disclaimers */}
+      {/* E. Disclaimers */}
       {disclaimers.length > 0 && (
         <div className="card border-amber-500/15 bg-amber-500/5">
           <p className="section-label mb-3">Disclaimers</p>
