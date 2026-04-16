@@ -379,31 +379,22 @@ export default function MatchResults() {
               return null;
             })()}
 
-            {/* Match profile selector */}
-            {profiles.length > 0 && (
-              <div className="card mb-5 border-dark-border/50">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <label className="section-label shrink-0">Strategy</label>
-                    <select
-                      className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
-                      value={activeProfile}
-                      onChange={e => setActiveProfile(e.target.value)}
-                    >
-                      {profiles.map(p => (
-                        <option key={p.key} value={p.key}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="text-xs text-warm-gray sm:ml-2 leading-relaxed font-light">
-                    {profiles.find(p => p.key === activeProfile)?.description || ''}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Filters row */}
+            {/* Controls row — strategy, sector, sort in one compact line */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-5">
+              {profiles.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="section-label shrink-0">Strategy</label>
+                  <select
+                    className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
+                    value={activeProfile}
+                    onChange={e => setActiveProfile(e.target.value)}
+                  >
+                    {profiles.map(p => (
+                      <option key={p.key} value={p.key}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <label className="section-label shrink-0">Sector</label>
                 <select
@@ -420,7 +411,6 @@ export default function MatchResults() {
                   ))}
                 </select>
               </div>
-
               <div className="flex items-center gap-2 sm:ml-auto">
                 <label className="section-label shrink-0">Sort</label>
                 <select
