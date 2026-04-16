@@ -346,6 +346,38 @@ export default function TemplatePicker() {
                   setDate(val);
                 }}
               />
+              {datePickerReady && !dateRangeLoading && (
+                <div className="flex gap-1 mt-1.5">
+                  {[
+                    { label: '6mo', months: 6 },
+                    { label: '1yr', months: 12 },
+                    { label: '2yr', months: 24 },
+                    { label: '3yr', months: 36 },
+                  ].map(({ label, months }) => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - months);
+                    const dateStr = d.toISOString().slice(0, 10);
+                    const earliest = dateRange?.earliestDate;
+                    const disabled = earliest && dateStr < earliest;
+                    return (
+                      <button
+                        key={label}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors duration-150 ${
+                          disabled
+                            ? 'border-dark-border/30 text-warm-muted/30 cursor-not-allowed'
+                            : date === dateStr
+                              ? 'border-accent/40 bg-accent/10 text-accent'
+                              : 'border-dark-border/50 text-warm-muted hover:border-warm-muted hover:text-warm-gray'
+                        }`}
+                        disabled={disabled}
+                        onClick={() => setDate(dateStr)}
+                      >
+                        {label} ago
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {dateRangeLoading && (
                 <p className="text-[10px] text-warm-muted mt-1 flex items-center gap-1">
                   <span className="w-2.5 h-2.5 border border-warm-muted/50 border-t-warm-gray rounded-full animate-spin" />
