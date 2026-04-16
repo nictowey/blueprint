@@ -85,12 +85,12 @@ export default function WatchlistPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 animate-fade-in">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display text-warm-white">Watchlist</h1>
-          <p className="text-sm text-warm-muted mt-1 font-light">
+          <h1 className="text-2xl sm:text-3xl font-display text-text-primary">Watchlist</h1>
+          <p className="text-sm text-text-muted mt-1 font-light">
             {items.length === 0 ? 'No stocks saved yet' : `${items.length} stock${items.length > 1 ? 's' : ''} tracked`}
           </p>
         </div>
@@ -126,7 +126,7 @@ export default function WatchlistPage() {
             >
               {loadingLive ? (
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 border border-warm-muted/50 border-t-warm-gray rounded-full animate-spin" />
+                  <span className="w-3 h-3 border border-text-muted/50 border-t-text-secondary rounded-full animate-spin" />
                   Refreshing…
                 </span>
               ) : 'Refresh'}
@@ -148,23 +148,23 @@ export default function WatchlistPage() {
 
       {/* Empty state */}
       {items.length === 0 && (
-        <div className="card text-center py-16">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent/10 flex items-center justify-center">
+        <div className="card text-center py-10">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-brand/10 flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
               <path d="M8 2l1.8 3.6L14 6.4l-3 2.9.7 4.1L8 11.4l-3.7 2 .7-4.1-3-2.9 4.2-.8L8 2z" stroke="#c9a84c" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
             </svg>
           </div>
-          <p className="text-warm-white text-lg mb-2 font-display">Your watchlist is empty</p>
-          <p className="text-warm-muted text-sm mb-4 max-w-sm mx-auto font-light">
+          <p className="text-text-primary text-lg mb-2 font-display">Your watchlist is empty</p>
+          <p className="text-text-muted text-sm mb-4 max-w-sm mx-auto font-light">
             Find matching stocks and add them to your watchlist from the comparison page to track their performance.
           </p>
           <button className="btn-primary mb-4" onClick={() => navigate('/')}>
             Start screening →
           </button>
-          <p className="text-warm-muted text-xs font-light">
-            Or try a quick example: <button className="text-accent hover:underline" onClick={() => navigate('/matches?ticker=CLS&date=2023-12-01')}>CLS Dec 2023</button>
+          <p className="text-text-muted text-xs font-light">
+            Or try a quick example: <button className="text-brand hover:underline" onClick={() => navigate('/matches?ticker=CLS&date=2023-12-01')}>CLS Dec 2023</button>
             {' · '}
-            <button className="text-accent hover:underline" onClick={() => navigate('/matches?ticker=NVDA&date=2023-01-03')}>NVDA Jan 2023</button>
+            <button className="text-brand hover:underline" onClick={() => navigate('/matches?ticker=NVDA&date=2023-01-03')}>NVDA Jan 2023</button>
           </p>
         </div>
       )}
@@ -177,15 +177,15 @@ export default function WatchlistPage() {
             const gain = gainSinceAdd(item);
 
             return (
-              <div key={item.ticker} className="card hover:border-dark-border-hover transition-all duration-200">
+              <div key={item.ticker} className="card hover:shadow-card-hover transition-all duration-200">
                 <div className="flex items-start justify-between gap-3">
                   {/* Left: ticker info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="font-mono font-bold text-warm-white text-base">{item.ticker}</span>
-                      <span className="text-warm-gray text-sm truncate font-light">{item.companyName}</span>
+                      <span className="font-mono font-bold text-text-primary text-base">{item.ticker}</span>
+                      <span className="text-text-secondary text-sm truncate font-light">{item.companyName}</span>
                       {item.sector && (
-                        <span className="text-xs border border-dark-border text-warm-muted px-2 py-0.5 rounded-full">
+                        <span className="text-xs border border-border text-text-muted px-2 py-0.5 rounded-full">
                           {item.sector}
                         </span>
                       )}
@@ -194,7 +194,7 @@ export default function WatchlistPage() {
                     {/* Price row */}
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       {live?.price != null && (
-                        <span className="text-sm text-warm-white font-semibold font-mono">
+                        <span className="text-sm text-text-primary font-semibold font-mono">
                           ${live.price.toFixed(2)}
                         </span>
                       )}
@@ -211,18 +211,18 @@ export default function WatchlistPage() {
                     </div>
 
                     {/* Match context */}
-                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-warm-muted">
+                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-text-muted">
                       {item.matchScore && (
                         <span>
-                          Score: <span className={`font-mono ${item.matchScore >= 70 ? 'text-emerald-400/70' : item.matchScore >= 55 ? 'text-accent/70' : 'text-red-400/70'}`}>
+                          Score: <span className={`font-mono ${item.matchScore >= 70 ? 'text-emerald-400/70' : item.matchScore >= 55 ? 'text-brand/70' : 'text-red-400/70'}`}>
                             {Math.round(item.matchScore)}
                           </span>
                         </span>
                       )}
                       {item.templateTicker && (
                         <span className="font-light">
-                          Matched to <span className="text-warm-gray font-mono">{item.templateTicker}</span>
-                          {item.templateDate && <span className="text-warm-muted"> ({item.templateDate})</span>}
+                          Matched to <span className="text-text-secondary font-mono">{item.templateTicker}</span>
+                          {item.templateDate && <span className="text-text-muted"> ({item.templateDate})</span>}
                         </span>
                       )}
                       {item.priceAtAdd != null && (
@@ -236,14 +236,14 @@ export default function WatchlistPage() {
                   <div className="flex flex-col gap-1.5 shrink-0">
                     {item.templateTicker && item.templateDate && (
                       <button
-                        className="btn-secondary text-xs px-2.5 py-1 hover:border-accent/30 hover:text-accent"
+                        className="btn-secondary text-xs px-3 py-2 min-h-[44px] hover:border-brand/30 hover:text-brand"
                         onClick={() => navigate(`/comparison?ticker=${encodeURIComponent(item.templateTicker)}&date=${item.templateDate}&match=${encodeURIComponent(item.ticker)}`)}
                       >
                         View match
                       </button>
                     )}
                     <button
-                      className="text-xs text-red-400/50 hover:text-red-400 transition-colors px-2.5 py-1"
+                      className="text-xs text-red-400/50 hover:text-red-400 transition-colors px-3 py-2"
                       onClick={() => handleRemove(item.ticker)}
                     >
                       Remove

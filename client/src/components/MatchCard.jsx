@@ -1,27 +1,15 @@
 import { useNavigate } from 'react-router-dom';
-import { formatMetric, METRIC_LABELS } from '../utils/format';
+import { formatMetric } from '../utils/format';
 import MiniSparkline from './MiniSparkline';
 
-const KEY_STATS = [
-  { key: 'peRatio', label: 'P/E' },
-  { key: 'revenueGrowthYoY', label: 'Rev Growth' },
-  { key: 'operatingMargin', label: 'Op Margin' },
-  { key: 'returnOnEquity', label: 'ROE' },
-];
-
-const CIRCUMFERENCE = 150.8; // 2π × r=24
-
-function scoreGrade(score) {
-  if (score >= 85) return { label: 'Excellent', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.2)' };
-  if (score >= 70) return { label: 'Strong', color: '#22c55e', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.15)' };
-  if (score >= 55) return { label: 'Good', color: '#c9a84c', bg: 'rgba(201,168,76,0.06)', border: 'rgba(201,168,76,0.15)' };
-  return { label: 'Fair', color: '#ef4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.15)' };
+function scoreColorClass(score) {
+  if (score >= 70) return 'text-gain';
+  if (score >= 55) return 'text-brand';
+  return 'text-loss';
 }
 
 export default function MatchCard({ match, snapshot, rank, profile }) {
   const navigate = useNavigate();
-  const offset = CIRCUMFERENCE * (1 - match.matchScore / 100);
-  const grade = scoreGrade(match.matchScore);
 
   function goToComparison() {
     const profileParam = profile && profile !== 'growth_breakout' ? `&profile=${profile}` : '';
@@ -30,156 +18,62 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
 
   return (
     <div
-      className="card hover:border-dark-border-hover transition-all duration-200 cursor-pointer group"
+      className="group flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-xl border-b border-border transition-all duration-200 cursor-pointer hover:bg-surface-hover hover:-translate-y-[1px]"
       onClick={goToComparison}
       role="button"
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && goToComparison()}
     >
-      <div className="flex items-start gap-3 sm:gap-4">
-        {/* Rank badge */}
-        <div className="flex flex-col items-center gap-1 pt-0.5">
-          <span className="text-xs text-warm-muted font-mono w-6 text-center">#{rank}</span>
-        </div>
+      {/* Rank */}
+      <span className="text-xs text-text-muted font-mono w-5 text-right shrink-0">
+        {rank}
+      </span>
 
-        {/* Score ring */}
-        <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }} className="glow-gold">
-          <svg width="56" height="56" viewBox="0 0 60 60" style={{ transform: 'rotate(-90deg)' }}>
-            <circle cx="30" cy="30" r="24" fill="none" stroke="#1c1c2e" strokeWidth="4" />
-            <circle
-              cx="30" cy="30" r="24" fill="none"
-              stroke={grade.color} strokeWidth="4" strokeLinecap="round"
-              strokeDasharray={CIRCUMFERENCE} strokeDashoffset={offset}
-              className="transition-all duration-700"
-            />
-          </svg>
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="text-[0.95rem] font-bold font-mono" style={{ color: grade.color, lineHeight: 1 }}>
-              {match.matchScore}
-            </span>
-            <span className="text-[0.4rem] uppercase tracking-widest text-warm-muted mt-0.5">
-              match
-            </span>
-          </div>
-        </div>
+      {/* Score */}
+      <span className={`text-base font-bold font-mono w-10 text-right shrink-0 ${scoreColorClass(match.matchScore)}`}>
+        {match.matchScore}
+      </span>
 
-        {/* Main info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 sm:gap-2.5 mb-0.5 flex-wrap">
-            <span className="font-mono font-bold text-warm-white text-base sm:text-lg group-hover:text-accent transition-colors duration-200">{match.ticker}</span>
-            <a
-              href={`https://finance.yahoo.com/quote/${match.ticker}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-warm-muted/40 hover:text-accent transition-colors"
-              title={`View ${match.ticker} on Yahoo Finance`}
-              onClick={e => e.stopPropagation()}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8M7 1h4v4M5 7l6-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            </a>
-            <span className="text-warm-gray text-sm truncate font-light">{match.companyName}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            {match.sector && (
-              <span className="text-[10px] border border-dark-border text-warm-muted px-2 py-0.5 rounded-full">
-                {match.sector}
-              </span>
-            )}
-            <span className="text-sm text-warm-white font-mono font-medium">
-              {formatMetric('price', match.price)}
-            </span>
-            {match.recentCloses?.length > 2 && (
-              <MiniSparkline prices={match.recentCloses} width={64} height={22} />
-            )}
-            {/* Grade badge */}
-            <span
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-full ml-auto hidden sm:inline-block"
-              style={{ color: grade.color, background: grade.bg, border: `1px solid ${grade.border}` }}
-            >
-              {grade.label}
-            </span>
-          </div>
+      {/* Ticker + Company name */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono font-bold text-text-primary text-sm">{match.ticker}</span>
+          <span className="text-text-secondary text-xs font-light truncate">{match.companyName}</span>
         </div>
       </div>
 
-      {/* Key stats row — match value on top, template value below */}
-      <div className="flex flex-wrap gap-3 sm:gap-5 mt-3 pt-3 border-t border-dark-border/50 px-1">
-        {KEY_STATS.map(({ key, label }) => (
-          <div key={key} className="text-center min-w-[48px]">
-            <p className="text-[10px] text-warm-muted uppercase tracking-wider">{label}</p>
-            <p className="text-xs font-semibold text-warm-white font-mono">{formatMetric(key, match[key])}</p>
-            {snapshot?.[key] != null && (
-              <p className="text-[9px] text-warm-muted/60 font-mono">tmpl {formatMetric(key, snapshot[key])}</p>
-            )}
-          </div>
-        ))}
-        <div className="text-center min-w-[48px]">
-          <p className="text-[10px] text-warm-muted uppercase tracking-wider">Mkt Cap</p>
-          <p className="text-xs font-semibold text-warm-white font-mono">{formatMetric('marketCap', match.marketCap)}</p>
-          {snapshot?.marketCap != null && (
-            <p className="text-[9px] text-warm-muted/60 font-mono">tmpl {formatMetric('marketCap', snapshot.marketCap)}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Category scores — compact visual breakdown */}
-      {match.categoryScores && (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-dark-border/30">
-          {[
-            { key: 'growth', label: 'Growth' },
-            { key: 'profitability', label: 'Profit' },
-            { key: 'valuation', label: 'Value' },
-            { key: 'financialHealth', label: 'Health' },
-            { key: 'technical', label: 'Tech' },
-            { key: 'size', label: 'Size' },
-          ].map(({ key, label }) => {
-            const cat = match.categoryScores[key];
-            if (!cat) return null;
-            const score = cat.score;
-            const color = score >= 75 ? '#22c55e' : score >= 50 ? '#c9a84c' : '#ef4444';
-            return (
-              <div key={key} className="flex items-center gap-1" title={`${label}: ${score.toFixed(0)}% (${cat.metricsAvailable}/${cat.metricsTotal} metrics)`}>
-                <span className="text-[9px] text-warm-muted w-9 text-right">{label}</span>
-                <div className="w-10 h-1.5 bg-dark-bg rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* Sector pill */}
+      {match.sector && (
+        <span className="hidden sm:inline-block text-[10px] text-text-muted px-2 py-0.5 rounded-md bg-surface border border-border shrink-0">
+          {match.sector}
+        </span>
       )}
 
-      {/* Metric tags + confidence */}
-      <div className="flex flex-wrap items-center gap-1.5 mt-3">
-        {match.topMatches.map(key => (
-          <span key={key} className="tag-green">
-            {METRIC_LABELS[key] || key} ✓
-          </span>
-        ))}
-        {match.topDifferences.map(key => (
-          <span key={key} className="tag-yellow">
-            {METRIC_LABELS[key] || key} ~
-          </span>
-        ))}
-        <span className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-warm-muted font-mono">
-            {match.metricsCompared}/{match.totalMetrics || 28}
-          </span>
-          {match.confidence && (
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-              match.confidence.level === 'complete'
-                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                : match.confidence.level === 'adequate'
-                  ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-                  : 'border-red-500/20 bg-red-500/10 text-red-400'
-            }`} title={`Data coverage: ${match.confidence.coverageRatio}% (${match.confidence.metricsAvailable} metrics)`}>
-              {match.confidence.coverageRatio}% data coverage
-            </span>
-          )}
-          <svg className="w-4 h-4 text-warm-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+      {/* Price + sparkline */}
+      <div className="hidden sm:flex items-center gap-2 shrink-0">
+        <span className="text-xs font-mono text-text-primary">
+          {formatMetric('price', match.price)}
         </span>
+        {match.recentCloses?.length > 2 && (
+          <MiniSparkline prices={match.recentCloses} width={48} height={18} />
+        )}
+      </div>
+
+      {/* P/E ratio */}
+      <span className="hidden md:inline-block text-xs font-mono text-text-secondary w-14 text-right shrink-0">
+        {formatMetric('peRatio', match.peRatio)}
+      </span>
+
+      {/* Chevron (hover only) */}
+      <div className="w-5 shrink-0 flex items-center justify-center">
+        <svg
+          className="w-4 h-4 text-text-muted opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
       </div>
     </div>
   );
