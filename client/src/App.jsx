@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Link } from 'react-router-dom';
 import Header from './components/Header';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
@@ -28,7 +28,7 @@ export default function App() {
         <footer className="border-t border-dark-border py-6 sm:py-8 mt-auto">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="divider-gold mb-6" />
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-warm-muted">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-warm-muted">
               <div className="flex items-center gap-2.5">
                 <div className="w-5 h-5 rounded bg-gradient-to-br from-accent/20 to-accent-dim/10 flex items-center justify-center">
                   <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
@@ -40,9 +40,13 @@ export default function App() {
                 </div>
                 <span className="font-display text-sm text-warm-gray">Blueprint</span>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap justify-center">
+                <Link to="/proof" className="hover:text-warm-gray transition-colors">Methodology</Link>
+                <span className="text-dark-border hidden sm:inline">·</span>
+                <Link to="/watchlist" className="hover:text-warm-gray transition-colors">Watchlist</Link>
+                <span className="text-dark-border hidden sm:inline">·</span>
                 <span>Data via Financial Modeling Prep</span>
-                <span className="text-dark-border">·</span>
+                <span className="text-dark-border hidden sm:inline">·</span>
                 <span>Not financial advice</span>
               </div>
             </div>

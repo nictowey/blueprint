@@ -244,7 +244,30 @@ export default function Proof() {
         </div>
       </div>
 
-      {/* CTA */}
+      {/* Coming soon */}
+      <div className="card mb-6">
+        <p className="section-label mb-3">Coming Soon</p>
+        <div className="divider-gold mb-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { title: 'Alerts', desc: 'Get notified when a new stock crosses your similarity threshold' },
+            { title: 'Saved Screens', desc: 'Save your favorite templates and re-run them anytime' },
+            { title: 'More Data Sources', desc: 'Extended metrics from additional financial data providers' },
+            { title: 'Portfolio Tracking', desc: 'Track your watchlist performance over time with real-time updates' },
+          ].map(f => (
+            <div key={f.title} className="flex gap-3 items-start">
+              <div className="w-6 h-6 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-accent text-[10px]">+</span>
+              </div>
+              <div>
+                <p className="text-warm-white text-sm font-medium">{f.title}</p>
+                <p className="text-warm-muted text-xs font-light">{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* CTA section */}
       <div className="mt-10 space-y-6">
         <div className="text-center">
