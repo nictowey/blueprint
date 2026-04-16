@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function formatMarketCap(val) {
   if (val == null) return '—';
@@ -61,6 +62,7 @@ function SignalTag({ signal }) {
 }
 
 export default function TopPairs() {
+  const navigate = useNavigate();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
@@ -193,6 +195,17 @@ export default function TopPairs() {
                       </div>
                     </div>
                   )}
+
+                  <button
+                    className="btn-primary text-xs mt-3 w-full sm:w-auto px-4 py-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const today = new Date().toISOString().slice(0, 10);
+                      navigate(`/matches?ticker=${encodeURIComponent(entry.candidate.ticker)}&date=${today}`);
+                    }}
+                  >
+                    Find stocks that match {entry.candidate.ticker} →
+                  </button>
                 </div>
               )}
             </div>

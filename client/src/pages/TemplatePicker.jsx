@@ -136,7 +136,7 @@ export default function TemplatePicker() {
 
   const canLoadSnapshot = !loading && hasValidTicker && date && isDateValid(date);
 
-  async function loadSnapshot(overrideTicker, overrideDate) {
+  async function loadSnapshot(overrideTicker, overrideDate, { autoNavigate = false } = {}) {
     const t = overrideTicker || ticker;
     const d = overrideDate || date;
     if (!t.trim()) { setError('Enter a stock ticker'); return; }
@@ -149,6 +149,9 @@ export default function TemplatePicker() {
       if (!res.ok) throw new Error(await httpError(res, 'Failed to load snapshot'));
       const data = await res.json();
       setSnapshot(data);
+      if (autoNavigate) {
+        navigate(`/matches?ticker=${encodeURIComponent(data.ticker)}&date=${data.date}`, { state: { snapshot: data } });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -363,7 +366,7 @@ export default function TemplatePicker() {
             </div>
             <button
               className="btn-primary whitespace-nowrap sm:w-auto"
-              onClick={() => loadSnapshot()}
+              onClick={() => loadSnapshot(null, null, { autoNavigate: true })}
               disabled={!canLoadSnapshot}
             >
               {loading ? (
@@ -394,7 +397,7 @@ export default function TemplatePicker() {
                   onClick={() => {
                     handleTickerChange(s.ticker);
                     setDate(s.date);
-                    loadSnapshot(s.ticker, s.date);
+                    loadSnapshot(s.ticker, s.date, { autoNavigate: true });
                   }}
                 >
                   <span className="font-mono font-bold text-base text-warm-white group-hover:text-accent transition-colors duration-200">{s.ticker}</span>
