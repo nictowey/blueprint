@@ -302,7 +302,15 @@ export default function ComparisonDetail() {
               )}
             </div>
 
-            {/* Sparkline */}
+            {/* Sparkline — what happened after the snapshot */}
+            {data.sparklineGainPct != null && (
+              <p className="text-xs text-warm-muted mb-1 font-light">
+                What happened after this snapshot
+                <span className={`ml-1 font-mono font-semibold ${data.sparklineGainPct > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {data.sparklineGainPct > 0 ? '+' : ''}{data.sparklineGainPct.toFixed(1)}% over 18 months
+                </span>
+              </p>
+            )}
             <div className="bg-dark-bg rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 h-[120px] sm:h-[140px] border border-dark-border/30">
               <Sparkline data={data.sparkline} gainPct={data.sparklineGainPct} />
             </div>
