@@ -1,11 +1,57 @@
 const { getHistoricalPrices } = require('./fmp');
 
 /**
+ * Compute the maximum drawdown across a sorted (ascending-date) daily price
+ * series from the start of the array up to and including any entry with date
+ * <= endDate. Drawdown is the largest peak-to-trough decline measured in
+ * percent (positive number, e.g. 12.5 = 12.5% drawdown). Returns 0 if the
+ * series never declined from its running peak.
+ *
+ * Returns null if the series is empty, has no entry on/before endDate, or
+ * has no usable close prices.
+ */
+function computeMaxDrawdown(prices, endDate) {
+  if (!Array.isArray(prices) || prices.length === 0 || !endDate) return null;
+
+  const end = new Date(endDate);
+  let peak = null;
+  let maxDd = 0;
+
+  for (const p of prices) {
+    if (!p?.date) continue;
+    if (new Date(p.date) > end) break;
+    const close = p.adjClose ?? p.close;
+    if (close == null || !isFinite(close) || close <= 0) continue;
+    if (peak == null || close > peak) peak = close;
+    if (peak != null && peak > 0) {
+      const dd = ((peak - close) / peak) * 100;
+      if (dd > maxDd) maxDd = dd;
+    }
+  }
+
+  if (peak == null) return null;
+  return Math.round(maxDd * 100) / 100;
+}
+
+/**
  * Calculate forward returns for a stock from a given start date.
  * Returns { ticker, startPrice, returns: { 1m, 3m, 6m, 12m } }
  * Each return period is { endDate, endPrice, returnPct } or null if data unavailable.
+ *
+ * @param {string}  ticker
+ * @param {string}  startDate            (YYYY-MM-DD)
+ * @param {object} [opts]
+ * @param {boolean}[opts.withSeries=false] When true, also returns
+ *                                         `dailySeries: { '1m': [...], ... }`
+ *                                         — the ascending-date price entries
+ *                                         from start through each period's
+ *                                         end date. Off by default so the
+ *                                         live `/api/backtest` route doesn't
+ *                                         keep 250+ price points in memory
+ *                                         per match.
  */
-async function getForwardReturns(ticker, startDate) {
+async function getForwardReturns(ticker, startDate, opts = {}) {
+  const { withSeries = false } = opts;
   // Fetch prices from startDate to ~13 months later (extra buffer for trading days)
   const start = new Date(startDate);
   const end = new Date(start);
@@ -65,17 +111,45 @@ async function getForwardReturns(ticker, startDate) {
     };
   }
 
-  return {
+  const returns = {
+    '1m': priceAtOffset(1),
+    '3m': priceAtOffset(3),
+    '6m': priceAtOffset(6),
+    '12m': priceAtOffset(12),
+  };
+
+  const result = {
     ticker,
     startDate: startEntry.date,
     startPrice: Math.round(startPrice * 100) / 100,
-    returns: {
-      '1m': priceAtOffset(1),
-      '3m': priceAtOffset(3),
-      '6m': priceAtOffset(6),
-      '12m': priceAtOffset(12),
-    },
+    returns,
   };
+
+  // Optionally attach the daily series per period (ascending, from startEntry
+  // through the period's endDate). Consumers use this to compute intra-period
+  // metrics like max drawdown without a second FMP round-trip.
+  if (withSeries) {
+    const dailySeries = {};
+    for (const period of ['1m', '3m', '6m', '12m']) {
+      const r = returns[period];
+      if (!r) {
+        dailySeries[period] = null;
+        continue;
+      }
+      const series = [];
+      for (const p of sorted) {
+        if (p.date < startEntry.date) continue;
+        if (p.date > r.endDate) break;
+        const close = p.adjClose ?? p.close;
+        if (close == null) continue;
+        series.push({ date: p.date, close });
+      }
+      dailySeries[period] = series;
+    }
+    result.dailySeries = dailySeries;
+  }
+
+  return result;
 }
 
 /**
@@ -137,6 +211,11 @@ async function runBacktest(matches, matchDate) {
 
 /**
  * Compute summary stats across all match results.
+ *
+ * Each result may carry `dailySeries: { '1m': [...], ... }` when the caller
+ * opted in via `getForwardReturns(t, d, { withSeries: true })`. If present,
+ * summary includes a `maxDrawdownPct` field (median across matches for the
+ * intra-period drawdown).
  */
 function computeSummary(results, benchmark) {
   const periods = ['1m', '3m', '6m', '12m'];
@@ -161,10 +240,39 @@ function computeSummary(results, benchmark) {
 
     const benchReturn = benchmark?.returns?.[period]?.returnPct ?? null;
 
+    // Hit rate vs. benchmark — % of matches that beat SPY for this period.
+    // Distinct from `winRate` (just % positive). Null when there's no
+    // benchmark number for the period.
+    let hitRateVsBenchmark = null;
+    if (benchReturn != null) {
+      const beaters = returns.filter(r => r > benchReturn).length;
+      hitRateVsBenchmark = Math.round((beaters / returns.length) * 100);
+    }
+
+    // Max drawdown (median across matches) — only if dailySeries was attached.
+    let maxDrawdownPct = null;
+    const drawdowns = [];
+    for (const r of results) {
+      const series = r.dailySeries?.[period];
+      const endDate = r.returns?.[period]?.endDate;
+      if (!series || !endDate) continue;
+      const dd = computeMaxDrawdown(series, endDate);
+      if (dd != null) drawdowns.push(dd);
+    }
+    if (drawdowns.length > 0) {
+      const sortedDd = [...drawdowns].sort((a, b) => a - b);
+      const medDd = sortedDd.length % 2 === 0
+        ? (sortedDd[sortedDd.length / 2 - 1] + sortedDd[sortedDd.length / 2]) / 2
+        : sortedDd[Math.floor(sortedDd.length / 2)];
+      maxDrawdownPct = Math.round(medDd * 100) / 100;
+    }
+
     summary[period] = {
       avgReturn: Math.round(avg * 100) / 100,
       medianReturn: Math.round(median * 100) / 100,
       winRate: Math.round((winners / returns.length) * 100),
+      hitRateVsBenchmark,
+      maxDrawdownPct,
       totalStocks: returns.length,
       bestReturn: Math.round(Math.max(...returns) * 100) / 100,
       worstReturn: Math.round(Math.min(...returns) * 100) / 100,
@@ -176,4 +284,10 @@ function computeSummary(results, benchmark) {
   return summary;
 }
 
-module.exports = { runBacktest, getForwardReturns, getBenchmarkReturns };
+module.exports = {
+  runBacktest,
+  getForwardReturns,
+  getBenchmarkReturns,
+  computeMaxDrawdown,
+  computeSummary,
+};

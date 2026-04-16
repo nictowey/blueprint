@@ -147,13 +147,13 @@ Merges rankings from the other engines. This is the actual product pitch: "three
 
 Without this, adding more algorithms just adds more unproven claims. Each engine gets backtest numbers surfaced on the methodology page.
 
-- [ ] Extend `server/services/backtest.js` to accept an engine parameter (currently hardcoded to template-match)
-- [ ] Add **random-ticker control group** — same-era random stocks as baseline (not just SPY)
-- [ ] Report hit rate, median forward return, and max drawdown at 1/3/6/12 months per engine
-- [ ] Enforce **walk-forward construction** — only data available at template date is used (verify no peek-ahead in any engine)
-- [ ] Report consensus-top-N vs. individual-engine-top-N vs. random control side by side
-- [ ] Update `client/src/pages/Proof.jsx` with per-engine methodology + backtest numbers
-- [ ] Commit pre-computed proof data following the `2026-04-14-trustworthiness-proof-system` pattern (JSON fallback + Redis cache)
+- [x] Extend `server/services/backtest.js` (already engine-agnostic; added hitRateVsBenchmark + median maxDrawdownPct + `withSeries` flag)
+- [x] Add **random-ticker control group** — same-era random stocks as baseline (not just SPY)
+- [x] Report hit rate, median forward return, and max drawdown at 1/3/6/12 months per engine
+- [x] Enforce **walk-forward construction** — only data available at template date is used (verify no peek-ahead in any engine); catalystDriven excluded (peek-ahead) + momentum/template confirmed safe
+- [x] Report consensus-top-N vs. individual-engine-top-N vs. random control side by side (fixture JSON v2; surfaced in aggregate.engines)
+- [ ] Update `client/src/pages/Proof.jsx` with per-engine methodology + backtest numbers *(Phase 5b)*
+- [ ] Commit pre-computed proof data following the `2026-04-14-trustworthiness-proof-system` pattern (JSON fallback + Redis cache) *(requires fresh fixture regeneration — FMP API + ~30 min)*
 
 ---
 
@@ -224,3 +224,13 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
   ```
   **Verdict:** all 3 catalyst signals (earnings-surprise, estimate-revisions, insider-buying) are buildable. Earnings-surprise must be computed client-side from `epsActual` vs `epsEstimated` on `/earnings` rather than served pre-packaged. Insider-buying uses `/insider-trading/latest` and aggregates client-side (no `/insider-trading-statistics`). Estimate-revisions has 3 working paths; `/grades-historical` is preferred for trend computation. **Phase 3 unblocked — proceeding.**
 - `2026-04-16`: **Phase 3 complete** (data layer 3a + engine 3b). Data layer shipped at `server/services/catalystSnapshot.js` — 24h in-memory cache, sequential FMP population, emits `{ earningsSurprise, estimateRevisions, insiderBuying }` in [-1, +1]. Engine shipped at `server/services/algorithms/catalystDriven.js` — template-free composite ranker with weights 0.40 / 0.35 / 0.25, `(s+1)/2` contribution mapping, MIN_SIGNALS_REQUIRED=2, same UI output shape as momentumBreakout. Registered in the engine registry; ensembleConsensus now picks it up automatically as a 3rd independent lens. Added startup hook in `server/index.js` that warms the catalyst cache for the top `CATALYST_WARM_TOP_N` tickers by market cap (default 200, non-blocking, skipped in tests). Route wiring required no changes — `/api/matches?algo=catalystDriven` already works through the existing template-free dispatch. 34 new unit tests (full suite 316, up from 282). **Still deferred:** smoke test against live universe (requires running server with warmed cache on desktop). **Next:** Phase 5 validation, or Phase 6 UI affordance for template-free mode.
+- `2026-04-16`: **Phase 5a complete** — backtest + proof refactored for the multi-engine era.
+  - `server/services/backtest.js` gains `hitRateVsBenchmark`, median `maxDrawdownPct`, a `withSeries` opt-in on `getForwardReturns` that streams the ascending daily-price series per period, and a standalone `computeMaxDrawdown(prices, endDate)` helper.
+  - New `server/services/proof/runProofForEngine.js` — takes an `engineKey` + `testCase` + `universe`, builds the template snapshot, pre-filters candidates, builds historical candidate snapshots, runs `engine.rank(...)`, and fetches forward returns. Sibling `runProofForRandom(...)` picks `sampleSize` tickers from the same pre-filter pool using a seeded LCG RNG (default seed is deterministic from the ticker+date).
+  - `server/scripts/run-proof.js` rewritten to loop over `ENGINES_TO_BACKTEST = ['templateMatch', 'momentumBreakout', 'ensembleConsensus']` per test case, then run the random control, producing version-2 JSON with `{ engines, cases: [{ engines: { ... }, random, benchmark }], aggregate: { engines: { templateMatch, momentumBreakout, ensembleConsensus, random } } }`. ensembleConsensus is constrained to templateMatch + momentumBreakout during backtest (catalyst engine excluded).
+  - `catalystDriven` is intentionally excluded from historical backtest — `catalystSnapshot` uses current FMP data (last 90 days from today), so any historical score would peek ahead. Surfaced in fixture `disclaimers[]` and in `runProofForEngine`'s explicit skip path.
+  - `server/routes/proof.js` now exposes `migrateToV2(data)` that wraps legacy v1 single-engine fixtures into v2 shape (`engines.templateMatch.{status,matches,snapshotsBuilt}`, `random: null`, aggregate nested under `engines.templateMatch`). UI stays unbroken before the first real v2 regeneration.
+  - **Walk-forward audit result for momentumBreakout:** `buildSnapshot()` filters historical prices to on-or-before the snapshot date (line 113–114 of `snapshotBuilder.js`) and passes only that filtered series into `computeTechnicals`. All 5 momentum signals (`rsi14`, `pctBelowHigh`, `priceVsMa50`, `priceVsMa200`, `relativeVolume`) are therefore walk-forward safe when the engine reads from the snapshot-built candidate map. Separate concern (pre-existing, not introduced here): momentumBreakout's scoring expects decimal inputs for `priceVsMa50/200` (`0.15` = 15%) but `computeTechnicals` emits percent (`15.0`). Same mismatch exists in live mode — flagged for the phase that owns the engine file.
+  - 24 new tests (16 in `tests/backtest.test.js`, 5 additional proof cases in `tests/proof.test.js`). Full suite 340 tests, up from 316. `proof-results.json` fixture intentionally NOT regenerated — the migration shim keeps the existing v1 fixture serving the UI until a real run-proof.js invocation produces v2.
+  - **Deferred to Phase 5b:** `client/src/pages/Proof.jsx` update for per-engine methodology + per-engine rows.
+  - **Deferred to Phase 5c:** regenerate the fixture (requires FMP API + long runtime) to produce real per-engine + random numbers.
