@@ -112,6 +112,33 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
         </div>
       </div>
 
+      {/* Category scores — compact visual breakdown */}
+      {match.categoryScores && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-dark-border/30">
+          {[
+            { key: 'growth', label: 'Growth' },
+            { key: 'profitability', label: 'Profit' },
+            { key: 'valuation', label: 'Value' },
+            { key: 'financialHealth', label: 'Health' },
+            { key: 'technical', label: 'Tech' },
+            { key: 'size', label: 'Size' },
+          ].map(({ key, label }) => {
+            const cat = match.categoryScores[key];
+            if (!cat) return null;
+            const score = cat.score;
+            const color = score >= 75 ? '#22c55e' : score >= 50 ? '#c9a84c' : '#ef4444';
+            return (
+              <div key={key} className="flex items-center gap-1" title={`${label}: ${score.toFixed(0)}% (${cat.metricsAvailable}/${cat.metricsTotal} metrics)`}>
+                <span className="text-[9px] text-warm-muted w-9 text-right">{label}</span>
+                <div className="w-10 h-1.5 bg-dark-bg rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Metric tags + confidence */}
       <div className="flex flex-wrap items-center gap-1.5 mt-3">
         {match.topMatches.map(key => (

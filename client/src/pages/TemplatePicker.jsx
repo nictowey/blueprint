@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../components/TickerSearch';
 import SnapshotCard from '../components/SnapshotCard';
 import TopPairs from '../components/TopPairs';
+import WaitlistForm from '../components/WaitlistForm';
 
 import { httpError } from '../utils/httpError';
 
@@ -567,6 +568,14 @@ export default function TemplatePicker() {
 
       {/* Top pairs / Breakout Candidates */}
       {serverReady && <TopPairs />}
+
+      {/* Waitlist CTA */}
+      <div className="mt-14 mb-4">
+        <div className="divider-gold mb-8" />
+        <div className="card max-w-lg mx-auto">
+          <WaitlistForm />
+        </div>
+      </div>
     </main>
   );
 }

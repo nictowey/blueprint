@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import WaitlistForm from '../components/WaitlistForm';
 
 export default function Proof() {
   return (
@@ -244,10 +245,16 @@ export default function Proof() {
       </div>
 
       {/* CTA */}
-      <div className="text-center mt-10">
-        <Link to="/" className="btn-primary px-6 py-3 text-sm">
-          Start Screening →
-        </Link>
+      {/* CTA section */}
+      <div className="mt-10 space-y-6">
+        <div className="text-center">
+          <Link to="/" className="btn-primary px-6 py-3 text-sm">
+            Start Screening →
+          </Link>
+        </div>
+        <div className="card max-w-lg mx-auto">
+          <WaitlistForm />
+        </div>
       </div>
     </main>
   );
