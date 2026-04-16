@@ -1,10 +1,18 @@
 const ensembleConsensus = require('../services/algorithms/ensembleConsensus');
-const { resolveEngines, mergeRrf, summarizeRanks, RRF_K } = ensembleConsensus._test;
+const registry = require('../services/algorithms/registry');
+// Importing ./algorithms triggers registration of the real engines; tests
+// that care about that rely on the registry being fully populated.
+require('../services/algorithms');
+
+const { resolveEngines, mergeRrf, buildConfidence, RRF_K } = ensembleConsensus._test;
 
 // ---------------------------------------------------------------------------
 // Fixtures: fake stocks + fake engines that rank them deterministically.
-// Tests inject engines via options._engines so we don't depend on the real
-// registry's component engines for merge-logic verification.
+//
+// Integration tests use a small helper that registers fake engines on the
+// real registry inside beforeEach and unregisters them in afterEach. This
+// replaces the old `options._engines` test hook — ensembleConsensus no
+// longer exposes a back door; tests exercise the real code path.
 // ---------------------------------------------------------------------------
 
 const makeStock = (ticker, overrides = {}) => ({
@@ -47,6 +55,33 @@ function fakeEngine(key, orderedTickers, { requiresTemplate = false } = {}) {
       }
       return out;
     },
+  };
+}
+
+/**
+ * Install a set of fake engines on the real registry, first removing the
+ * real component engines so they don't leak into merge results. Returns a
+ * cleanup function that restores the pre-test registry state.
+ *
+ * ensembleConsensus itself stays registered — we want the SUT untouched.
+ */
+function withFakeRegistry(fakeEngines) {
+  const REAL_ENGINE_KEYS = ['templateMatch', 'momentumBreakout'];
+  const snapshot = {};
+  for (const key of REAL_ENGINE_KEYS) {
+    if (registry.ENGINES[key]) {
+      snapshot[key] = registry.ENGINES[key];
+      registry.unregister(key);
+    }
+  }
+  const fakeKeys = [];
+  for (const engine of fakeEngines) {
+    registry.register(engine);
+    fakeKeys.push(engine.key);
+  }
+  return () => {
+    for (const key of fakeKeys) registry.unregister(key);
+    for (const [key, engine] of Object.entries(snapshot)) registry.register(engine);
   };
 }
 
@@ -199,70 +234,96 @@ describe('mergeRrf', () => {
 });
 
 // ---------------------------------------------------------------------------
-// summarizeRanks — topMatches / topDifferences selection
+// buildConfidence — UI-compatible confidence shape
 // ---------------------------------------------------------------------------
 
-describe('summarizeRanks', () => {
-  test('ranks best engines first in topMatches', () => {
-    const result = summarizeRanks({ A: 1, B: 5, C: 20 });
-    expect(result.topMatches).toEqual(['A', 'B', 'C']);
+describe('buildConfidence', () => {
+  test('all engines included → complete', () => {
+    const c = buildConfidence(3, 3);
+    expect(c).toEqual({ level: 'complete', coverageRatio: 100, metricsAvailable: 3 });
   });
 
-  test('missing engines land in topDifferences', () => {
-    const result = summarizeRanks({ A: 1, B: null, C: 3 });
-    expect(result.topDifferences[0]).toBe('B'); // missing is worst
+  test('2 of 3 engines (66.7%) → adequate', () => {
+    const c = buildConfidence(2, 3);
+    expect(c.level).toBe('adequate');
+    expect(c.coverageRatio).toBe(67);
+    expect(c.metricsAvailable).toBe(2);
+  });
+
+  test('1 of 3 engines (33.3%) → sparse', () => {
+    const c = buildConfidence(1, 3);
+    expect(c.level).toBe('sparse');
+    expect(c.coverageRatio).toBe(33);
+    expect(c.metricsAvailable).toBe(1);
+  });
+
+  test('2 of 2 engines → complete (all included)', () => {
+    const c = buildConfidence(2, 2);
+    expect(c.level).toBe('complete');
+    expect(c.coverageRatio).toBe(100);
+  });
+
+  test('degenerate zero total engines → sparse, 0 coverage', () => {
+    const c = buildConfidence(0, 0);
+    expect(c).toEqual({ level: 'sparse', coverageRatio: 0, metricsAvailable: 0 });
   });
 });
 
 // ---------------------------------------------------------------------------
-// rank — full engine integration (with injected test engines)
+// rank — full engine integration (with fake engines registered for the test)
 // ---------------------------------------------------------------------------
 
 describe('rank — engine integration', () => {
+  let cleanup;
+  afterEach(() => {
+    if (cleanup) cleanup();
+    cleanup = null;
+  });
+
   test('empty universe returns []', () => {
-    const _engines = {
-      E1: fakeEngine('E1', ['A', 'B']),
-      E2: fakeEngine('E2', ['A', 'B']),
-    };
-    expect(ensembleConsensus.rank({ universe: new Map(), options: { _engines } })).toEqual([]);
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A', 'B']),
+      fakeEngine('E2', ['A', 'B']),
+    ]);
+    expect(ensembleConsensus.rank({ universe: new Map() })).toEqual([]);
   });
 
   test('basic merge: consensus stock wins over single-engine stock', () => {
     const universe = makeUniverse(['BOTH', 'ONLY1', 'ONLY2']);
-    const _engines = {
-      E1: fakeEngine('E1', ['BOTH', 'ONLY1']),
-      E2: fakeEngine('E2', ['BOTH', 'ONLY2']),
-    };
-    const results = ensembleConsensus.rank({ universe, options: { _engines } });
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['BOTH', 'ONLY1']),
+      fakeEngine('E2', ['BOTH', 'ONLY2']),
+    ]);
+    const results = ensembleConsensus.rank({ universe });
     expect(results.length).toBe(1);
     expect(results[0].ticker).toBe('BOTH');
   });
 
   test('respects minEngines option', () => {
     const universe = makeUniverse(['A', 'B', 'C']);
-    const _engines = {
-      E1: fakeEngine('E1', ['A', 'B']),
-      E2: fakeEngine('E2', ['B', 'C']),
-      E3: fakeEngine('E3', ['B']),
-    };
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A', 'B']),
+      fakeEngine('E2', ['B', 'C']),
+      fakeEngine('E3', ['B']),
+    ]);
     // minEngines=3: only B qualifies
-    const strict = ensembleConsensus.rank({ universe, options: { _engines, minEngines: 3 } });
+    const strict = ensembleConsensus.rank({ universe, options: { minEngines: 3 } });
     expect(strict.map(r => r.ticker)).toEqual(['B']);
     // minEngines=1: all three qualify
-    const loose = ensembleConsensus.rank({ universe, options: { _engines, minEngines: 1 } });
+    const loose = ensembleConsensus.rank({ universe, options: { minEngines: 1 } });
     expect(loose.length).toBe(3);
   });
 
   test('honors topN', () => {
     const universe = makeUniverse(['A', 'B', 'C', 'D', 'E']);
-    const _engines = {
-      E1: fakeEngine('E1', ['A', 'B', 'C', 'D', 'E']),
-      E2: fakeEngine('E2', ['A', 'B', 'C', 'D', 'E']),
-    };
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A', 'B', 'C', 'D', 'E']),
+      fakeEngine('E2', ['A', 'B', 'C', 'D', 'E']),
+    ]);
     const results = ensembleConsensus.rank({
       universe,
       topN: 2,
-      options: { _engines, minEngines: 2 },
+      options: { minEngines: 2 },
     });
     expect(results.length).toBe(2);
     expect(results.map(r => r.ticker)).toEqual(['A', 'B']);
@@ -284,21 +345,31 @@ describe('rank — engine integration', () => {
         }));
       },
     });
-    const _engines = {
-      E1: makeCountingEngine('E1', ['A', 'B', 'C', 'D']),
-      E2: makeCountingEngine('E2', ['A', 'B', 'C', 'D']),
-    };
-    ensembleConsensus.rank({ universe, options: { _engines, poolSize: 2, minEngines: 2 } });
+    cleanup = withFakeRegistry([
+      makeCountingEngine('E1', ['A', 'B', 'C', 'D']),
+      makeCountingEngine('E2', ['A', 'B', 'C', 'D']),
+    ]);
+    ensembleConsensus.rank({ universe, options: { poolSize: 2, minEngines: 2 } });
     expect(callCounts.every(c => c.topN === 2)).toBe(true);
   });
 
-  test('result shape is UI-compatible', () => {
+  test('poolSize of 0 throws (guards against falsy coercion)', () => {
+    const universe = makeUniverse(['A']);
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A']),
+      fakeEngine('E2', ['A']),
+    ]);
+    expect(() => ensembleConsensus.rank({ universe, options: { poolSize: 0 } }))
+      .toThrow(/poolSize/);
+  });
+
+  test('result shape is UI-compatible (no topMatches/topDifferences, structured confidence)', () => {
     const universe = makeUniverse(['X', 'Y']);
-    const _engines = {
-      E1: fakeEngine('E1', ['X', 'Y']),
-      E2: fakeEngine('E2', ['X', 'Y']),
-    };
-    const [top] = ensembleConsensus.rank({ universe, options: { _engines } });
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['X', 'Y']),
+      fakeEngine('E2', ['X', 'Y']),
+    ]);
+    const [top] = ensembleConsensus.rank({ universe });
     expect(top).toMatchObject({
       ticker: 'X',
       algorithm: 'ensembleConsensus',
@@ -306,13 +377,20 @@ describe('rank — engine integration', () => {
       metricsCompared: expect.any(Number),
       totalMetrics: 2,
       categoryScores: expect.any(Object),
-      confidence: expect.any(Number),
-      topMatches: expect.any(Array),
-      topDifferences: expect.any(Array),
       perEngineRanks: expect.any(Object),
       perEngineScores: expect.any(Object),
       consensusEngines: 2,
     });
+    // Confidence matches the object contract ComparisonDetail.jsx consumes.
+    expect(top.confidence).toEqual({
+      level: 'complete',
+      coverageRatio: 100,
+      metricsAvailable: 2,
+    });
+    // Verify we removed engine-keyed topMatches/topDifferences — the UI runs
+    // those arrays through METRIC_LABELS, which doesn't know engine keys.
+    expect(top.topMatches).toBeUndefined();
+    expect(top.topDifferences).toBeUndefined();
     expect(top.perEngineRanks).toEqual({ E1: 1, E2: 1 });
     expect(top.perEngineScores.E1).toEqual(expect.any(Number));
     expect(top.categoryScores.consensus).toBe(top.matchScore);
@@ -320,24 +398,24 @@ describe('rank — engine integration', () => {
 
   test('matchScore normalizes highest RRF to 100', () => {
     const universe = makeUniverse(['A', 'B']);
-    const _engines = {
-      E1: fakeEngine('E1', ['A', 'B']),
-      E2: fakeEngine('E2', ['A', 'B']),
-    };
-    const results = ensembleConsensus.rank({ universe, options: { _engines } });
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A', 'B']),
+      fakeEngine('E2', ['A', 'B']),
+    ]);
+    const results = ensembleConsensus.rank({ universe });
     expect(results[0].matchScore).toBe(100);
     expect(results[1].matchScore).toBeLessThan(100);
   });
 
   test('template-required engine in options.engines without template throws', () => {
     const universe = makeUniverse(['A']);
-    const _engines = {
-      E1: fakeEngine('E1', ['A'], { requiresTemplate: true }),
-      E2: fakeEngine('E2', ['A']),
-    };
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A'], { requiresTemplate: true }),
+      fakeEngine('E2', ['A']),
+    ]);
     expect(() => ensembleConsensus.rank({
       universe,
-      options: { _engines, engines: ['E1', 'E2'] },
+      options: { engines: ['E1', 'E2'] },
     })).toThrow(/requires a template/);
   });
 
@@ -364,47 +442,66 @@ describe('rank — engine integration', () => {
         return ['A', 'B'].filter(t => u.has(t)).map(t => ({ ...u.get(t), matchScore: 99 }));
       },
     };
-    const _engines = { templateLike, freeEngine };
+    cleanup = withFakeRegistry([templateLike, freeEngine]);
 
     // No template: only freeEngine runs → A appears in only 1 engine → dropped under minEngines=2
-    ensembleConsensus.rank({ universe, options: { _engines } });
+    ensembleConsensus.rank({ universe });
     expect(callRecord.template).toBe(0);
     expect(callRecord.free).toBe(1);
 
     // With template: both run
-    ensembleConsensus.rank({ universe, template: { ticker: 'NVDA' }, options: { _engines } });
+    ensembleConsensus.rank({ universe, template: { ticker: 'NVDA' } });
     expect(callRecord.template).toBe(1);
     expect(callRecord.free).toBe(2);
   });
 
   test('unknown engine in options.engines throws', () => {
     const universe = makeUniverse(['A']);
-    const _engines = { E1: fakeEngine('E1', ['A']) };
+    cleanup = withFakeRegistry([fakeEngine('E1', ['A'])]);
     expect(() => ensembleConsensus.rank({
       universe,
-      options: { _engines, engines: ['E1', 'bogus'] },
+      options: { engines: ['E1', 'bogus'] },
     })).toThrow(/Unknown engine key/);
   });
 
   test('perEngineRanks uses null for missing engines', () => {
     const universe = makeUniverse(['A', 'B']);
-    const _engines = {
-      E1: fakeEngine('E1', ['A', 'B']),
-      E2: fakeEngine('E2', ['A']),          // B missing
-      E3: fakeEngine('E3', ['B', 'A']),
-    };
-    const results = ensembleConsensus.rank({ universe, options: { _engines } });
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['A', 'B']),
+      fakeEngine('E2', ['A']),          // B missing
+      fakeEngine('E3', ['B', 'A']),
+    ]);
+    const results = ensembleConsensus.rank({ universe });
     const b = results.find(r => r.ticker === 'B');
     expect(b.perEngineRanks.E1).toBe(2); // B is second in E1's ['A', 'B']
     expect(b.perEngineRanks.E2).toBeNull();
     expect(b.perEngineRanks.E3).toBe(1); // B is first in E3's ['B', 'A']
     expect(b.perEngineScores.E2).toBeNull();
     expect(b.consensusEngines).toBe(2);
+    // Engine coverage: 2/3 → adequate
+    expect(b.confidence.level).toBe('adequate');
+    expect(b.confidence.coverageRatio).toBe(67);
+    expect(b.confidence.metricsAvailable).toBe(2);
   });
 
   test('engine metadata is exported', () => {
     expect(ensembleConsensus.key).toBe('ensembleConsensus');
     expect(ensembleConsensus.requiresTemplate).toBe(false);
     expect(typeof ensembleConsensus.rank).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Registry wiring — the real registry should have ensembleConsensus once
+// services/algorithms is required. Guards against regressions where the
+// registry split drops or duplicates a registration.
+// ---------------------------------------------------------------------------
+
+describe('registry wiring', () => {
+  test('ensembleConsensus is registered alongside templateMatch and momentumBreakout', () => {
+    const keys = Object.keys(registry.ENGINES).sort();
+    expect(keys).toContain('ensembleConsensus');
+    expect(keys).toContain('templateMatch');
+    expect(keys).toContain('momentumBreakout');
   });
 });
