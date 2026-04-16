@@ -448,7 +448,22 @@ function computeBreakoutCandidatesAsync(limit = 20) {
         setImmediate(processBatch);
       } else {
         scored.sort((a, b) => b.breakoutScore - a.breakoutScore);
-        resolve(scored.slice(0, limit));
+
+        // Sector diversity: no single sector takes more than 30% of results.
+        // This prevents earnings-recovery cycles in one sector from dominating.
+        const maxPerSector = Math.max(2, Math.ceil(limit * 0.30));
+        const sectorCounts = {};
+        const diverse = [];
+        for (const s of scored) {
+          const sector = s.candidate.sector || 'Unknown';
+          sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
+          if (sectorCounts[sector] <= maxPerSector) {
+            diverse.push(s);
+            if (diverse.length >= limit) break;
+          }
+        }
+
+        resolve(diverse);
       }
     }
 
