@@ -55,13 +55,15 @@ Catalyst-driven engine depends on FMP endpoints we don't currently consume. Conf
 
 Non-behavioral refactor. Current matcher becomes one engine among many, with zero change to outputs. This is the scaffolding every other phase depends on.
 
-- [ ] Create `server/services/algorithms/` directory
-- [ ] Define shared engine interface in `server/services/algorithms/index.js` — exports `rank({ template?, universe, options })` contract + engine registry
-- [ ] Move `server/services/matcher.js` → `server/services/algorithms/templateMatch.js`; rename `findMatches` to match interface (keep old name as re-export for back-compat during transition)
-- [ ] Update `server/routes/matches.js` to route through the engine registry, defaulting to `templateMatch` when no `algo` param is supplied
-- [ ] Add `algo` query param parsing with whitelist validation
-- [ ] Confirm all existing tests pass unchanged (`server/tests/matcher.test.js`)
-- [ ] Smoke test: hit `/api/matches?algo=templateMatch&ticker=NVDA&date=2023-01-03` and confirm identical results to the pre-refactor endpoint
+**Implementation note (2026-04-16):** Took the additive approach rather than physically moving `matcher.js`. `matcher.js` remains the source of truth for similarity scoring; `algorithms/templateMatch.js` is a thin adapter that conforms to the shared engine interface. This avoided churning 6 production importers and 2 test files. Future phases add new files to `algorithms/`; no need to revisit this decision unless we want to clean up the wrapper later.
+
+- [x] Create `server/services/algorithms/` directory
+- [x] Define shared engine interface in `server/services/algorithms/index.js` — exports `rank({ template?, universe, options })` contract + engine registry
+- [x] ~~Move~~ Adapt `server/services/matcher.js` via `server/services/algorithms/templateMatch.js` (thin wrapper exposing the registry interface; matcher.js untouched)
+- [x] Update `server/routes/matches.js` to route through the engine registry, defaulting to `templateMatch` when no `algo` param is supplied
+- [x] Add `algo` query param parsing with whitelist validation
+- [x] Confirm all existing tests pass unchanged (`server/tests/matcher.test.js` — 86 tests pass across matcher/matches/similarity suites)
+- [ ] Smoke test: hit `/api/matches?algo=templateMatch&ticker=NVDA&date=2023-01-03` and confirm identical results to the pre-refactor endpoint *(deferred — requires running dev server with FMP API key; can verify on desktop)*
 
 ---
 
@@ -180,3 +182,4 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 ### Progress log
 
 - `2026-04-16`: Roadmap created. No implementation work started. Strategic direction locked: pluggable architecture + ensemble consensus, template-match preserved as featured engine.
+- `2026-04-16`: **Phase 1 complete** (additive variant). Added `server/services/algorithms/{index.js, templateMatch.js}` with engine registry + shared `rank({ template, universe, topN, options })` contract. Wired `?algo=` query param with whitelist validation into `server/routes/matches.js`, defaulting to `templateMatch` when absent. All 86 existing tests across matcher/matches/similarity suites pass — zero behavior change. Live smoke test deferred (needs FMP API key in dev environment). **Next:** Phase 0 (verify FMP catalyst endpoints) or Phase 2 (momentum/volume engine). Phase 2 is buildable today because it only needs snapshot data we already have.

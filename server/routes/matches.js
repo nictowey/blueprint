@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { getCache, isReady } = require('../services/universe');
-const { findMatches, MATCH_METRICS } = require('../services/matcher');
+const { MATCH_METRICS } = require('../services/matcher');
 const { snapshotCache, SNAPSHOT_CACHE_TTL } = require('./snapshot');
 const { getProfile, applyHardFilters, DEFAULT_PROFILE, PROFILE_KEYS } = require('../services/matchProfiles');
+const { getEngine, isValidEngineKey, DEFAULT_ENGINE } = require('../services/algorithms');
 
 router.get('/', async (req, res) => {
-  const { ticker, date, sector, profile: profileKey } = req.query;
+  const { ticker, date, sector, profile: profileKey, algo: algoKey } = req.query;
   if (!ticker || !date)
     return res.status(400).json({ error: 'ticker and date are required' });
   if (!/^[A-Z0-9.]{1,10}$/i.test(ticker))
@@ -15,6 +16,8 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ error: 'invalid date format, expected YYYY-MM-DD' });
   if (sector && sector.length > 50)
     return res.status(400).json({ error: 'invalid sector value' });
+  if (algoKey !== undefined && !isValidEngineKey(algoKey))
+    return res.status(400).json({ error: 'invalid algo value' });
 
   if (!isReady())
     return res.status(503).json({ error: 'Stock universe cache is still loading. Please try again in a moment.' });
@@ -62,11 +65,13 @@ router.get('/', async (req, res) => {
     // Apply profile hard filters (e.g., value_inflection requires P/E > 0 and <= 35)
     universe = applyHardFilters(universe, profile.hardFilters);
 
-    const profileOptions = {
-      weights: profile.weights,
-    };
-
-    const matches = findMatches(snapshot, universe, 10, profileOptions);
+    const engine = getEngine(algoKey || DEFAULT_ENGINE);
+    const matches = engine.rank({
+      template: snapshot,
+      universe,
+      topN: 10,
+      options: { weights: profile.weights },
+    });
     res.json(matches);
   } catch (err) {
     console.error('[matches] Error:', err.message);
