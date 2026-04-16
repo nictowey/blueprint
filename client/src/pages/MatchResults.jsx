@@ -50,6 +50,7 @@ export default function MatchResults() {
 
   // Proof data for trust signals
   const [proofData, setProofData] = useState(null);
+  const [universeSize, setUniverseSize] = useState(null);
 
   // Filter state
   const [sectorFilter, setSectorFilter] = useState('all');
@@ -72,6 +73,10 @@ export default function MatchResults() {
     fetch('/api/proof')
       .then(res => res.ok ? res.json() : null)
       .then(data => setProofData(data))
+      .catch(() => {});
+    fetch('/api/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.stockCount) setUniverseSize(data.stockCount); })
       .catch(() => {});
   }, []);
 
@@ -449,7 +454,7 @@ export default function MatchResults() {
             {/* Results count + share/export */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
               <p className="text-sm text-warm-muted font-light">
-                Showing {sorted.length} of {matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
+                Top {sorted.length} of {universeSize ? universeSize.toLocaleString() + ' scanned' : matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
               </p>
               <ShareBar
                 onExportCSV={() => {

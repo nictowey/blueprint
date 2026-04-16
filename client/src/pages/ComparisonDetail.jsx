@@ -412,7 +412,7 @@ export default function ComparisonDetail() {
                                 }}
                               />
                             </div>
-                            <span className="text-[9px] text-warm-muted w-6 text-right font-mono">{sim}</span>
+                            <span className="text-[9px] text-warm-muted w-8 text-right font-mono">{sim}%</span>
                           </div>
                         )}
                         <span className={`text-sm font-semibold font-mono ${colorClass}`}>

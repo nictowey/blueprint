@@ -92,14 +92,14 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
         </div>
       </div>
 
-      {/* Key stats row */}
+      {/* Key stats row — match value on top, template value below */}
       <div className="flex flex-wrap gap-3 sm:gap-5 mt-3 pt-3 border-t border-dark-border/50 px-1">
         {KEY_STATS.map(({ key, label }) => (
           <div key={key} className="text-center min-w-[48px]">
             <p className="text-[10px] text-warm-muted uppercase tracking-wider">{label}</p>
             <p className="text-xs font-semibold text-warm-white font-mono">{formatMetric(key, match[key])}</p>
             {snapshot?.[key] != null && (
-              <p className="text-[9px] text-warm-muted font-mono">vs {formatMetric(key, snapshot[key])}</p>
+              <p className="text-[9px] text-warm-muted/60 font-mono">tmpl {formatMetric(key, snapshot[key])}</p>
             )}
           </div>
         ))}
@@ -107,7 +107,7 @@ export default function MatchCard({ match, snapshot, rank, profile }) {
           <p className="text-[10px] text-warm-muted uppercase tracking-wider">Mkt Cap</p>
           <p className="text-xs font-semibold text-warm-white font-mono">{formatMetric('marketCap', match.marketCap)}</p>
           {snapshot?.marketCap != null && (
-            <p className="text-[9px] text-warm-muted font-mono">vs {formatMetric('marketCap', snapshot.marketCap)}</p>
+            <p className="text-[9px] text-warm-muted/60 font-mono">tmpl {formatMetric('marketCap', snapshot.marketCap)}</p>
           )}
         </div>
       </div>
