@@ -34,25 +34,37 @@ function StatCard({ label, children }) {
 
 function CaseCard({ c }) {
   const [expanded, setExpanded] = useState(false);
-  const displayMatches = expanded ? c.matches : c.matches.slice(0, 3);
-  const alpha12 = c.alpha?.['12m'];
+  const matches = c.matches || [];
+  const displayMatches = expanded ? matches : matches.slice(0, 3);
+
+  // Compute alpha: avg match 12m return minus benchmark 12m return
+  const match12mReturns = matches.map(m => m.forwardReturns?.['12m']).filter(r => r != null);
+  const avgMatch12m = match12mReturns.length > 0 ? match12mReturns.reduce((s, r) => s + r, 0) / match12mReturns.length : null;
+  const bench12m = c.benchmark?.['12m'] ?? null;
+  const alpha12 = (avgMatch12m != null && bench12m != null) ? avgMatch12m - bench12m : null;
+
+  const ticker = c.templateTicker || c.ticker || '?';
+  const date = c.templateDate || c.date || '';
+  const companyName = c.templateCompanyName || c.companyName || '';
+  const sector = c.templateSector || c.sector || '';
 
   return (
     <div className="card">
       {/* Case header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-bold text-warm-white">{c.ticker}</span>
-            <span className="text-warm-muted text-xs font-mono">{c.date}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono font-bold text-warm-white">{ticker}</span>
+            {sector && <span className="text-[10px] text-warm-muted border border-dark-border/50 rounded-full px-2 py-0.5">{sector}</span>}
+            <span className="text-warm-muted text-xs font-mono">{date}</span>
             {alpha12 != null && (
               <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${alpha12 > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
                 {alpha12 > 0 ? '+' : ''}{alpha12.toFixed(1)}% alpha
               </span>
             )}
           </div>
-          {c.companyName && (
-            <p className="text-sm text-warm-gray font-light mt-0.5">{c.companyName}</p>
+          {companyName && (
+            <p className="text-sm text-warm-gray font-light mt-0.5">{companyName}</p>
           )}
         </div>
       </div>
