@@ -6,18 +6,11 @@ import { httpError } from '../utils/httpError';
 import { toCSV, downloadCSV } from '../utils/export';
 import ShareBar from '../components/ShareBar';
 
-function scoreLabel(score) {
-  if (score >= 85) return { text: 'Excellent match', color: 'text-emerald-400' };
-  if (score >= 70) return { text: 'Strong match', color: 'text-emerald-400' };
-  if (score >= 55) return { text: 'Moderate match', color: 'text-accent' };
-  return { text: 'Weak match', color: 'text-red-400' };
-}
-
 const LOADING_MESSAGES = [
-  'Scanning the stock universe…',
-  'Calculating similarity scores…',
-  'Ranking closest matches…',
-  'Almost there…',
+  'Scanning the stock universe\u2026',
+  'Calculating similarity scores\u2026',
+  'Ranking closest matches\u2026',
+  'Almost there\u2026',
 ];
 
 const MATCH_METRICS = [
@@ -206,10 +199,10 @@ export default function MatchResults() {
   if (!snapshot) {
     if (snapshotLoading) {
       return (
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
-            <p className="text-warm-gray text-sm font-light">Loading snapshot…</p>
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+          <div className="flex flex-col items-center justify-center py-14 gap-4">
+            <div className="w-8 h-8 border-3 border-border border-t-brand rounded-full animate-spin" />
+            <p className="text-text-secondary text-sm font-light">Loading snapshot\u2026</p>
           </div>
         </main>
       );
@@ -218,17 +211,17 @@ export default function MatchResults() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
       {/* Summary bar */}
-      <div className="card mb-6 sm:mb-8">
+      <div className="rounded-xl border border-border bg-surface px-5 py-4 mb-6 sm:mb-8">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono font-bold text-lg sm:text-xl text-warm-white">{snapshot.ticker}</span>
-              <span className="text-warm-muted">·</span>
-              <span className="text-warm-gray text-xs sm:text-sm font-mono">{snapshot.date}</span>
+              <span className="font-mono font-bold text-lg sm:text-xl text-text-primary">{snapshot.ticker}</span>
+              <span className="text-text-muted">&middot;</span>
+              <span className="text-text-secondary text-xs sm:text-sm font-mono">{snapshot.date}</span>
             </div>
-            <p className="text-sm text-warm-gray font-light">{snapshot.companyName}</p>
+            <p className="text-sm text-text-secondary font-light">{snapshot.companyName}</p>
             {snapshot.dataAsOf && snapshot.dataAsOf !== snapshot.date && (
               <p className="text-xs text-amber-500/80 mt-1">
                 Financials as of {snapshot.dataAsOf}
@@ -243,39 +236,39 @@ export default function MatchResults() {
               { key: 'grossMargin', label: 'Margin' },
             ].map(({ key, label }) => (
               <div key={key} className="text-center">
-                <p className="section-label mb-0.5">{label}</p>
-                <p className="text-sm font-semibold text-warm-white font-mono">{formatMetric(key, snapshot[key])}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider font-medium mb-0.5">{label}</p>
+                <p className="text-sm font-semibold text-text-primary font-mono">{formatMetric(key, snapshot[key])}</p>
               </div>
             ))}
           </div>
-          <button className="btn-secondary w-full sm:w-auto" onClick={() => navigate(-1)}>← Back</button>
+          <button className="btn-secondary w-full sm:w-auto" onClick={() => navigate(-1)}>&larr; Back</button>
         </div>
       </div>
 
       {/* Warm-up retry state */}
       {warming && (
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="w-10 h-10 border-4 border-dark-border border-t-amber-400 rounded-full animate-spin" />
+        <div className="flex flex-col items-center justify-center py-14 gap-4">
+          <div className="w-8 h-8 border-3 border-border border-t-amber-400 rounded-full animate-spin" />
           <p className="text-amber-400 text-sm font-medium">Universe warming up</p>
-          <p className="text-warm-muted text-xs font-mono">
-            {warmStockCount.toLocaleString()} stocks loaded — retrying in {retryCountdown}s…
+          <p className="text-text-muted text-xs font-mono">
+            {warmStockCount.toLocaleString()} stocks loaded &mdash; retrying in {retryCountdown}s\u2026
           </p>
         </div>
       )}
 
       {/* Normal loading state */}
       {loading && !warming && (
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="w-10 h-10 border-4 border-dark-border border-t-accent rounded-full animate-spin" />
-          <p className="text-warm-gray text-sm animate-pulse font-light">{LOADING_MESSAGES[msgIdx]}</p>
+        <div className="flex flex-col items-center justify-center py-14 gap-4">
+          <div className="w-8 h-8 border-3 border-border border-t-brand rounded-full animate-spin" />
+          <p className="text-text-secondary text-sm animate-pulse font-light">{LOADING_MESSAGES[msgIdx]}</p>
         </div>
       )}
 
       {/* Error state */}
       {error && !loading && (
-        <div className="card border-red-500/20 bg-red-500/5 text-center py-6">
-          <p className="text-red-400 text-sm font-medium mb-2">Something went wrong</p>
-          <p className="text-warm-muted text-xs mb-4 font-light max-w-md mx-auto">{error}</p>
+        <div className="rounded-xl border border-loss/20 bg-loss/5 text-center py-6 px-4">
+          <p className="text-loss text-sm font-medium mb-2">Something went wrong</p>
+          <p className="text-text-muted text-xs mb-4 font-light max-w-md mx-auto">{error}</p>
           <button
             className="btn-secondary text-xs px-4 py-1.5"
             onClick={() => { setError(null); setLoading(true); retriesLeft.current = MAX_RETRIES; fetchMatches(); }}
@@ -287,10 +280,10 @@ export default function MatchResults() {
 
       {/* Empty results */}
       {matches && !loading && matches.length === 0 && (
-        <div className="card text-center py-10">
-          <p className="text-warm-white text-sm font-medium mb-2">No matches found</p>
-          <p className="text-warm-gray text-xs leading-relaxed max-w-md mx-auto font-light">
-            The <span className="text-warm-white">{profiles.find(p => p.key === activeProfile)?.name || activeProfile}</span> strategy
+        <div className="rounded-xl border border-border bg-surface text-center py-10 px-4">
+          <p className="text-text-primary text-sm font-medium mb-2">No matches found</p>
+          <p className="text-text-secondary text-xs leading-relaxed max-w-md mx-auto font-light">
+            The <span className="text-text-primary">{profiles.find(p => p.key === activeProfile)?.name || activeProfile}</span> strategy
             has filters that excluded all candidates. Try a different strategy profile or a different template stock.
           </p>
           {profiles.length > 1 && (
@@ -328,40 +321,8 @@ export default function MatchResults() {
           return b.matchScore - a.matchScore;
         });
 
-        // Top score for interpretation
-        const topScore = matches[0]?.matchScore;
-        const avgScore = matches.length > 0 ? Math.round(matches.reduce((s, m) => s + m.matchScore, 0) / matches.length) : 0;
-
         return (
           <>
-            {/* Score interpretation — clear grading system */}
-            <div className="card mb-6 border-dark-border/50">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-accent text-sm font-display italic">i</span>
-                </div>
-                <div className="text-sm flex-1">
-                  <p className="text-warm-white font-light">
-                    Found <span className="font-semibold">{matches.length} matches</span> —
-                    top score is <span className={`font-semibold font-mono ${scoreLabel(topScore).color}`}>{Math.round(topScore)}</span>
-                    {' '}(<span className={scoreLabel(topScore).color}>{scoreLabel(topScore).text}</span>)
-                    {topScore >= 75
-                      ? '. These stocks share very similar financial profiles to the template.'
-                      : topScore >= 55
-                        ? '. Decent similarity — review individual metrics for areas of divergence.'
-                        : '. Moderate similarity — the template profile may be uncommon in today\'s market.'}
-                  </p>
-                  <div className="flex items-center gap-4 mt-2 text-[10px] text-warm-muted">
-                    <span className="font-mono">Avg: {avgScore}</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> 85+ Excellent</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500/60 inline-block" /> 70+ Strong</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> 55+ Good</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> &lt;55 Fair</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Backtest button */}
             {(() => {
               const oneMonthAgo = new Date();
@@ -375,24 +336,24 @@ export default function MatchResults() {
                 if (activeProfile !== DEFAULT_PROFILE) backtestParams.set('profile', activeProfile);
                 return (
                   <button
-                    className="btn-secondary w-full mb-5 text-sm py-2.5 flex items-center justify-center gap-2 hover:border-accent/30 hover:text-accent"
+                    className="btn-secondary w-full mb-5 text-sm py-2.5 flex items-center justify-center gap-2 hover:border-brand/30 hover:text-brand"
                     onClick={() => navigate(`/backtest?${backtestParams}`)}
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 12l3-3 2.5 2.5L14 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    Backtest — See how these matches actually performed
+                    Backtest &mdash; See how these matches actually performed
                   </button>
                 );
               }
               return null;
             })()}
 
-            {/* Controls row — strategy, sector, sort in one compact line */}
+            {/* Controls row */}
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-5">
               {profiles.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <label className="section-label shrink-0">Strategy</label>
+                  <label className="text-xs text-text-muted shrink-0">Strategy</label>
                   <select
-                    className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
+                    className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto"
                     value={activeProfile}
                     onChange={e => setActiveProfile(e.target.value)}
                   >
@@ -403,15 +364,15 @@ export default function MatchResults() {
                 </div>
               )}
               <div className="flex items-center gap-2">
-                <label className="section-label shrink-0">Sector</label>
+                <label className="text-xs text-text-muted shrink-0">Sector</label>
                 <select
-                  className="input-field text-sm py-1.5 px-3 w-full sm:w-auto min-w-0"
+                  className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto min-w-0"
                   value={sectorFilter}
                   onChange={e => setSectorFilter(e.target.value)}
                 >
                   <option value="all">All sectors ({matches.length})</option>
                   {snapshot.sector && (
-                    <option value="same">Same sector — {snapshot.sector} ({matches.filter(m => m.sector === snapshot.sector).length})</option>
+                    <option value="same">Same sector &mdash; {snapshot.sector} ({matches.filter(m => m.sector === snapshot.sector).length})</option>
                   )}
                   {sectors.map(s => (
                     <option key={s} value={s}>{s} ({matches.filter(m => m.sector === s).length})</option>
@@ -419,9 +380,9 @@ export default function MatchResults() {
                 </select>
               </div>
               <div className="flex items-center gap-2 sm:ml-auto">
-                <label className="section-label shrink-0">Sort</label>
+                <label className="text-xs text-text-muted shrink-0">Sort</label>
                 <select
-                  className="input-field text-sm py-1.5 px-3 w-full sm:w-auto"
+                  className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto"
                   value={sortBy}
                   onChange={e => setSortBy(e.target.value)}
                 >
@@ -434,8 +395,8 @@ export default function MatchResults() {
 
             {/* Results count + share/export */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-              <p className="text-sm text-warm-muted font-light">
-                Top {sorted.length} of {universeSize ? universeSize.toLocaleString() + ' scanned' : matches.length} — ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
+              <p className="text-sm text-text-muted font-light">
+                Top {sorted.length} of {universeSize ? universeSize.toLocaleString() + ' scanned' : matches.length} &mdash; ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
               </p>
               <ShareBar
                 onExportCSV={() => {
@@ -460,11 +421,11 @@ export default function MatchResults() {
             </div>
 
             {sorted.length === 0 ? (
-              <div className="card text-center py-8 text-warm-muted text-sm font-light">
+              <div className="rounded-xl border border-border bg-surface text-center py-8 text-text-muted text-sm font-light">
                 No matches in this sector. Try "All sectors" to see all results.
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
                 {sorted.map((match, i) => (
                   <MatchCard key={match.ticker} match={match} snapshot={snapshot} rank={i + 1} profile={activeProfile} />
                 ))}
