@@ -293,6 +293,9 @@ export default function ComparisonDetail() {
               <p className="section-label mb-1">Template · {data.template.date}</p>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono font-bold text-lg sm:text-xl text-warm-white">{data.template.ticker}</span>
+                <a href={`https://finance.yahoo.com/quote/${data.template.ticker}`} target="_blank" rel="noopener noreferrer" className="text-warm-muted/40 hover:text-accent transition-colors" title="View on Yahoo Finance">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8M7 1h4v4M5 7l6-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </a>
                 <span className="text-warm-gray text-xs sm:text-sm font-light">{data.template.companyName}</span>
               </div>
               {data.template.sector && (
@@ -395,6 +398,9 @@ export default function ComparisonDetail() {
               </p>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-bold text-xl text-warm-white">{data.match.ticker}</span>
+                <a href={`https://finance.yahoo.com/quote/${data.match.ticker}`} target="_blank" rel="noopener noreferrer" className="text-warm-muted/40 hover:text-accent transition-colors" title="View on Yahoo Finance">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1H2a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V8M7 1h4v4M5 7l6-6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </a>
                 <span className="text-warm-gray text-sm font-light">{data.match.companyName}</span>
               </div>
               {data.match.sector && (
