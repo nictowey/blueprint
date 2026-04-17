@@ -33,6 +33,7 @@ Related memory: `project_multi_algo_direction` — Blueprint treats new ranking 
 - New `/stock/:ticker` detail page (multi-lens: metrics + per-engine scores + "Find similar" CTA)
 - New `GET /api/stock/:ticker/engine-scores` endpoint
 - Clickable tickers on picker cards (all modes) and on `ComparisonDetail` (both template + match)
+- Search cleanup: scope `/api/search` to the investable universe so non-rankable ETFs/funds no longer appear in the typeahead
 - Manual post-implementation audit (code + visual via Chrome) with iterate-until-correct requirement
 
 ### Out of scope (future work)
@@ -283,6 +284,27 @@ Per Section "Ensemble Bug Fix":
 - Export `defaultMinEngines` on `_test` for unit testing
 - Keep `DEFAULT_MIN_ENGINES = 2` as a historical constant if any external code reads it, or remove it entirely (implementation plan decides based on grep results)
 
+### Modified: `server/routes/search.js`
+
+**Current behavior:** `/api/search?q=X` forwards to FMP's ticker search and filters results only by `exchange === 'NASDAQ' || 'NYSE'`. NASDAQ/NYSE includes ETFs, mutual funds, closed-end funds, and trusts — all of which leak into the typeahead dropdown. A user can select one and Blueprint's ranker then produces no result because the universe filter excludes non-equities.
+
+**New behavior:** search is scoped to the in-memory universe (`universe.getCache()`). No FMP calls on the search path. Every suggestion is guaranteed rankable.
+
+**Implementation:**
+
+- Import `getCache` from `server/services/universe.js`
+- Build suggestions by scanning the universe entries and matching against the query in two phases:
+  1. **Symbol prefix match** (case-insensitive) — highest priority, rendered first
+  2. **Company name substring match** (case-insensitive) — filled in after prefix matches, up to the 10-result cap
+- Return the same response shape as today (`{ symbol, name, exchangeShortName }`) so `TickerSearch.jsx` needs no changes. Exchange field can be hardcoded `"NASDAQ/NYSE"` or retrieved from the universe entry if stored; simplest is a single label like `"US"` since we don't distinguish.
+- Guard: when universe is not ready (`!isReady()`), return `[]` immediately rather than erroring. TickerSearch already handles empty results gracefully.
+
+**Test updates:** if `server/tests/search.test.js` exists, replace its FMP mocks with a universe fixture. If not, add one covering: prefix match ordering, name substring match, case-insensitivity, empty universe → `[]`, 10-result cap.
+
+**Why this protects the detail page:** the new `/stock/:ticker` route relies on the ticker being in the universe (400 otherwise). Scoping search to the universe means users literally cannot navigate to a detail page that would fail — the broken path is inaccessible by construction.
+
+**Coverage note:** the universe covers US-listed equities $10M+ market cap, ~5000 stocks after ETF/fund exclusion (see `server/services/universe.js:338-360`). This is the full investable US universe. The only things excluded from search are: sub-$10M thin-liquidity stocks, non-US listings, and ETFs/funds — the last being the exact exclusion the user requested.
+
 ## FMP Rate Limit Considerations
 
 Blueprint has a 300 ping/minute FMP budget (per user memory `feedback_fmp_rate_limit`). Audit of this spec's paths:
@@ -290,6 +312,7 @@ Blueprint has a 300 ping/minute FMP budget (per user memory `feedback_fmp_rate_l
 | Path | Hits FMP? | Notes |
 |---|---|---|
 | `/api/stock/:ticker/engine-scores` | **No** | In-memory reads only — universe + catalyst cache |
+| `/api/search?q=X` | **No** (changed) | **Was hitting FMP per keystroke.** Now reads universe cache only — reduces FMP pressure noticeably on the search path |
 | `/api/snapshot?ticker=X` (latest) | No | Universe already has it |
 | `/api/snapshot?ticker=X&date=Y` (historical) | Yes | Existing behavior, unchanged |
 | `/stock/:ticker` navigated from template-free picker | No | No date → latest → no FMP |
@@ -303,7 +326,7 @@ Blueprint has a 300 ping/minute FMP budget (per user memory `feedback_fmp_rate_l
 3. **Catalyst cache is never populated on a user-request path.** Cold-start fills via the startup warm loop only. Detail pages for non-warmed tickers show "insufficient data" gracefully.
 4. **60s LRU on engine-scores** reduces re-rank cost on repeat views; the bigger win is never touching FMP.
 
-**Net FMP delta from this spec: zero new calls.** Historical snapshot builds happen at today's rate.
+**Net FMP delta from this spec: negative — fewer calls than today.** Zero new calls introduced, and the search path stops hitting FMP on every debounced keystroke.
 
 ## Testing & Verification
 
@@ -350,6 +373,14 @@ After implementation lands, audit both code paths and the rendered UI via Chrome
 - Template-free MatchCard click → `/stock/:ticker`
 - Both ticker symbols on ComparisonDetail header → respective `/stock/:ticker?date=...`
 
+**Search cleanup:**
+- Typing "SPY" returns no results (ETF, excluded from universe)
+- Typing "VTSAX" returns no results (mutual fund, excluded)
+- Typing "NVDA" returns NVDA with company name
+- Typing "Nvidia" (lowercase, company name) still returns NVDA via name substring match
+- Typing a partial like "APP" returns multiple prefix matches (APP, APPL, AAPL if present) in reasonable order
+- Network tab confirms `/api/search` no longer triggers downstream FMP traffic
+
 **Responsive:**
 - 375px viewport: no horizontal overflow, engine scorecard stacks cleanly, metric groups collapse to single column
 
@@ -370,11 +401,15 @@ If any verification step fails, edit source and re-verify. The spec is not satis
 ### Modified files
 - `server/services/algorithms/ensembleConsensus.js` — adaptive `defaultMinEngines`
 - `server/tests/ensembleConsensus.test.js` — new parametrized cases
+- `server/routes/search.js` — scope search to investable universe; remove FMP call
 - `server/index.js` — mount `/api/stock` route; optional catalyst cold-start log
 - `client/src/App.jsx` — add `/stock/:ticker` route
 - `client/src/components/MatchCard.jsx` — universal click-through + route selection
 - `client/src/pages/ComparisonDetail.jsx` — clickable ticker links in header
 - `client/src/pages/MatchResults.jsx` — ensemble-without-template copy updates
+
+### Possibly new / updated tests
+- `server/tests/search.test.js` — universe-fixture cases replacing FMP mocks (new file if absent today)
 
 ## Future Work (explicitly out of scope)
 
