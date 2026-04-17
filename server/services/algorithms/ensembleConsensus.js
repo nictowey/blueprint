@@ -11,8 +11,7 @@
  *        RRF(stock) = sum over engines of 1 / (RRF_K + rank)
  *      where rank is 1-indexed and RRF_K = 60 (Cormack et al. 2009 default).
  *      Stocks missing from an engine's pool contribute 0 from that engine.
- *   3. Drop any stock that appeared in fewer than `minEngines` engines
- *      (default 2) — this is the "≥K engines" consensus threshold.
+ *   3. Drop any stock that appeared in fewer than `minEngines` engines — the consensus threshold. Default adapts to engine count (see defaultMinEngines).
  *   4. Normalize remaining RRF scores to 0..100 (best = 100, linear scale)
  *      and return the top `topN`.
  *
@@ -189,7 +188,7 @@ function buildConfidence(consensusEngines, totalEngines) {
  * @param {object}  [args.options]
  * @param {Array}   [args.options.engines]       — override which engines to run
  * @param {number}  [args.options.poolSize=50]   — top-N pulled from each engine
- * @param {number}  [args.options.minEngines=2]  — consensus threshold
+ * @param {number}  [args.options.minEngines] — consensus threshold; defaults to defaultMinEngines(engines.length)
  * @returns {Array<object>}                      — ranked results
  */
 function rank({ template, universe, topN = DEFAULT_TOP_N, options = {} } = {}) {
@@ -239,7 +238,7 @@ function rank({ template, universe, topN = DEFAULT_TOP_N, options = {} } = {}) {
 module.exports = {
   key: 'ensembleConsensus',
   name: 'Ensemble Consensus',
-  description: 'Orchestration layer. Runs every other registered engine and merges their rankings via Reciprocal Rank Fusion (RRF), surfacing stocks that appear in the top-N of multiple engines. Templates are optional — if provided, templateMatch joins as a third lens. Default consensus threshold: stock must appear in ≥2 engine pools.',
+  description: 'Orchestration layer. Runs every other registered engine and merges their rankings via Reciprocal Rank Fusion (RRF), surfacing stocks that appear in the top-N of multiple engines. Templates are optional — if provided, templateMatch joins as a third lens. Default consensus threshold adapts to engine count: strict majority when ≥3 run, union view (RRF ordering surfaces agreement) when exactly 2 run.',
   requiresTemplate: false,
   rank,
   _test: {
