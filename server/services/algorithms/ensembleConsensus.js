@@ -35,8 +35,18 @@ const registry = require('./registry');
 
 const RRF_K = 60;
 const DEFAULT_POOL_SIZE = 50;
-const DEFAULT_MIN_ENGINES = 2;
 const DEFAULT_TOP_N = 10;
+
+/**
+ * Default minEngines given how many component engines are running.
+ *  - 2 engines → 1 (union view; RRF ordering organically surfaces agreement)
+ *  - 3+ engines → strict majority (floor(N/2) + 1)
+ * Callers can override via options.minEngines.
+ */
+function defaultMinEngines(enginesRunning) {
+  if (enginesRunning <= 2) return 1;
+  return Math.floor(enginesRunning / 2) + 1;
+}
 
 /**
  * Resolve which component engines to run for a given invocation.
@@ -187,10 +197,13 @@ function rank({ template, universe, topN = DEFAULT_TOP_N, options = {} } = {}) {
 
   const poolSize = options.poolSize != null ? options.poolSize : DEFAULT_POOL_SIZE;
   if (poolSize < 1) throw new Error('poolSize must be >= 1');
-  const minEngines = options.minEngines != null ? options.minEngines : DEFAULT_MIN_ENGINES;
 
   const engines = resolveEngines({ enginesMap: registry.ENGINES, template, options });
   if (engines.length === 0) return [];
+
+  const minEngines = options.minEngines != null
+    ? options.minEngines
+    : defaultMinEngines(engines.length);
 
   const engineKeys = engines.map(e => e.key);
   const engineResults = collectEngineResults({ engines, template, universe, poolSize });
@@ -234,8 +247,8 @@ module.exports = {
     collectEngineResults,
     mergeRrf,
     buildConfidence,
+    defaultMinEngines,
     RRF_K,
     DEFAULT_POOL_SIZE,
-    DEFAULT_MIN_ENGINES,
   },
 };

@@ -4,7 +4,7 @@ const registry = require('../services/algorithms/registry');
 // that care about that rely on the registry being fully populated.
 require('../services/algorithms');
 
-const { resolveEngines, mergeRrf, buildConfidence, RRF_K } = ensembleConsensus._test;
+const { resolveEngines, mergeRrf, buildConfidence, defaultMinEngines, RRF_K } = ensembleConsensus._test;
 
 // ---------------------------------------------------------------------------
 // Fixtures: fake stocks + fake engines that rank them deterministically.
@@ -270,6 +270,31 @@ describe('buildConfidence', () => {
 });
 
 // ---------------------------------------------------------------------------
+// defaultMinEngines — adaptive consensus threshold
+// ---------------------------------------------------------------------------
+
+describe('defaultMinEngines', () => {
+  test('2 engines → 1 (union view — RRF ordering surfaces agreement)', () => {
+    expect(defaultMinEngines(2)).toBe(1);
+  });
+  test('3 engines → 2 (strict majority)', () => {
+    expect(defaultMinEngines(3)).toBe(2);
+  });
+  test('4 engines → 3', () => {
+    expect(defaultMinEngines(4)).toBe(3);
+  });
+  test('5 engines → 3', () => {
+    expect(defaultMinEngines(5)).toBe(3);
+  });
+  test('6 engines → 4', () => {
+    expect(defaultMinEngines(6)).toBe(4);
+  });
+  test('1 engine → 1 (edge case — no engines ever means no call)', () => {
+    expect(defaultMinEngines(1)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // rank — full engine integration (with fake engines registered for the test)
 // ---------------------------------------------------------------------------
 
@@ -288,13 +313,13 @@ describe('rank — engine integration', () => {
     expect(ensembleConsensus.rank({ universe: new Map() })).toEqual([]);
   });
 
-  test('basic merge: consensus stock wins over single-engine stock', () => {
+  test('basic merge with explicit strict minEngines: only consensus stock survives', () => {
     const universe = makeUniverse(['BOTH', 'ONLY1', 'ONLY2']);
     cleanup = withFakeRegistry([
       fakeEngine('E1', ['BOTH', 'ONLY1']),
       fakeEngine('E2', ['BOTH', 'ONLY2']),
     ]);
-    const results = ensembleConsensus.rank({ universe });
+    const results = ensembleConsensus.rank({ universe, options: { minEngines: 2 } });
     expect(results.length).toBe(1);
     expect(results[0].ticker).toBe('BOTH');
   });
@@ -444,7 +469,7 @@ describe('rank — engine integration', () => {
     };
     cleanup = withFakeRegistry([templateLike, freeEngine]);
 
-    // No template: only freeEngine runs → A appears in only 1 engine → dropped under minEngines=2
+    // No template: only freeEngine runs (callRecord.template stays 0)
     ensembleConsensus.rank({ universe });
     expect(callRecord.template).toBe(0);
     expect(callRecord.free).toBe(1);
@@ -488,6 +513,43 @@ describe('rank — engine integration', () => {
     expect(ensembleConsensus.key).toBe('ensembleConsensus');
     expect(ensembleConsensus.requiresTemplate).toBe(false);
     expect(typeof ensembleConsensus.rank).toBe('function');
+  });
+
+  test('default minEngines in 2-engine invocation: union — stocks in either engine qualify', () => {
+    const universe = makeUniverse(['BOTH', 'ONLY1', 'ONLY2']);
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['BOTH', 'ONLY1']),
+      fakeEngine('E2', ['BOTH', 'ONLY2']),
+    ]);
+    // No options.minEngines → uses defaultMinEngines(2) = 1
+    const results = ensembleConsensus.rank({ universe });
+    const tickers = results.map(r => r.ticker).sort();
+    expect(tickers).toEqual(['BOTH', 'ONLY1', 'ONLY2']);
+    // BOTH still ranks highest — appears in both engines → higher RRF
+    expect(results[0].ticker).toBe('BOTH');
+  });
+
+  test('explicit minEngines=2 in 2-engine invocation preserves strict-agreement behavior', () => {
+    const universe = makeUniverse(['BOTH', 'ONLY1', 'ONLY2']);
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['BOTH', 'ONLY1']),
+      fakeEngine('E2', ['BOTH', 'ONLY2']),
+    ]);
+    const results = ensembleConsensus.rank({ universe, options: { minEngines: 2 } });
+    expect(results.map(r => r.ticker)).toEqual(['BOTH']);
+  });
+
+  test('default minEngines in 3-engine invocation is strict majority (2)', () => {
+    const universe = makeUniverse(['ALL3', 'TWO', 'SOLO']);
+    cleanup = withFakeRegistry([
+      fakeEngine('E1', ['ALL3', 'TWO']),
+      fakeEngine('E2', ['ALL3', 'TWO']),
+      fakeEngine('E3', ['ALL3', 'SOLO']),
+    ]);
+    const results = ensembleConsensus.rank({ universe });
+    const tickers = results.map(r => r.ticker).sort();
+    // ALL3 (3 engines) and TWO (2 engines) qualify; SOLO (1 engine) is dropped.
+    expect(tickers).toEqual(['ALL3', 'TWO']);
   });
 });
 
