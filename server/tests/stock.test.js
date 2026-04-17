@@ -27,6 +27,7 @@ function investableStock(ticker, overrides = {}) {
     companyName: `${ticker} Corp`,
     sector: 'Technology',
     price: 100,
+    peRatio: 25,
     marketCap: 50_000_000_000,
     pctBelowHigh: 5,
     priceVsMa50: 10,
@@ -46,6 +47,43 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+describe('GET /api/stock/:ticker', () => {
+  test('returns universe snapshot for known ticker', async () => {
+    mockUniverse([investableStock('NVDA')]);
+    const res = await request(makeApp()).get('/api/stock/NVDA');
+    expect(res.status).toBe(200);
+    expect(res.body.ticker).toBe('NVDA');
+    expect(res.body.price).toBeDefined();
+    expect(res.body.peRatio).toBeDefined();
+  });
+
+  test('uppercases input ticker', async () => {
+    mockUniverse([investableStock('NVDA')]);
+    const res = await request(makeApp()).get('/api/stock/nvda');
+    expect(res.status).toBe(200);
+    expect(res.body.ticker).toBe('NVDA');
+  });
+
+  test('404 for unknown ticker', async () => {
+    mockUniverse([investableStock('NVDA')]);
+    const res = await request(makeApp()).get('/api/stock/ZZZZZ');
+    expect(res.status).toBe(404);
+  });
+
+  test('404 for invalid ticker format', async () => {
+    mockUniverse([investableStock('NVDA')]);
+    const res = await request(makeApp()).get('/api/stock/not*valid');
+    expect(res.status).toBe(404);
+  });
+
+  test('404 when universe not ready', async () => {
+    jest.spyOn(universe, 'isReady').mockReturnValue(false);
+    jest.spyOn(universe, 'getCache').mockReturnValue(new Map());
+    const res = await request(makeApp()).get('/api/stock/NVDA');
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('GET /api/stock/:ticker/engine-scores', () => {

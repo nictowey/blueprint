@@ -40,16 +40,18 @@ export default function StockDetail() {
   const [scoresError, setScoresError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [watchlisted, setWatchlisted] = useState(() => isOnWatchlist(ticker));
+  const [watchlisted, setWatchlisted] = useState(false);
+  useEffect(() => { setWatchlisted(isOnWatchlist(ticker)); }, [ticker]);
 
   useEffect(() => {
     if (!ticker) return;
     let cancelled = false;
 
-    // Always build a snapshot URL — with date if present, without otherwise
+    // With date: use the historical FMP-backed snapshot endpoint (requires date).
+    // Without date: use the universe-cache endpoint (zero FMP cost).
     const snapshotUrl = date
       ? `/api/snapshot?ticker=${encodeURIComponent(ticker)}&date=${date}`
-      : `/api/snapshot?ticker=${encodeURIComponent(ticker)}`;
+      : `/api/stock/${encodeURIComponent(ticker)}`;
     const scoresUrl = `/api/stock/${encodeURIComponent(ticker)}/engine-scores`;
 
     // Only fetch snapshot if we don't already have one (passed via router state)

@@ -71,6 +71,19 @@ function buildEnsembleEntry(ticker, results) {
   };
 }
 
+router.get('/:ticker', (req, res) => {
+  const rawTicker = req.params.ticker || '';
+  if (!/^[A-Z0-9.]{1,10}$/i.test(rawTicker)) {
+    return res.status(404).json({});
+  }
+  const ticker = rawTicker.toUpperCase();
+  if (!universe.isReady()) return res.status(404).json({});
+  const cacheMap = universe.getCache();
+  const stock = cacheMap.get(ticker);
+  if (!stock) return res.status(404).json({});
+  res.json(stock);
+});
+
 router.get('/:ticker/engine-scores', (req, res) => {
   const rawTicker = req.params.ticker || '';
   if (!/^[A-Z0-9.]{1,10}$/i.test(rawTicker)) {
