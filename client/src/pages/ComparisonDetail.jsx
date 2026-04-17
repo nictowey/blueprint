@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Sparkline from '../components/Sparkline';
 import ComparisonRow, { MetricLabel } from '../components/ComparisonRow';
 import { formatMetric, METRIC_LABELS } from '../utils/format';
@@ -203,9 +203,19 @@ export default function ComparisonDetail() {
                 {/* Match info */}
                 <div className="flex-1 text-center sm:text-left">
                   <div className="flex items-center justify-center sm:justify-start gap-2 mb-1.5 flex-wrap">
-                    <span className="font-mono font-bold text-lg text-text-primary">{data.template.ticker}</span>
+                    <Link
+                      to={`/stock/${encodeURIComponent(data.template.ticker)}?date=${data.template.date}`}
+                      className="font-mono font-bold text-lg text-text-primary hover:underline"
+                    >
+                      {data.template.ticker}
+                    </Link>
                     <span className="text-text-muted font-display italic text-sm">vs</span>
-                    <span className="font-mono font-bold text-lg text-text-primary">{data.match.ticker}</span>
+                    <Link
+                      to={`/stock/${encodeURIComponent(data.match.ticker)}?date=${data.match.date || data.template.date}`}
+                      className="font-mono font-bold text-lg text-text-primary hover:underline"
+                    >
+                      {data.match.ticker}
+                    </Link>
                     <span
                       className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
                       style={{ color: scoreColor, background: `${scoreColor}10`, border: `1px solid ${scoreColor}30` }}
