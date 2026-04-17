@@ -269,8 +269,14 @@ export default function MatchResults() {
               <p className="font-semibold text-text-primary text-sm sm:text-base">
                 {activeAlgoMeta?.name || activeAlgo}
               </p>
-              {activeAlgoMeta?.description && (
-                <p className="text-xs text-text-muted mt-0.5 font-light">{activeAlgoMeta.description}</p>
+              {activeAlgo === 'ensembleConsensus' ? (
+                <p className="text-xs text-text-muted mt-0.5 font-light">
+                  Top picks across Momentum + Catalyst. Add a template ticker to include Template Match as a third lens.
+                </p>
+              ) : (
+                activeAlgoMeta?.description && (
+                  <p className="text-xs text-text-muted mt-0.5 font-light">{activeAlgoMeta.description}</p>
+                )
               )}
             </div>
           ) : (
@@ -344,7 +350,11 @@ export default function MatchResults() {
       {matches && !loading && matches.length === 0 && (
         <div className="rounded-xl border border-border bg-surface text-center py-10 px-4">
           <p className="text-text-primary text-sm font-medium mb-2">No matches found</p>
-          {isTemplateFree ? (
+          {isTemplateFree && activeAlgo === 'ensembleConsensus' && !snapshot ? (
+            <p className="text-text-secondary text-xs leading-relaxed max-w-md mx-auto font-light mb-3">
+              No stocks scored by both engines. Add a template ticker to include Template Match.
+            </p>
+          ) : isTemplateFree ? (
             <p className="text-text-secondary text-xs font-light">
               <button className="underline hover:text-text-primary transition-colors" onClick={() => navigate(-1)}>Back</button>
             </p>
