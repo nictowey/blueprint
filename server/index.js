@@ -56,6 +56,10 @@ app.use('/api/waitlist',   apiLimiter, require('./routes/waitlist'));
 const { listProfiles } = require('./services/matchProfiles');
 app.get('/api/profiles', (_req, res) => res.json(listProfiles()));
 
+// Algorithms endpoint — returns list of registered engine metadata for the UI
+const { listEngines } = require('./services/algorithms');
+app.get('/api/algorithms', (_req, res) => res.json(listEngines()));
+
 // API 404 — catch unmatched /api/* routes before the SPA catch-all
 app.all('/api/*', (_req, res) => {
   res.status(404).json({ error: 'API endpoint not found' });

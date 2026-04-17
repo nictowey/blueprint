@@ -32,7 +32,13 @@ Sign up at financialmodelingprep.com and grab a Starter plan key (~$14.99/mo). T
 - **Frontend:** React 18 + Vite + Tailwind CSS, served on port 5173 in dev
 - **Backend:** Node.js + Express on port 3001, proxied by Vite in dev
 - **Data:** All FMP API calls go through the Express backend — the API key is never exposed to the browser
-- **Matching:** Server maintains an in-memory cache of ~300 stocks refreshed every 24h; match queries are instant
+- **Matching:** Server maintains an in-memory cache of ~300 stocks refreshed every 24h; match queries are instant. The matching layer is a pluggable engine registry — four engines are registered:
+  - `templateMatch` — cosine-distance comparison against a historical template snapshot (requires ticker + date)
+  - `momentumBreakout` — template-free 5-signal technical scanner (RSI, 52-week breakout, MA crossover, volume, trend)
+  - `catalystDriven` — template-free 3-signal fundamental scanner (earnings surprise, analyst revisions, insider buying)
+  - `ensembleConsensus` — merges all other engines via Reciprocal Rank Fusion; template is optional (joins if provided)
+  
+  Template-free engines can be invoked directly via `/api/matches?algo=<key>` or selected from the homepage "browse by lens" buttons. Engine metadata is exposed at `/api/algorithms`.
 
 ## Monetization
 

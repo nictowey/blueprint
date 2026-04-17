@@ -302,7 +302,7 @@ export default function TemplatePicker() {
                   transition: 'opacity 0.3s ease, transform 0.3s ease',
                 }}
               >
-                {currentBreakout.label} matched our profile in {currentBreakout.period}
+                {currentBreakout.label} ran {displayGain} from {currentBreakout.period}
               </p>
             </div>
           </div>
@@ -471,6 +471,33 @@ export default function TemplatePicker() {
               Or try multi-blend &rarr;
             </button>
           </p>
+        )}
+
+        {/* Browse-by-lens entry points */}
+        {!snapshot && !blendMode && serverReady && (
+          <div className="mt-5 flex flex-col items-center gap-2">
+            <span className="text-xs text-text-muted">Or browse the universe by lens &mdash;</span>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                className="text-xs px-3 py-1.5 rounded-full border border-border text-text-muted hover:border-brand/40 hover:text-text-secondary transition-all duration-150"
+                onClick={() => navigate('/matches?algo=momentumBreakout')}
+              >
+                Top Momentum Stocks
+              </button>
+              <button
+                className="text-xs px-3 py-1.5 rounded-full border border-border text-text-muted hover:border-brand/40 hover:text-text-secondary transition-all duration-150"
+                onClick={() => navigate('/matches?algo=catalystDriven')}
+              >
+                Top Catalysts
+              </button>
+              <button
+                className="text-xs px-3 py-1.5 rounded-full border border-border text-text-muted hover:border-brand/40 hover:text-text-secondary transition-all duration-150"
+                onClick={() => navigate('/matches?algo=ensembleConsensus')}
+              >
+                Ensemble Consensus
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Blend mode header */}
