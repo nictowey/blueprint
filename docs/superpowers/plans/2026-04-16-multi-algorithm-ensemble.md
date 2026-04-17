@@ -159,10 +159,10 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
 
 ## Phase 6: Product / Marketing Updates
 
-- [ ] Update `client/src/pages/TemplatePicker.jsx` — add algorithm selector; keep template input visible in templateMatch mode (preserves "find the next NVDA" hook)
-- [ ] Update homepage hero copy to support ensemble narrative without abandoning the NVDA/SMCI/PLTR rotating gains
+- [x] Update `client/src/pages/TemplatePicker.jsx` — add algorithm selector; keep template input visible in templateMatch mode (preserves "find the next NVDA" hook)
+- [x] Update homepage hero copy to support ensemble narrative without abandoning the NVDA/SMCI/PLTR rotating gains
 - [x] Update `client/src/pages/Proof.jsx` methodology page with 3-engine explanation
-- [ ] Update `README.md` with new architecture overview
+- [x] Update `README.md` with new architecture overview
 
 ---
 
@@ -241,3 +241,12 @@ Without this, adding more algorithms just adds more unproven claims. Each engine
   - Mobile-layout fix: added `w-full min-w-0` to the `<main>` element. Without it, the table's intrinsic min-content (~317px) combined with `<body>`'s flex-column parent forced main to 425px at 375px viewport, causing horizontal overflow. `min-w-0` lets main shrink to viewport and the inner `overflow-x-auto` table wrapper takes the horizontal scroll instead.
   - All four display states visually verified via puppeteer against a local dev server (vite on 5174 + express on 3001). Success state verified by seeding a v1-shape `server/.cache/proof-results.json` that the migration shim expands to v2 — rendered as expected with `—` for null cells and migration banner showing. `notReady` verified by removing the fixture and restarting. `error` verified by killing the server. Console error-free in all states.
   - No server-side changes, no new tests. Full suite still 338/338 passing across 15 suites.
+- `2026-04-16`: **Phase 6 complete** — multi-engine UI shipped (commits `68a924f` + `3c6d2c7`).
+  - **`/api/algorithms` endpoint** (`server/index.js`) returns `[{ key, name, description, requiresTemplate }]` per registered engine. Companion to `/api/profiles`.
+  - **TemplatePicker** (`client/src/pages/TemplatePicker.jsx`): added subtle "Or browse the universe by lens —" row with 3 secondary-styled buttons that navigate to `/matches?algo=<key>` for momentum/catalyst/ensemble — gated on `serverReady && !blendMode`. Hero rotating subtitle reframed neutrally ("X ran +N% from Y" instead of "X matched our profile in Y") to avoid retroactive "we found this" claim. Existing search flow + FAMOUS_BREAKOUTS chips untouched.
+  - **MatchResults** (`client/src/pages/MatchResults.jsx`): new template-free mode driven by `?algo=` URL param (defaults to `templateMatch`). Algorithm dropdown added before the existing Strategy dropdown, populated from `/api/algorithms`. When algo is template-free: snapshot is optional, summary bar shows algorithm name + description instead of ticker/PE/Growth/Margin, profile dropdown hidden, "same sector" option hidden, MATCH_METRICS pass-through skipped, empty-state copy simplified. Switching to templateMatch without a snapshot redirects to `/`. Ensemble + template hybrid: snapshot summary + per-engine MatchCard chips both render. URL state preserved across algo/profile/snapshot transitions.
+  - **MatchCard** (`client/src/components/MatchCard.jsx`): when `match.perEngineRanks` exists, renders compact `T#3 · M#12 · C#7` chips below the ticker/company line in `text-[10px] text-text-muted font-mono`. Non-navigable mode for pure template-free results (no snapshot to compare against) — disables click handler, role/tabIndex, hover lift, and chevron. Ensemble + template still navigates to comparison.
+  - **README**: replaced single-line "Matching" entry with a 4-engine subsection listing each engine's key + name + 1-line description, plus how to invoke template-free engines.
+  - 338/338 tests pass. Polish commit followed code-quality review (dropped unused `useMemo` import, removed unreachable URL-write branch, removed misleading sector-dropdown comment, renamed shadowing variable in MatchCard).
+  - **Still deferred:** live smoke test against the live universe with FMP key (validates each `/api/matches?algo=...` path against real data); regenerate `proof-results.json` via `run-proof.js` to replace the v1-migrated fixture with real per-engine numbers.
+  - **Plan complete.** All 6 phases shipped. Next steps after this branch merges: run the proof regeneration on a machine with FMP_API_KEY (~30 min runtime); then plan Phase 7+ (e.g. catalyst engine historical backfill, ensemble engine selection in proof, additional algorithms).
