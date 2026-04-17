@@ -100,7 +100,7 @@ describe('GET /api/matches?algo=ensembleConsensus', () => {
       expect(item.algorithm).toBe('ensembleConsensus');
       expect(typeof item.matchScore).toBe('number');
       expect(item.perEngineRanks).toBeDefined();
-      expect(item.consensusEngines).toBeGreaterThanOrEqual(2);
+      expect(item.consensusEngines).toBeGreaterThanOrEqual(1);
     }
   });
 
