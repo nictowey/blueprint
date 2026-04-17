@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import { formatMetric } from '../utils/format';
@@ -114,14 +114,13 @@ export default function MatchResults() {
 
   // Update URL params when snapshot or profile or algo changes
   useEffect(() => {
-    const algoParam = activeAlgo !== DEFAULT_ALGO ? `&algo=${activeAlgo}` : '';
     if (!snapshot) {
       if (isTemplateFree) {
-        const profileParam = !isTemplateFree && activeProfile !== DEFAULT_PROFILE ? `&profile=${activeProfile}` : '';
-        navigate(`/matches?algo=${activeAlgo}${profileParam}`, { replace: true });
+        navigate(`/matches?algo=${activeAlgo}`, { replace: true });
       }
       return;
     }
+    const algoParam = activeAlgo !== DEFAULT_ALGO ? `&algo=${activeAlgo}` : '';
     const profileParam = !isTemplateFree && activeProfile !== DEFAULT_PROFILE ? `&profile=${activeProfile}` : '';
     const newUrl = `/matches?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}${algoParam}${profileParam}`;
     navigate(newUrl, { replace: true, state: { snapshot } });
@@ -447,7 +446,6 @@ export default function MatchResults() {
                 </div>
               )}
 
-              {/* Sector dropdown — only when a reference sector exists or engine is template-free with sectors */}
               <div className="flex items-center gap-2">
                 <label className="text-xs text-text-muted shrink-0">Sector</label>
                 <select

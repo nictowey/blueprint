@@ -32,7 +32,7 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
   }
 
   const perEngineEntries = match.perEngineRanks
-    ? Object.entries(match.perEngineRanks).filter(([, rank]) => rank != null)
+    ? Object.entries(match.perEngineRanks).filter(([, r]) => r != null)
     : null;
 
   return (
