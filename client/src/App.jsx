@@ -6,6 +6,7 @@ import ScrollToTop from './components/ScrollToTop';
 import TemplatePicker from './pages/TemplatePicker';
 import MatchResults from './pages/MatchResults';
 import ComparisonDetail from './pages/ComparisonDetail';
+import StockDetail from './pages/StockDetail';
 import BacktestResults from './pages/BacktestResults';
 import WatchlistPage from './pages/Watchlist';
 import Proof from './pages/Proof';
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/"           element={<TemplatePicker />} />
             <Route path="/matches"    element={<MatchResults />} />
             <Route path="/comparison" element={<ComparisonDetail />} />
+            <Route path="/stock/:ticker" element={<StockDetail />} />
             <Route path="/backtest"   element={<BacktestResults />} />
             <Route path="/proof"      element={<Proof />} />
             <Route path="/watchlist"  element={<WatchlistPage />} />
