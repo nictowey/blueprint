@@ -20,15 +20,23 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
   const navigate = useNavigate();
 
   const isTemplateFree = TEMPLATE_FREE_ALGOS.has(algo);
-  const canNavigate = !isTemplateFree || (algo === 'ensembleConsensus' && snapshot);
+  const hasTemplate = !!snapshot;
+  // Comparison flow requires a template snapshot. Without one (template-free
+  // pickers, ensemble-without-template) we route to the stock detail page.
+  const useComparison = (!isTemplateFree && hasTemplate) || (algo === 'ensembleConsensus' && hasTemplate);
 
-  function goToComparison() {
-    if (!canNavigate) return;
-    const profileParam = profile && profile !== 'growth_breakout' ? `&profile=${profile}` : '';
-    navigate(
-      `/comparison?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}&match=${encodeURIComponent(match.ticker)}${profileParam}`,
-      { state: { snapshot, matchTicker: match.ticker, profile } }
-    );
+  function handleClick() {
+    if (useComparison) {
+      const profileParam = profile && profile !== 'growth_breakout' ? `&profile=${profile}` : '';
+      navigate(
+        `/comparison?ticker=${encodeURIComponent(snapshot.ticker)}&date=${snapshot.date}&match=${encodeURIComponent(match.ticker)}${profileParam}`,
+        { state: { snapshot, matchTicker: match.ticker, profile } }
+      );
+    } else {
+      navigate(`/stock/${encodeURIComponent(match.ticker)}`, {
+        state: { snapshot: match },
+      });
+    }
   }
 
   const perEngineEntries = match.perEngineRanks
@@ -37,15 +45,11 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
 
   return (
     <div
-      className={`group flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-xl border-b border-border transition-all duration-200 ${
-        canNavigate
-          ? 'cursor-pointer hover:bg-surface-hover hover:-translate-y-[1px]'
-          : 'cursor-default'
-      }`}
-      onClick={goToComparison}
-      role={canNavigate ? 'button' : undefined}
-      tabIndex={canNavigate ? 0 : undefined}
-      onKeyDown={canNavigate ? e => e.key === 'Enter' && goToComparison() : undefined}
+      className="group flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-xl border-b border-border cursor-pointer hover:bg-surface-hover hover:-translate-y-[1px] transition-all duration-200"
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => e.key === 'Enter' && handleClick()}
     >
       {/* Rank */}
       <span className="text-xs text-text-muted font-mono w-5 text-right shrink-0">
@@ -96,19 +100,17 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
         {formatMetric('peRatio', match.peRatio)}
       </span>
 
-      {/* Chevron (hover only, only when navigable) */}
-      {canNavigate && (
-        <div className="w-5 shrink-0 flex items-center justify-center">
-          <svg
-            className="w-4 h-4 text-text-muted opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </div>
-      )}
+      {/* Chevron (hover only) */}
+      <div className="w-5 shrink-0 flex items-center justify-center">
+        <svg
+          className="w-4 h-4 text-text-muted opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </div>
     </div>
   );
 }
