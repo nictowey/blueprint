@@ -45,6 +45,7 @@ app.use('/api/snapshot',   apiLimiter, require('./routes/snapshot'));
 app.use('/api/matches',    apiLimiter, require('./routes/matches'));
 app.use('/api/comparison', apiLimiter, require('./routes/comparison'));
 app.use('/api/status',     require('./routes/status'));
+app.use('/api/stock',      apiLimiter, require('./routes/stock'));
 app.use('/api/top-pairs',  apiLimiter, require('./routes/top-pairs'));
 app.use('/api/backtest',   apiLimiter, require('./routes/backtest'));
 app.use('/api/blend',      apiLimiter, require('./routes/blend'));
