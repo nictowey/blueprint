@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getWatchlist, removeFromWatchlist, clearWatchlist } from '../utils/watchlist';
 import { toCSV, downloadCSV } from '../utils/export';
-import MiniSparkline from '../components/MiniSparkline';
 
 function timeSince(dateStr) {
   const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -17,6 +16,13 @@ function timeSince(dateStr) {
   return `${months}mo ago`;
 }
 
+function scoreTier(score) {
+  if (score == null) return 'low';
+  if (score >= 85) return 'high';
+  if (score >= 70) return 'mid';
+  return 'low';
+}
+
 export default function WatchlistPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState(() => getWatchlist());
@@ -24,13 +30,11 @@ export default function WatchlistPage() {
   const [loadingLive, setLoadingLive] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 
-  // Fetch live prices for all watchlist items
   const fetchLiveData = useCallback(async () => {
     if (items.length === 0) return;
     setLoadingLive(true);
     const results = {};
 
-    // Batch fetch — 3 at a time to stay within rate limits
     for (let i = 0; i < items.length; i += 3) {
       const batch = items.slice(i, i + 3);
       const promises = batch.map(async (item) => {
@@ -50,15 +54,6 @@ export default function WatchlistPage() {
       await Promise.allSettled(promises);
     }
 
-    // Also fetch recent sparkline data from universe status
-    try {
-      const statusRes = await fetch('/api/status');
-      if (statusRes.ok) {
-        const status = await statusRes.json();
-        // We don't get individual prices from status, but we know the server is up
-      }
-    } catch { /* ignore */ }
-
     setLiveData(results);
     setLoadingLive(false);
   }, [items]);
@@ -67,7 +62,8 @@ export default function WatchlistPage() {
     fetchLiveData();
   }, [fetchLiveData]);
 
-  function handleRemove(ticker) {
+  function handleRemove(ticker, e) {
+    e?.stopPropagation();
     removeFromWatchlist(ticker);
     setItems(getWatchlist());
   }
@@ -84,171 +80,189 @@ export default function WatchlistPage() {
     return ((live.price - item.priceAtAdd) / item.priceAtAdd) * 100;
   }
 
+  function handleExport() {
+    const columns = [
+      { key: 'ticker', label: 'Ticker' },
+      { key: 'companyName', label: 'Company' },
+      { key: 'sector', label: 'Sector' },
+      { key: 'matchScore', label: 'Match Score' },
+      { key: 'templateTicker', label: 'Template Ticker' },
+      { key: 'templateDate', label: 'Template Date' },
+      { key: 'priceAtAdd', label: 'Price When Added', format: r => r.priceAtAdd?.toFixed(2) },
+      { key: 'currentPrice', label: 'Current Price', format: r => liveData[r.ticker]?.price?.toFixed(2) },
+      { key: 'gainPct', label: 'Gain %', format: r => { const g = gainSinceAdd(r); return g != null ? g.toFixed(1) : ''; } },
+      { key: 'addedAt', label: 'Added Date', format: r => r.addedAt?.slice(0, 10) },
+    ];
+    const csv = toCSV(items, columns);
+    downloadCSV(csv, `blueprint-watchlist-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-display text-text-primary">Watchlist</h1>
-          <p className="text-sm text-text-muted mt-1 font-light">
-            {items.length === 0 ? 'No stocks saved yet' : `${items.length} stock${items.length > 1 ? 's' : ''} tracked`}
+    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div className="min-w-0">
+          <p className="label-xs mb-2">Your workspace</p>
+          <h1 className="font-display leading-[1.05] m-0" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
+            <span className="gold-grad">Watchlist</span>
+          </h1>
+          <p className="text-text-secondary text-[13px] mt-2 m-0">
+            {items.length === 0
+              ? 'Nothing tracked yet. Save matches you want to revisit.'
+              : `${items.length} ${items.length === 1 ? 'stock' : 'stocks'} · live quotes update on refresh`}
           </p>
         </div>
-        <div className="flex gap-2">
-          {items.length > 0 && (
+
+        {items.length > 0 && (
+          <div className="flex flex-wrap gap-2 shrink-0 justify-end">
             <button
-              className="btn-secondary text-xs"
-              onClick={() => {
-                const columns = [
-                  { key: 'ticker', label: 'Ticker' },
-                  { key: 'companyName', label: 'Company' },
-                  { key: 'sector', label: 'Sector' },
-                  { key: 'matchScore', label: 'Match Score' },
-                  { key: 'templateTicker', label: 'Template Ticker' },
-                  { key: 'templateDate', label: 'Template Date' },
-                  { key: 'priceAtAdd', label: 'Price When Added', format: r => r.priceAtAdd?.toFixed(2) },
-                  { key: 'currentPrice', label: 'Current Price', format: r => liveData[r.ticker]?.price?.toFixed(2) },
-                  { key: 'gainPct', label: 'Gain %', format: r => { const g = gainSinceAdd(r); return g != null ? g.toFixed(1) : ''; } },
-                  { key: 'addedAt', label: 'Added Date', format: r => r.addedAt?.slice(0, 10) },
-                ];
-                const csv = toCSV(items, columns);
-                downloadCSV(csv, `blueprint-watchlist-${new Date().toISOString().slice(0, 10)}.csv`);
-              }}
-            >
-              Export CSV
-            </button>
-          )}
-          {items.length > 0 && (
-            <button
-              className="btn-secondary text-xs"
+              className="btn-secondary text-[12px]"
               onClick={fetchLiveData}
               disabled={loadingLive}
             >
               {loadingLive ? (
-                <span className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5">
                   <span className="w-3 h-3 border border-text-muted/50 border-t-text-secondary rounded-full animate-spin" />
-                  Refreshing…
+                  Refreshing
                 </span>
               ) : 'Refresh'}
             </button>
-          )}
-          {items.length > 0 && !confirmClear && (
-            <button className="btn-secondary text-xs text-red-400/60 hover:text-red-400" onClick={() => setConfirmClear(true)}>
-              Clear all
+            <button className="btn-secondary text-[12px]" onClick={handleExport}>
+              Export CSV
             </button>
-          )}
-          {confirmClear && (
-            <div className="flex gap-1">
-              <button className="btn-secondary text-xs text-red-400" onClick={handleClearAll}>Confirm</button>
-              <button className="btn-secondary text-xs" onClick={() => setConfirmClear(false)}>Cancel</button>
-            </div>
-          )}
-        </div>
+            {!confirmClear ? (
+              <button
+                className="btn-secondary text-[12px] text-text-muted hover:text-loss"
+                onClick={() => setConfirmClear(true)}
+              >
+                Clear
+              </button>
+            ) : (
+              <>
+                <button className="btn-secondary text-[12px] text-loss" onClick={handleClearAll}>Confirm</button>
+                <button className="btn-secondary text-[12px]" onClick={() => setConfirmClear(false)}>Cancel</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Empty state */}
       {items.length === 0 && (
-        <div className="card text-center py-10">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-brand/10 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
+        <div className="card text-center py-14">
+          <div className="w-12 h-12 mx-auto mb-5 rounded-full bg-brand/10 flex items-center justify-center">
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="none">
               <path d="M8 2l1.8 3.6L14 6.4l-3 2.9.7 4.1L8 11.4l-3.7 2 .7-4.1-3-2.9 4.2-.8L8 2z" stroke="#c9a84c" strokeWidth="1.2" strokeLinejoin="round" fill="none"/>
             </svg>
           </div>
-          <p className="text-text-primary text-lg mb-2 font-display">Your watchlist is empty</p>
-          <p className="text-text-muted text-sm mb-4 max-w-sm mx-auto font-light">
-            Find matching stocks and add them to your watchlist from the comparison page to track their performance.
+          <p className="font-display text-[24px] leading-tight mb-2 m-0">
+            Start a <span className="gold-grad">watchlist</span>
           </p>
-          <button className="btn-primary mb-4" onClick={() => navigate('/')}>
+          <p className="text-text-secondary text-[13px] mb-6 max-w-sm mx-auto">
+            Find matches you want to track — we&rsquo;ll keep live prices and gain-since-added here.
+          </p>
+          <button className="btn-primary" onClick={() => navigate('/')}>
             Start screening →
           </button>
-          <p className="text-text-muted text-xs font-light">
-            Or try a quick example: <button className="text-brand hover:underline" onClick={() => navigate('/matches?ticker=CLS&date=2023-12-01')}>CLS Dec 2023</button>
+          <p className="text-text-muted text-[11px] mt-6 m-0">
+            Or try a quick example:{' '}
+            <button className="hover:underline" style={{ color: 'var(--color-brand-2)' }} onClick={() => navigate('/matches?ticker=CLS&date=2023-12-01')}>CLS · Dec 2023</button>
             {' · '}
-            <button className="text-brand hover:underline" onClick={() => navigate('/matches?ticker=NVDA&date=2023-01-03')}>NVDA Jan 2023</button>
+            <button className="hover:underline" style={{ color: 'var(--color-brand-2)' }} onClick={() => navigate('/matches?ticker=NVDA&date=2023-01-03')}>NVDA · Jan 2023</button>
           </p>
         </div>
       )}
 
-      {/* Watchlist items */}
       {items.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {items.map(item => {
+        <div className="card p-0 overflow-hidden">
+          {items.map((item, idx) => {
             const live = liveData[item.ticker];
             const gain = gainSinceAdd(item);
+            const tier = scoreTier(item.matchScore);
+            const hasMatch = item.templateTicker && item.templateDate;
 
             return (
-              <div key={item.ticker} className="card hover:shadow-card-hover transition-all duration-200">
-                <div className="flex items-start justify-between gap-3">
-                  {/* Left: ticker info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                      <span className="font-mono font-bold text-text-primary text-base">{item.ticker}</span>
-                      <span className="text-text-secondary text-sm truncate font-light">{item.companyName}</span>
-                      {item.sector && (
-                        <span className="text-xs border border-border text-text-muted px-2 py-0.5 rounded-full">
-                          {item.sector}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Price row */}
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      {live?.price != null && (
-                        <span className="text-sm text-text-primary font-semibold font-mono">
-                          ${live.price.toFixed(2)}
-                        </span>
-                      )}
-                      {live?.change != null && (
-                        <span className={`text-xs font-medium font-mono ${live.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {live.change >= 0 ? '+' : ''}{live.change.toFixed(2)}% today
-                        </span>
-                      )}
-                      {gain != null && (
-                        <span className={`text-xs font-mono ${gain >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
-                          {gain >= 0 ? '+' : ''}{gain.toFixed(1)}% since added
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Match context */}
-                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-text-muted">
-                      {item.matchScore && (
-                        <span>
-                          Score: <span className={`font-mono ${item.matchScore >= 70 ? 'text-emerald-400/70' : item.matchScore >= 55 ? 'text-brand/70' : 'text-red-400/70'}`}>
-                            {Math.round(item.matchScore)}
-                          </span>
-                        </span>
-                      )}
-                      {item.templateTicker && (
-                        <span className="font-light">
-                          Matched to <span className="text-text-secondary font-mono">{item.templateTicker}</span>
-                          {item.templateDate && <span className="text-text-muted"> ({item.templateDate})</span>}
-                        </span>
-                      )}
-                      {item.priceAtAdd != null && (
-                        <span className="font-mono">Added at ${item.priceAtAdd.toFixed(2)}</span>
-                      )}
-                      <span className="font-light">{timeSince(item.addedAt)}</span>
-                    </div>
+              <div
+                key={item.ticker}
+                className={`group relative flex items-start gap-4 px-4 sm:px-5 py-4 cursor-pointer transition-colors hover:bg-surface-2 ${idx < items.length - 1 ? 'border-b border-border/60' : ''}`}
+                onClick={() => navigate(`/stock/${encodeURIComponent(item.ticker)}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && navigate(`/stock/${encodeURIComponent(item.ticker)}`)}
+              >
+                {item.matchScore != null && (
+                  <div className={`score-badge score-${tier} shrink-0 mt-0.5`}>
+                    {Math.round(item.matchScore)}
                   </div>
+                )}
 
-                  {/* Right: actions */}
-                  <div className="flex flex-col gap-1.5 shrink-0">
-                    {item.templateTicker && item.templateDate && (
-                      <button
-                        className="btn-secondary text-xs px-3 py-2 min-h-[44px] hover:border-brand/30 hover:text-brand"
-                        onClick={() => navigate(`/comparison?ticker=${encodeURIComponent(item.templateTicker)}&date=${item.templateDate}&match=${encodeURIComponent(item.ticker)}`)}
-                      >
-                        View match
-                      </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2.5 flex-wrap">
+                    <span className="ticker text-[15px] text-text-primary">{item.ticker}</span>
+                    <span className="text-[12px] text-text-secondary truncate">{item.companyName}</span>
+                    {item.sector && (
+                      <span className="text-[10px] text-text-muted">· {item.sector}</span>
                     )}
-                    <button
-                      className="text-xs text-red-400/50 hover:text-red-400 transition-colors px-3 py-2"
-                      onClick={() => handleRemove(item.ticker)}
-                    >
-                      Remove
-                    </button>
                   </div>
+
+                  <div className="flex items-center gap-4 mt-1.5 flex-wrap">
+                    {live?.price != null ? (
+                      <span className="num text-[13px] text-text-primary">
+                        ${live.price.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="num text-[13px] text-text-muted/60">—</span>
+                    )}
+                    {live?.change != null && (
+                      <span className={`num text-[11px] ${live.change >= 0 ? 'text-gain' : 'text-loss'}`}>
+                        {live.change >= 0 ? '+' : ''}{live.change.toFixed(2)}% today
+                      </span>
+                    )}
+                    {gain != null && (
+                      <span className={`num text-[11px] ${gain >= 0 ? 'text-gain/80' : 'text-loss/80'}`}>
+                        {gain >= 0 ? '+' : ''}{gain.toFixed(1)}% since added
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap text-[11px] text-text-muted">
+                    {item.templateTicker && (
+                      <span>
+                        Matched to <span className="ticker text-[11px] text-text-secondary">{item.templateTicker}</span>
+                        {item.templateDate && <span className="num"> · {item.templateDate}</span>}
+                      </span>
+                    )}
+                    {item.priceAtAdd != null && (
+                      <span className="num">Added at ${item.priceAtAdd.toFixed(2)}</span>
+                    )}
+                    <span>· {timeSince(item.addedAt)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {hasMatch && (
+                    <button
+                      className="text-[11px] text-text-muted hover:text-text-primary px-2 py-1 rounded-md hover:bg-surface transition-colors"
+                      onClick={e => {
+                        e.stopPropagation();
+                        navigate(`/comparison?ticker=${encodeURIComponent(item.templateTicker)}&date=${item.templateDate}&match=${encodeURIComponent(item.ticker)}`);
+                      }}
+                      title="View comparison"
+                    >
+                      Compare
+                    </button>
+                  )}
+                  <button
+                    className="text-[11px] text-text-muted/60 hover:text-loss px-2 py-1 rounded-md transition-colors"
+                    onClick={e => handleRemove(item.ticker, e)}
+                    title="Remove"
+                  >
+                    ×
+                  </button>
+                  <svg
+                    className="w-3.5 h-3.5 text-text-muted opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all ml-1"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </div>
               </div>
             );

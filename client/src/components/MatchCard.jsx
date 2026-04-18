@@ -10,10 +10,11 @@ const ENGINE_ABBREV = {
   catalystDriven: 'C',
 };
 
-function scoreColorClass(score) {
-  if (score >= 70) return 'text-gain';
-  if (score >= 55) return 'text-brand';
-  return 'text-loss';
+function scoreTier(score) {
+  if (score == null) return 'low';
+  if (score >= 85) return 'high';
+  if (score >= 70) return 'mid';
+  return 'low';
 }
 
 export default function MatchCard({ match, snapshot, rank, profile, algo }) {
@@ -21,8 +22,6 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
 
   const isTemplateFree = TEMPLATE_FREE_ALGOS.has(algo);
   const hasTemplate = !!snapshot;
-  // Comparison flow requires a template snapshot. Without one (template-free
-  // pickers, ensemble-without-template) we route to the stock detail page.
   const useComparison = (!isTemplateFree && hasTemplate) || (algo === 'ensembleConsensus' && hasTemplate);
 
   function handleClick() {
@@ -42,35 +41,30 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
   const perEngineEntries = match.perEngineRanks
     ? Object.entries(match.perEngineRanks).filter(([, r]) => r != null)
     : null;
+  const tier = scoreTier(match.matchScore);
+  const scoreDisplay = typeof match.matchScore === 'number' ? Math.round(match.matchScore) : '—';
 
   return (
     <div
-      className="group flex items-center gap-3 sm:gap-4 px-4 py-3 rounded-xl border-b border-border cursor-pointer hover:bg-surface-hover hover:-translate-y-[1px] transition-all duration-200"
+      className="match-row group"
       onClick={handleClick}
       role="button"
       tabIndex={0}
       onKeyDown={e => e.key === 'Enter' && handleClick()}
     >
-      {/* Rank */}
-      <span className="text-xs text-text-muted font-mono w-5 text-right shrink-0">
-        {rank}
-      </span>
+      <span className="num text-[11px] text-text-muted text-right">{rank}</span>
 
-      {/* Score */}
-      <span className={`text-base font-bold font-mono w-10 text-right shrink-0 ${scoreColorClass(match.matchScore)}`}>
-        {match.matchScore}
-      </span>
+      <div className={`score-badge score-${tier}`}>{scoreDisplay}</div>
 
-      {/* Ticker + Company name + optional per-engine chips */}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className="font-mono font-bold text-text-primary text-sm">{match.ticker}</span>
-          <span className="text-text-secondary text-xs font-light truncate">{match.companyName}</span>
+          <span className="ticker text-[13px] text-text-primary">{match.ticker}</span>
+          <span className="text-[12px] text-text-secondary truncate">{match.companyName}</span>
         </div>
         {perEngineEntries && perEngineEntries.length > 0 && (
           <div className="flex items-center gap-1.5 mt-0.5">
             {perEngineEntries.map(([key, r], i) => (
-              <span key={key} className="text-[10px] text-text-muted font-mono">
+              <span key={key} className="num text-[10px] text-text-muted">
                 {ENGINE_ABBREV[key] || key}#{r}{i < perEngineEntries.length - 1 ? ' ·' : ''}
               </span>
             ))}
@@ -78,39 +72,34 @@ export default function MatchCard({ match, snapshot, rank, profile, algo }) {
         )}
       </div>
 
-      {/* Sector pill */}
-      {match.sector && (
-        <span className="hidden sm:inline-block text-[10px] text-text-muted px-2 py-0.5 rounded-md bg-surface border border-border shrink-0">
+      {match.sector ? (
+        <span className="hidden sm:inline-block text-[10px] text-text-muted truncate">
           {match.sector}
         </span>
-      )}
+      ) : <span />}
 
-      {/* Price + sparkline */}
-      <div className="hidden sm:flex items-center gap-2 shrink-0">
-        <span className="text-xs font-mono text-text-primary">
+      <div className="hidden sm:flex items-center gap-2 justify-end">
+        <span className="num text-[12px] text-text-primary">
           {formatMetric('price', match.price)}
         </span>
+      </div>
+
+      <div className="hidden sm:flex items-center justify-center">
         {match.recentCloses?.length > 2 && (
-          <MiniSparkline prices={match.recentCloses} width={48} height={18} />
+          <MiniSparkline prices={match.recentCloses} width={56} height={20} />
         )}
       </div>
 
-      {/* P/E ratio */}
-      <span className="hidden md:inline-block text-xs font-mono text-text-secondary w-14 text-right shrink-0">
+      <span className="hidden md:inline-block num text-[12px] text-text-secondary text-right">
         {formatMetric('peRatio', match.peRatio)}
       </span>
 
-      {/* Chevron (hover only) */}
-      <div className="w-5 shrink-0 flex items-center justify-center">
-        <svg
-          className="w-4 h-4 text-text-muted opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </div>
+      <svg
+        className="w-3.5 h-3.5 text-text-muted opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
+        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
     </div>
   );
 }

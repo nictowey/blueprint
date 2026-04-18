@@ -29,6 +29,13 @@ const DEFAULT_PROFILE = 'growth_breakout';
 const DEFAULT_ALGO = 'templateMatch';
 const TEMPLATE_FREE_ALGOS = new Set(['momentumBreakout', 'catalystDriven', 'ensembleConsensus']);
 
+function algoHeadline(algo) {
+  if (algo === 'momentumBreakout') return <>What&rsquo;s <span className="gold-grad">coiling</span> right now</>;
+  if (algo === 'catalystDriven')   return <>Where a <span className="gold-grad">catalyst</span> just hit</>;
+  if (algo === 'ensembleConsensus') return <>Where all <span className="gold-grad">engines</span> agree</>;
+  return 'Top matches';
+}
+
 export default function MatchResults() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -259,58 +266,52 @@ export default function MatchResults() {
     return null;
   }
 
+  const headline = isTemplateFree
+    ? algoHeadline(activeAlgo)
+    : <>Matches for <span className="gold-grad">{snapshot.ticker}</span></>;
+  const subtitle = isTemplateFree
+    ? (activeAlgo === 'ensembleConsensus'
+        ? 'Top picks across Momentum + Catalyst. Add a template ticker to include Template Match as a third lens.'
+        : activeAlgoMeta?.description || '')
+    : `${snapshot.companyName} · snapshot ${snapshot.date}`;
+
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
-      {/* Summary bar */}
-      <div className="rounded-xl border border-border bg-surface px-5 py-4 mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 sm:justify-between">
-          {isTemplateFree && !snapshot ? (
-            <div>
-              <p className="font-semibold text-text-primary text-sm sm:text-base">
-                {activeAlgoMeta?.name || activeAlgo}
-              </p>
-              {activeAlgo === 'ensembleConsensus' ? (
-                <p className="text-xs text-text-muted mt-0.5 font-light">
-                  Top picks across Momentum + Catalyst. Add a template ticker to include Template Match as a third lens.
-                </p>
-              ) : (
-                activeAlgoMeta?.description && (
-                  <p className="text-xs text-text-muted mt-0.5 font-light">{activeAlgoMeta.description}</p>
-                )
-              )}
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono font-bold text-lg sm:text-xl text-text-primary">{snapshot.ticker}</span>
-                <span className="text-text-muted">&middot;</span>
-                <span className="text-text-secondary text-xs sm:text-sm font-mono">{snapshot.date}</span>
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 animate-fade-in">
+      {/* Editorial header */}
+      <div className="mb-6 sm:mb-8">
+        <button
+          onClick={() => navigate(-1)}
+          className="text-[12px] text-text-muted hover:text-text-primary transition-colors inline-flex items-center gap-1.5 mb-3"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back
+        </button>
+        <h1 className="font-display leading-[1.15] m-0" style={{ fontSize: 'clamp(1.75rem, 3vw, 2.25rem)' }}>
+          {headline}
+        </h1>
+        <p className="text-text-secondary text-sm mt-2 max-w-2xl leading-relaxed m-0">
+          {subtitle}
+        </p>
+        {!isTemplateFree && snapshot?.dataAsOf && snapshot.dataAsOf !== snapshot.date && (
+          <p className="text-[11px] mt-1.5 m-0" style={{ color: 'var(--color-brand-2)' }}>
+            Financials as of {snapshot.dataAsOf}
+            {snapshot.ttmQuarters < 4 ? ` (${snapshot.ttmQuarters}/4 quarters available)` : ''}
+          </p>
+        )}
+        {!isTemplateFree && snapshot && (
+          <div className="flex gap-5 sm:gap-7 mt-4">
+            {[
+              { key: 'peRatio', label: 'P/E' },
+              { key: 'revenueGrowthYoY', label: 'Growth' },
+              { key: 'grossMargin', label: 'Margin' },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <p className="label-xs m-0 mb-0.5">{label}</p>
+                <p className="num text-[13px] text-text-primary m-0">{formatMetric(key, snapshot[key])}</p>
               </div>
-              <p className="text-sm text-text-secondary font-light">{snapshot.companyName}</p>
-              {snapshot.dataAsOf && snapshot.dataAsOf !== snapshot.date && (
-                <p className="text-xs text-amber-500/80 mt-1">
-                  Financials as of {snapshot.dataAsOf}
-                  {snapshot.ttmQuarters < 4 ? ` (${snapshot.ttmQuarters}/4 quarters available)` : ''}
-                </p>
-              )}
-            </div>
-          )}
-          {!isTemplateFree && snapshot && (
-            <div className="flex gap-4 sm:gap-6">
-              {[
-                { key: 'peRatio', label: 'P/E' },
-                { key: 'revenueGrowthYoY', label: 'Growth' },
-                { key: 'grossMargin', label: 'Margin' },
-              ].map(({ key, label }) => (
-                <div key={key} className="text-center">
-                  <p className="text-[10px] text-text-muted uppercase tracking-wider font-medium mb-0.5">{label}</p>
-                  <p className="text-sm font-semibold text-text-primary font-mono">{formatMetric(key, snapshot[key])}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <button className="btn-secondary w-full sm:w-auto" onClick={() => navigate(-1)}>&larr; Back</button>
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Warm-up retry state */}
@@ -324,11 +325,27 @@ export default function MatchResults() {
         </div>
       )}
 
-      {/* Normal loading state */}
+      {/* Normal loading state — skeleton rows */}
       {loading && !warming && (
-        <div className="flex flex-col items-center justify-center py-14 gap-4">
-          <div className="w-8 h-8 border-3 border-border border-t-brand rounded-full animate-spin" />
-          <p className="text-text-secondary text-sm animate-pulse font-light">{LOADING_MESSAGES[msgIdx]}</p>
+        <div className="card p-4 sm:p-6">
+          <p className="text-text-muted text-[12px] mb-3 animate-pulse">{LOADING_MESSAGES[msgIdx]}</p>
+          <div className="animate-pulse divide-y divide-border/40">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="match-row" style={{ cursor: 'default' }}>
+                <div className="h-3 w-4 bg-surface-2 rounded" />
+                <div className="h-7 w-11 bg-surface-2 rounded" />
+                <div>
+                  <div className="h-3 w-24 bg-surface-2 rounded mb-1.5" />
+                  <div className="h-2.5 w-40 bg-surface-2 rounded" />
+                </div>
+                <div className="hidden sm:block h-2.5 w-20 bg-surface-2 rounded" />
+                <div className="hidden sm:block h-3 w-16 bg-surface-2 rounded justify-self-end" />
+                <div className="hidden sm:block h-3 w-14 bg-surface-2 rounded" />
+                <div className="hidden md:block h-3 w-10 bg-surface-2 rounded justify-self-end" />
+                <div />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -423,74 +440,41 @@ export default function MatchResults() {
             })()}
 
             {/* Controls row */}
-            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-5">
-              {/* Algorithm dropdown */}
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2.5 mb-4">
               {algorithms.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-text-muted shrink-0">Algorithm</label>
-                  <select
-                    className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto"
-                    value={activeAlgo}
-                    onChange={e => handleAlgoChange(e.target.value)}
-                  >
-                    {algorithms.map(a => (
-                      <option key={a.key} value={a.key}>{a.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <Select label="Engine" value={activeAlgo} onChange={handleAlgoChange} options={algorithms.map(a => ({ value: a.key, label: a.name }))} />
               )}
-
-              {/* Strategy dropdown — only for template-based algo */}
               {!isTemplateFree && profiles.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-text-muted shrink-0">Strategy</label>
-                  <select
-                    className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto"
-                    value={activeProfile}
-                    onChange={e => setActiveProfile(e.target.value)}
-                  >
-                    {profiles.map(p => (
-                      <option key={p.key} value={p.key}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <Select label="Strategy" value={activeProfile} onChange={setActiveProfile} options={profiles.map(p => ({ value: p.key, label: p.name }))} />
               )}
-
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-text-muted shrink-0">Sector</label>
-                <select
-                  className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto min-w-0"
-                  value={sectorFilter}
-                  onChange={e => setSectorFilter(e.target.value)}
-                >
-                  <option value="all">All sectors ({matches.length})</option>
-                  {!isTemplateFree && snapshot?.sector && (
-                    <option value="same">Same sector &mdash; {snapshot.sector} ({matches.filter(m => m.sector === snapshot.sector).length})</option>
-                  )}
-                  {sectors.map(s => (
-                    <option key={s} value={s}>{s} ({matches.filter(m => m.sector === s).length})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2 sm:ml-auto">
-                <label className="text-xs text-text-muted shrink-0">Sort</label>
-                <select
-                  className="bg-input-bg border border-border text-text-primary text-sm py-1.5 px-3 rounded-lg w-full sm:w-auto"
+              <Select
+                label="Sector"
+                value={sectorFilter}
+                onChange={setSectorFilter}
+                options={[
+                  { value: 'all', label: `All sectors (${matches.length})` },
+                  ...(!isTemplateFree && snapshot?.sector ? [{ value: 'same', label: `Same — ${snapshot.sector} (${matches.filter(m => m.sector === snapshot.sector).length})` }] : []),
+                  ...sectors.map(s => ({ value: s, label: `${s} (${matches.filter(m => m.sector === s).length})` })),
+                ]}
+              />
+              <div className="sm:ml-auto">
+                <Select
+                  label="Sort"
                   value={sortBy}
-                  onChange={e => setSortBy(e.target.value)}
-                >
-                  <option value="score">Similarity Score</option>
-                  <option value="growth">Revenue Growth</option>
-                  <option value="sector">Sector</option>
-                </select>
+                  onChange={setSortBy}
+                  options={[
+                    { value: 'score', label: 'Similarity' },
+                    { value: 'growth', label: 'Revenue Growth' },
+                    { value: 'sector', label: 'Sector' },
+                  ]}
+                />
               </div>
             </div>
 
             {/* Results count + share/export */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-              <p className="text-sm text-text-muted font-light">
-                Top {sorted.length} of {universeSize ? universeSize.toLocaleString() + ' scanned' : matches.length} &mdash; ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <p className="label-xs m-0">
+                Top {sorted.length} of {universeSize ? universeSize.toLocaleString() + ' scanned' : matches.length} · ranked by {sortBy === 'score' ? 'similarity' : sortBy === 'growth' ? 'revenue growth' : 'sector'}
               </p>
               <ShareBar
                 onExportCSV={() => {
@@ -516,11 +500,11 @@ export default function MatchResults() {
             </div>
 
             {sorted.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface text-center py-8 text-text-muted text-sm font-light">
+              <div className="card text-center py-8 text-text-muted text-sm">
                 No matches in this sector. Try "All sectors" to see all results.
               </div>
             ) : (
-              <div className="flex flex-col gap-1">
+              <div className="card" style={{ padding: 6 }}>
                 {sorted.map((match, i) => (
                   <MatchCard key={match.ticker} match={match} snapshot={snapshot} rank={i + 1} profile={activeProfile} algo={activeAlgo} />
                 ))}
@@ -530,5 +514,20 @@ export default function MatchResults() {
         );
       })()}
     </main>
+  );
+}
+
+function Select({ label, value, onChange, options }) {
+  return (
+    <label className="flex items-center gap-2">
+      <span className="label-xs shrink-0">{label}</span>
+      <select
+        className="bg-input-bg border border-border text-text-primary text-[12px] py-1.5 px-2.5 rounded-lg"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
   );
 }

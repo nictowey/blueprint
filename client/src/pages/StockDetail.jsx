@@ -14,17 +14,17 @@ const METRIC_GROUPS = [
 ];
 
 const ENGINE_META = [
-  { key: 'templateMatch',     name: 'Template Match',     note: 'requires a template ticker' },
-  { key: 'momentumBreakout',  name: 'Momentum Breakout' },
-  { key: 'catalystDriven',    name: 'Catalyst-Driven' },
-  { key: 'ensembleConsensus', name: 'Ensemble Consensus' },
+  { key: 'templateMatch',     name: 'Template Match',     note: 'Needs a template ticker to score this engine.' },
+  { key: 'momentumBreakout',  name: 'Momentum Breakout',  note: 'Price coiling under resistance with volume lift.' },
+  { key: 'catalystDriven',    name: 'Catalyst-Driven',    note: 'Fresh fundamental catalyst hit within 24h.' },
+  { key: 'ensembleConsensus', name: 'Ensemble Consensus', note: 'Top-of-pool across multiple engines.' },
 ];
 
-function scoreColorClass(score) {
-  if (score == null) return 'text-text-muted';
-  if (score >= 70) return 'text-gain';
-  if (score >= 55) return 'text-brand';
-  return 'text-loss';
+function scoreTier(score) {
+  if (score == null) return 'low';
+  if (score >= 85) return 'high';
+  if (score >= 70) return 'mid';
+  return 'low';
 }
 
 export default function StockDetail() {
@@ -47,14 +47,11 @@ export default function StockDetail() {
     if (!ticker) return;
     let cancelled = false;
 
-    // With date: use the historical FMP-backed snapshot endpoint (requires date).
-    // Without date: use the universe-cache endpoint (zero FMP cost).
     const snapshotUrl = date
       ? `/api/snapshot?ticker=${encodeURIComponent(ticker)}&date=${date}`
       : `/api/stock/${encodeURIComponent(ticker)}`;
     const scoresUrl = `/api/stock/${encodeURIComponent(ticker)}/engine-scores`;
 
-    // Only fetch snapshot if we don't already have one (passed via router state)
     const snapshotPromise = !snapshot
       ? fetch(snapshotUrl).then(async res => {
           if (!res.ok) throw new Error(`Snapshot ${res.status}`);
@@ -99,13 +96,16 @@ export default function StockDetail() {
 
   if (notFound) {
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        <div className="card text-center py-10">
-          <p className="text-text-primary text-base font-semibold mb-2">Ticker not found</p>
-          <p className="text-text-secondary text-sm mb-6 font-light">
-            {ticker} isn't in the investable universe.
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+        <BackLink onClick={() => navigate(-1)} />
+        <div className="card text-center py-14 mt-6">
+          <p className="font-display text-[28px] leading-tight mb-2">
+            <span className="gold-grad">{ticker}</span> isn&rsquo;t in the universe
           </p>
-          <button className="btn-secondary" onClick={() => navigate(-1)}>&larr; Back</button>
+          <p className="text-text-secondary text-[13px] mb-6">
+            We only score tickers in the investable universe. Try another symbol.
+          </p>
+          <button className="btn-secondary" onClick={() => navigate(-1)}>Back</button>
         </div>
       </main>
     );
@@ -113,10 +113,9 @@ export default function StockDetail() {
 
   if (loading) {
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        <div className="flex justify-center py-14">
-          <div className="w-8 h-8 border-3 border-border border-t-brand rounded-full animate-spin" />
-        </div>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+        <BackLink onClick={() => navigate(-1)} />
+        <StockDetailSkeleton />
       </main>
     );
   }
@@ -125,90 +124,97 @@ export default function StockDetail() {
     ? `/matches?ticker=${encodeURIComponent(ticker)}&date=${date}&algo=templateMatch`
     : `/matches?ticker=${encodeURIComponent(ticker)}&algo=templateMatch`;
 
+  const subtitleParts = [
+    snapshot?.companyName,
+    snapshot?.sector,
+    snapshot?.marketCap != null ? formatMetric('marketCap', snapshot.marketCap) : null,
+  ].filter(Boolean);
+
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
-      {/* Section 1: Header card */}
-      <div className="card mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="font-mono font-bold text-2xl sm:text-3xl text-text-primary">{ticker}</span>
-              {snapshot?.companyName && (
-                <span className="text-text-secondary text-sm font-light truncate">{snapshot.companyName}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {snapshot?.sector && (
-                <span className="text-[10px] text-text-muted px-2 py-0.5 rounded-md bg-surface border border-border">
-                  {snapshot.sector}
-                </span>
-              )}
-              {snapshot?.marketCap != null && (
-                <span className="text-xs text-text-muted font-mono">
-                  {formatMetric('marketCap', snapshot.marketCap)}
-                </span>
-              )}
-            </div>
-            {date && (
-              <p className="text-xs text-amber-500/80 mt-2">Viewing metrics as of {date}</p>
-            )}
-            {snapshotError && !snapshot && (
-              <p className="text-xs text-loss mt-2">Snapshot unavailable: {snapshotError}</p>
-            )}
-          </div>
-          <button className="btn-secondary shrink-0" onClick={() => navigate(-1)}>&larr; Back</button>
+    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="min-w-0">
+          <BackLink onClick={() => navigate(-1)} />
+          <h1 className="font-display leading-[1.15] m-0 mt-3" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)' }}>
+            <span className="gold-grad">{ticker}</span>
+          </h1>
+          {subtitleParts.length > 0 && (
+            <p className="text-text-secondary text-[13px] mt-2 m-0">
+              {subtitleParts.join(' · ')}
+            </p>
+          )}
+          {date && (
+            <p className="label-xs mt-2" style={{ color: 'var(--color-brand-2)' }}>
+              Snapshot · {date}
+            </p>
+          )}
+          {snapshotError && !snapshot && (
+            <p className="text-xs text-loss mt-2">Snapshot unavailable: {snapshotError}</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            className={`btn-secondary text-[12px] ${watchlisted ? 'text-gain' : ''}`}
+            onClick={handleAddToWatchlist}
+            disabled={watchlisted || !snapshot}
+          >
+            {watchlisted ? '✓ Watchlisted' : '+ Watchlist'}
+          </button>
+          <Link to={findSimilarTo} className="btn-primary text-[12px] inline-flex items-center gap-1.5">
+            Find similar
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
       </div>
 
-      {/* Section 2: Price strip */}
       {snapshot?.price != null && (
         <div className="card mb-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-[10px] text-text-muted uppercase tracking-wider font-medium">
-                {date ? 'Close' : 'Current price'}
-              </p>
-              <p className="text-xl font-semibold text-text-primary font-mono">
+              <p className="label-xs m-0">{date ? 'Close price' : 'Last price'}</p>
+              <p className="num text-[28px] text-text-primary m-0 mt-1">
                 {formatMetric('price', snapshot.price)}
               </p>
             </div>
             {snapshot.recentCloses?.length > 2 && (
-              <MiniSparkline prices={snapshot.recentCloses} width={160} height={40} />
+              <MiniSparkline prices={snapshot.recentCloses} width={220} height={48} />
             )}
           </div>
         </div>
       )}
 
-      {/* Section 3: Engine scorecard */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="section-label">Engine scores</h2>
+          <p className="section-label m-0">Engine scores</p>
           {date && scores && (
-            <span className="text-[10px] text-amber-500/80">
-              Engine scores are current. Metrics shown as of {date}.
+            <span className="label-xs" style={{ color: 'var(--color-brand-2)' }}>
+              Live engines · metrics as of {date}
             </span>
           )}
         </div>
 
         {scoresError && !scores && (
-          <p className="text-sm text-text-muted font-light">Scores temporarily unavailable.</p>
+          <p className="text-[13px] text-text-muted">Scores temporarily unavailable.</p>
         )}
 
         {scores && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col divide-y divide-border/60">
             {ENGINE_META.map(meta => {
               const entry = scores.engines[meta.key];
               const isTemplate = meta.key === 'templateMatch';
 
               if (isTemplate) {
                 return (
-                  <div key={meta.key} className="flex items-center justify-between py-2 border-b border-border/50">
-                    <div>
-                      <span className="text-sm text-text-primary font-medium">{meta.name}</span>
-                      <span className="text-xs text-text-muted ml-2 font-light">— {meta.note}</span>
+                  <div key={meta.key} className="flex items-center justify-between py-3 gap-4">
+                    <div className="min-w-0">
+                      <div className="text-[13px] text-text-primary">{meta.name}</div>
+                      <div className="text-[11px] text-text-muted mt-0.5">{meta.note}</div>
                     </div>
-                    <Link to={findSimilarTo} className="text-xs text-brand hover:underline">
-                      Find similar stocks →
+                    <Link to={findSimilarTo} className="text-[12px] shrink-0" style={{ color: 'var(--color-brand-2)' }}>
+                      Find similar →
                     </Link>
                   </div>
                 );
@@ -216,44 +222,56 @@ export default function StockDetail() {
 
               if (!entry || entry.score == null) {
                 return (
-                  <div key={meta.key} className="flex items-center justify-between py-2 border-b border-border/50">
-                    <span className="text-sm text-text-primary font-medium">{meta.name}</span>
-                    <span className="text-xs text-text-muted font-light">— insufficient data</span>
+                  <div key={meta.key} className="flex items-center justify-between py-3 gap-4 opacity-70">
+                    <div className="min-w-0">
+                      <div className="text-[13px] text-text-primary">{meta.name}</div>
+                      <div className="text-[11px] text-text-muted mt-0.5">{meta.note}</div>
+                    </div>
+                    <span className="label-xs">Insufficient data</span>
                   </div>
                 );
               }
 
+              const tier = scoreTier(entry.score);
               return (
                 <Link
                   key={meta.key}
                   to={`/matches?algo=${meta.key}`}
-                  className="flex items-start justify-between py-2 border-b border-border/50 hover:bg-surface-hover rounded px-1 -mx-1 transition-colors"
+                  className="group flex items-start justify-between gap-4 py-3 -mx-2 px-2 rounded-lg hover:bg-surface-2 transition-colors"
                 >
-                  <div>
-                    <div className="flex items-baseline gap-3">
-                      <span className="text-sm text-text-primary font-medium">{meta.name}</span>
-                      <span className={`font-mono font-bold text-base ${scoreColorClass(entry.score)}`}>
-                        {entry.score}
-                      </span>
-                      <span className="text-xs text-text-muted font-mono">
-                        ranked #{entry.rank} of {entry.totalRanked}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-[13px] text-text-primary">{meta.name}</span>
+                      <span className="num text-[10px] text-text-muted">
+                        #{entry.rank} of {entry.totalRanked}
                       </span>
                     </div>
                     {meta.key === 'ensembleConsensus' && entry.consensusEngines != null && (
-                      <p className="text-[10px] text-text-muted font-light mt-0.5">
-                        {entry.consensusEngines} / {entry.totalEngines} engines rank this top-of-pool
+                      <p className="text-[11px] text-text-muted mt-1 m-0">
+                        {entry.consensusEngines} of {entry.totalEngines} engines rank this top-of-pool
                       </p>
                     )}
                     {entry.topSignals?.length > 0 && (
-                      <p className="text-[10px] text-text-muted font-light mt-0.5">
-                        Top signals: {entry.topSignals.join(', ')}
+                      <p className="text-[11px] text-text-muted mt-1 m-0">
+                        <span className="label-xs mr-1.5">Top</span>
+                        {entry.topSignals.join(' · ')}
                       </p>
                     )}
                     {entry.weakSignals?.length > 0 && (
-                      <p className="text-[10px] text-text-muted/70 font-light mt-0.5">
-                        Low signal: {entry.weakSignals.join(', ')}
+                      <p className="text-[11px] text-text-muted/70 mt-0.5 m-0">
+                        <span className="label-xs mr-1.5">Weak</span>
+                        {entry.weakSignals.join(' · ')}
                       </p>
                     )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className={`score-badge score-${tier}`}>{entry.score}</div>
+                    <svg
+                      className="w-3.5 h-3.5 text-text-muted opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </div>
                 </Link>
               );
@@ -262,47 +280,78 @@ export default function StockDetail() {
         )}
       </div>
 
-      {/* Section 5: Primary CTA (placed before metrics per spec note — repeated at bottom) */}
-      <div className="mb-6">
-        <Link to={findSimilarTo} className="btn-primary w-full sm:w-auto inline-flex items-center gap-2">
-          Find similar stocks →
-        </Link>
-      </div>
-
-      {/* Section 4: Metrics groups */}
       {snapshot && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
           {METRIC_GROUPS.map(group => (
             <div key={group.label} className="card">
-              <p className="section-label mb-3">{group.label}</p>
-              {group.metrics.map(key => (
-                <div key={key} className="flex items-center justify-between py-2 border-b border-border/30 last:border-b-0">
-                  <span className="text-xs text-text-muted uppercase tracking-wider">
-                    {METRIC_LABELS[key] || key}
-                  </span>
-                  <span className={`text-sm font-mono font-semibold ${snapshot[key] == null ? 'text-text-muted/40' : 'text-text-primary'}`}>
-                    {formatMetric(key, snapshot[key])}
-                  </span>
-                </div>
-              ))}
+              <p className="section-label mb-3 m-0">{group.label}</p>
+              <div className="divide-y divide-border/50">
+                {group.metrics.map(key => (
+                  <div key={key} className="flex items-center justify-between py-2">
+                    <span className="label-xs">
+                      {METRIC_LABELS[key] || key}
+                    </span>
+                    <span className={`num text-[13px] ${snapshot[key] == null ? 'text-text-muted/50' : 'text-text-primary'}`}>
+                      {formatMetric(key, snapshot[key])}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* Section 5 (bottom repeat) + Section 6 secondary actions */}
-      <div className="flex flex-col sm:flex-row gap-3 mt-6">
-        <Link to={findSimilarTo} className="btn-primary inline-flex items-center gap-2">
-          Find similar stocks →
-        </Link>
-        <button
-          className={`btn-secondary ${watchlisted ? 'text-emerald-400 border-emerald-500/20' : ''}`}
-          onClick={handleAddToWatchlist}
-          disabled={watchlisted || !snapshot}
-        >
-          {watchlisted ? '✓ Watchlisted' : '+ Watchlist'}
-        </button>
-      </div>
     </main>
+  );
+}
+
+function BackLink({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 text-[12px] text-text-muted hover:text-text-primary transition-colors"
+    >
+      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      </svg>
+      Back
+    </button>
+  );
+}
+
+function StockDetailSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="mt-3 h-10 w-32 bg-surface-2 rounded-md" />
+      <div className="mt-3 h-4 w-64 bg-surface-2 rounded" />
+      <div className="card mt-6 mb-6">
+        <div className="h-3 w-20 bg-surface-2 rounded mb-3" />
+        <div className="h-8 w-28 bg-surface-2 rounded" />
+      </div>
+      <div className="card mb-6">
+        <div className="h-3 w-24 bg-surface-2 rounded mb-4" />
+        <div className="flex flex-col gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <div className="h-3 w-40 bg-surface-2 rounded" />
+              <div className="h-7 w-11 bg-surface-2 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="card">
+            <div className="h-3 w-20 bg-surface-2 rounded mb-3" />
+            {[...Array(4)].map((_, j) => (
+              <div key={j} className="flex items-center justify-between py-2">
+                <div className="h-3 w-24 bg-surface-2 rounded" />
+                <div className="h-3 w-14 bg-surface-2 rounded" />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

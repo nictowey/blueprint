@@ -141,18 +141,44 @@ export default function ComparisonDetail() {
   if (!ticker || !date || !matchTicker) return null;
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 animate-fade-in">
-      {/* Nav */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-6 sm:mb-8">
-        <button className="btn-secondary" onClick={() => navigate(-1)}>← Back to Results</button>
-        <div className="flex items-center gap-2 flex-wrap">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 animate-fade-in">
+      {/* Editorial header */}
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <button
+            onClick={() => navigate(-1)}
+            className="text-[12px] text-text-muted hover:text-text-primary transition-colors inline-flex items-center gap-1.5 mb-3"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to results
+          </button>
+          {data ? (
+            <h1 className="font-display leading-[1.15] m-0" style={{ fontSize: 'clamp(1.75rem, 3vw, 2.25rem)' }}>
+              <Link to={`/stock/${encodeURIComponent(data.template.ticker)}?date=${data.template.date}`} className="gold-grad hover:underline">{data.template.ticker}</Link>
+              <span className="text-text-muted italic mx-3" style={{ fontSize: '0.75em' }}>vs</span>
+              <Link to={`/stock/${encodeURIComponent(data.match.ticker)}?date=${data.match.date || data.template.date}`} className="gold-grad hover:underline">{data.match.ticker}</Link>
+            </h1>
+          ) : (
+            <h1 className="font-display leading-[1.15] m-0" style={{ fontSize: 'clamp(1.75rem, 3vw, 2.25rem)' }}>
+              <span className="gold-grad">{ticker}</span>
+              <span className="text-text-muted italic mx-3" style={{ fontSize: '0.75em' }}>vs</span>
+              <span className="gold-grad">{matchTicker}</span>
+            </h1>
+          )}
+          {data && (
+            <p className="text-text-secondary text-sm mt-2 max-w-2xl leading-relaxed m-0">
+              How closely {data.match.ticker} today mirrors {data.template.ticker} at {data.template.date}.
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <ShareBar />
           {data && (
             <button
               className={`btn-secondary text-xs ${watchlisted ? 'text-emerald-400 border-emerald-500/20' : 'hover:border-brand/30 hover:text-brand'}`}
               onClick={handleAddToWatchlist}
               disabled={watchlisted}
-          >
+            >
               {watchlisted ? '✓ Watchlisted' : '+ Watchlist'}
             </button>
           )}
@@ -171,7 +197,7 @@ export default function ComparisonDetail() {
 
       {data && !loading && (
         <>
-        {/* Match score header — premium layout */}
+        {/* Match score — ring + signals */}
         {data.matchScore != null && (() => {
           const s = data.matchScore;
           const scoreColor = s >= 70 ? '#22c55e' : s >= 55 ? '#c9a84c' : '#ef4444';
@@ -180,11 +206,10 @@ export default function ComparisonDetail() {
 
           return (
             <div className="card mb-6">
-              <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-                {/* Score ring */}
+              <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-7">
                 <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0">
                   <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r="34" fill="none" stroke="#1c1c2e" strokeWidth="5" />
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="var(--color-border)" strokeWidth="5" />
                     <circle
                       cx="40" cy="40" r="34" fill="none"
                       stroke={scoreColor} strokeWidth="5" strokeLinecap="round"
@@ -194,50 +219,27 @@ export default function ComparisonDetail() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-2xl sm:text-3xl font-bold font-mono" style={{ color: scoreColor, lineHeight: 1 }}>
+                    <span className="num text-2xl sm:text-3xl font-bold" style={{ color: scoreColor, lineHeight: 1 }}>
                       {Math.round(s)}
                     </span>
                   </div>
                 </div>
 
-                {/* Match info */}
-                <div className="flex-1 text-center sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start gap-2 mb-1.5 flex-wrap">
-                    <Link
-                      to={`/stock/${encodeURIComponent(data.template.ticker)}?date=${data.template.date}`}
-                      className="font-mono font-bold text-lg text-text-primary hover:underline"
-                    >
-                      {data.template.ticker}
-                    </Link>
-                    <span className="text-text-muted font-display italic text-sm">vs</span>
-                    <Link
-                      to={`/stock/${encodeURIComponent(data.match.ticker)}?date=${data.match.date || data.template.date}`}
-                      className="font-mono font-bold text-lg text-text-primary hover:underline"
-                    >
-                      {data.match.ticker}
-                    </Link>
+                <div className="flex-1 min-w-0 text-center sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mb-2 flex-wrap">
+                    <span className="label-xs">Similarity</span>
                     <span
-                      className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full"
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                       style={{ color: scoreColor, background: `${scoreColor}10`, border: `1px solid ${scoreColor}30` }}
                     >
-                      {gradeLabel} Match
+                      {gradeLabel}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-center sm:justify-start gap-3 flex-wrap">
-                    <span className="text-xs text-text-muted font-mono">{data.metricsCompared}/{data.totalMetrics || 28} metrics</span>
+                    <span className="num text-[11px] text-text-muted">{data.metricsCompared}/{data.totalMetrics || 28} metrics</span>
                     {data.confidence && (
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-                        data.confidence.level === 'complete'
-                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
-                          : data.confidence.level === 'adequate'
-                            ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-                            : 'border-red-500/20 bg-red-500/10 text-red-400'
-                      }`} title={`Data coverage: ${data.confidence.coverageRatio}% (${data.confidence.metricsAvailable} metrics)`}>
-                        {data.confidence.coverageRatio}% data coverage
-                      </span>
+                      <span className="num text-[11px] text-text-muted">· {data.confidence.coverageRatio}% coverage</span>
                     )}
                   </div>
-                  <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 mt-2.5">
+                  <div className="flex flex-wrap justify-center sm:justify-start gap-1.5">
                     {data.topMatches?.map(key => (
                       <span key={key} className="tag-green">{METRIC_LABELS[key] || key} ✓</span>
                     ))}

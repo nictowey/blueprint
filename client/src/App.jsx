@@ -1,6 +1,7 @@
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './utils/theme';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
 import TemplatePicker from './pages/TemplatePicker';
@@ -29,31 +30,7 @@ export default function App() {
             <Route path="/watchlist"  element={<WatchlistPage />} />
             <Route path="*"           element={<NotFound />} />
           </Routes>
-          <footer className="mt-auto safe-bottom py-8 sm:py-10 bg-surface border-t border-border">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-text-muted">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{
-                    background: 'linear-gradient(135deg, rgba(201,168,76,0.15) 0%, rgba(201,168,76,0.05) 100%)',
-                  }}>
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-                      <rect x="1" y="1" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.7"/>
-                      <rect x="9" y="1" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.35"/>
-                      <rect x="1" y="9" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.35"/>
-                      <rect x="9" y="9" width="6" height="6" rx="1.5" fill="#c9a84c" opacity="0.15"/>
-                    </svg>
-                  </div>
-                  <span className="font-display text-sm text-text-secondary">Blueprint</span>
-                </div>
-                <div className="flex items-center gap-4 flex-wrap justify-center">
-                  <Link to="/proof" className="hover:text-text-secondary transition-colors duration-200">Methodology</Link>
-                  <Link to="/watchlist" className="hover:text-text-secondary transition-colors duration-200">Watchlist</Link>
-                  <span>Data via FMP</span>
-                  <span>Not financial advice</span>
-                </div>
-              </div>
-            </div>
-          </footer>
+          <Footer />
         </div>
       </ErrorBoundary>
     </ThemeProvider>

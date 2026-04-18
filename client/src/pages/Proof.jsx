@@ -248,98 +248,45 @@ export default function Proof() {
 
   return (
     <main className="max-w-4xl w-full min-w-0 mx-auto px-4 sm:px-6 py-10 animate-fade-in">
-      {/* Hero */}
-      <div className="text-center mb-10">
-        <h1 className="text-2xl sm:text-3xl font-display text-text-primary mb-2">
-          How Blueprint Works
+      <div className="text-center mb-12">
+        <p className="label-xs mb-3">Methodology · how Blueprint works</p>
+        <h1 className="font-display leading-[1.05] m-0" style={{ fontSize: 'clamp(2.25rem, 5vw, 3.5rem)' }}>
+          The <span className="gold-grad">proof</span> behind every match
         </h1>
-        <p className="text-text-secondary text-sm font-light max-w-xl mx-auto">
-          Blueprint runs multiple independent algorithms — template-matching on 28 financial metrics,
-          technical breakout detection, and live catalyst signals — then surfaces the stocks they
-          agree on. Each engine carries its own backtest record below.
+        <p className="text-text-secondary text-[14px] font-light max-w-2xl mx-auto mt-4 leading-relaxed">
+          Four independent engines — template-matching on 28 financial metrics, technical breakout detection,
+          live catalyst signals, and a cross-engine consensus layer — each carrying its own backtest record.
         </p>
       </div>
 
-      {/* How it Works — 3 steps from homepage */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="card text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto mb-3">
-            <span className="text-brand font-display text-lg">1</span>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-12">
+        {[
+          { n: '4', label: 'ranking algorithms' },
+          { n: '28', label: 'template metrics' },
+          { n: '8', label: 'similarity functions' },
+          { n: '5', label: 'strategy profiles' },
+        ].map(s => (
+          <div key={s.label} className="card text-center py-5">
+            <p className="font-display m-0 gold-grad" style={{ fontSize: 'clamp(1.75rem, 3vw, 2.25rem)', lineHeight: 1 }}>{s.n}</p>
+            <p className="label-xs mt-2 m-0">{s.label}</p>
           </div>
-          <p className="text-text-primary font-medium text-sm mb-1">Pick a winner</p>
-          <p className="text-text-muted text-xs font-light">
-            Choose a stock that broke out and the date before it ran.
-          </p>
-        </div>
-        <div className="card text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto mb-3">
-            <span className="text-brand font-display text-lg">2</span>
-          </div>
-          <p className="text-text-primary font-medium text-sm mb-1">Find matches</p>
-          <p className="text-text-muted text-xs font-light">
-            Blueprint scans thousands of stocks for financial lookalikes.
-          </p>
-        </div>
-        <div className="card text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto mb-3">
-            <span className="text-brand font-display text-lg">3</span>
-          </div>
-          <p className="text-text-primary font-medium text-sm mb-1">Validate & track</p>
-          <p className="text-text-muted text-xs font-light">
-            Backtest against SPY, compare metrics, build your watchlist.
-          </p>
-        </div>
+        ))}
       </div>
 
-      {/* Stats row */}
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-3 sm:gap-6 mb-10 text-center">
-        <div>
-          <p className="text-xl font-display text-brand">4</p>
-          <p className="text-text-muted text-xs font-light">ranking algorithms</p>
-        </div>
-        <div>
-          <p className="text-xl font-display text-brand">28</p>
-          <p className="text-text-muted text-xs font-light">template metrics</p>
-        </div>
-        <div>
-          <p className="text-xl font-display text-brand">8</p>
-          <p className="text-text-muted text-xs font-light">similarity functions</p>
-        </div>
-        <div>
-          <p className="text-xl font-display text-brand">5</p>
-          <p className="text-text-muted text-xs font-light">strategy profiles</p>
-        </div>
-      </div>
-
-      {/* Detailed process flow */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-        <div className="card text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto mb-3">
-            <span className="text-brand font-display text-lg">1</span>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
+        {[
+          { n: '1', title: 'Capture the fingerprint', desc: 'Pick a stock that broke out. Blueprint extracts its exact 28-metric financial profile at that moment.' },
+          { n: '2', title: 'Scan for lookalikes', desc: 'Compare against 3,500+ current stocks using specialized similarity functions tuned to each metric type.' },
+          { n: '3', title: 'Investigate & track', desc: 'Compare side-by-side, drill into metrics, check historical backtests, build your watchlist.' },
+        ].map(s => (
+          <div key={s.n} className="card py-6">
+            <div className="w-9 h-9 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mb-3">
+              <span className="font-display text-[15px]" style={{ color: 'var(--color-brand-2)' }}>{s.n}</span>
+            </div>
+            <p className="text-text-primary text-[14px] font-medium mb-1 m-0">{s.title}</p>
+            <p className="text-text-muted text-[12px] leading-relaxed m-0">{s.desc}</p>
           </div>
-          <p className="text-text-primary font-medium text-sm mb-1">Capture the fingerprint</p>
-          <p className="text-text-muted text-xs font-light">
-            Pick a stock that broke out. Blueprint extracts its exact financial profile at that moment — 28 metrics across valuation, growth, profitability, and more.
-          </p>
-        </div>
-        <div className="card text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto mb-3">
-            <span className="text-brand font-display text-lg">2</span>
-          </div>
-          <p className="text-text-primary font-medium text-sm mb-1">Scan for lookalikes</p>
-          <p className="text-text-muted text-xs font-light">
-            The algorithm compares that fingerprint against 3,500+ current stocks using specialized similarity functions tuned to each metric type.
-          </p>
-        </div>
-        <div className="card text-center py-6">
-          <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center mx-auto mb-3">
-            <span className="text-brand font-display text-lg">3</span>
-          </div>
-          <p className="text-text-primary font-medium text-sm mb-1">Investigate matches</p>
-          <p className="text-text-muted text-xs font-light">
-            Compare side-by-side, drill into individual metrics, check historical backtests, and build your watchlist of candidates.
-          </p>
-        </div>
+        ))}
       </div>
 
       {/* The concept */}
