@@ -164,8 +164,15 @@ if (require.main === module) {
   const { startCache } = require('./services/universe');
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[server] Running on 0.0.0.0:${PORT}`);
-    startCache();
-    scheduleCatalystWarm();
+    // Temporary kill switch for FMP background traffic (universe build +
+    // incremental refresh + catalyst warm). Unset PAUSE_FMP_BACKGROUND to
+    // restore normal behavior once quota resets.
+    if (process.env.PAUSE_FMP_BACKGROUND === 'true') {
+      console.log('[server] PAUSE_FMP_BACKGROUND=true — skipping universe cache + catalyst warm');
+    } else {
+      startCache();
+      scheduleCatalystWarm();
+    }
   });
 }
 
